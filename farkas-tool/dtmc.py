@@ -2,6 +2,7 @@ from __future__ import annotations
 from scipy.sparse import dok_matrix
 from typing import Set, Dict, Tuple, Callable
 from graphviz import Digraph
+import prism as prism
 import re
 import numpy as np
 
@@ -46,7 +47,7 @@ class DTMC:
     @staticmethod
     def from_file(label_file_path : str, tra_file_path : str) -> DTMC:
         # identify all states
-        states_by_label, labels_by_state, labelid_to_label = DTMC.__load_states(label_file_path)
+        states_by_label, labels_by_state, labelid_to_label = prism.parse_label_file(filepath)
         # then load the transition matrix
         P = DTMC.__load_transition_matrix(tra_file_path)
         return DTMC(P, states_by_label)
@@ -61,34 +62,6 @@ class DTMC:
                 for state in states:
                     self.__labels_by_state[state].add(label)
         return self.__labels_by_state
-
-    @staticmethod
-    def __load_states(filepath : str) -> Dict[str, Set[int]]:
-        labelid_to_label = {}
-        states_by_label = {}
-        labels_by_state = {}
-
-        mark_regexp = re.compile(r"([0-9]+)=\"(.*?)\"")
-        line_regexp = re.compile(r"([0-9]+):([\W,0-9]+)")
-        with open(filepath) as label_file:
-            lines = label_file.readlines()
-            regexp_res = re.finditer(mark_regexp, lines[0])
-            for _, match in enumerate(regexp_res, start=1):
-                labelid, label = int(match.group(1)), match.group(2)
-                labelid_to_label[labelid] = label
-                states_by_label[label] = set({})
-
-            for line in lines[1:]:
-                regexp_res = line_regexp.search(line)
-                state_labelids = map(int, regexp_res.group(2).split())
-                stateidx = int(regexp_res.group(1))
-                labels_by_state[stateidx] = set({})
-                for labelid in state_labelids:
-                    label = labelid_to_label[labelid]
-                    labels_by_state[stateidx].add(label)
-                    states_by_label[label].add(stateidx)
-
-        return states_by_label, labels_by_state, labelid_to_label
 
     @staticmethod
     def __load_transition_matrix(filepath : str) -> dok_matrix:
