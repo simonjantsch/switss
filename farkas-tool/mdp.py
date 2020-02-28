@@ -5,6 +5,8 @@ from scipy.sparse import dok_matrix
 from typing import Set, Dict, Tuple, Callable
 import numpy as np
 import re
+import tempfile
+import os.path
 import prism as prism
 
 class MDP:
@@ -52,6 +54,19 @@ class MDP:
     @staticmethod
     def __get_state_action(index_by_state_action : bidict, index : int) -> int:
         return index_by_state_action.inverse[index]
+
+    @staticmethod
+    def from_prism_model(model_file_path : str,
+                         prism_constants : Dict[str,int] = {},
+                         extra_labels : Dict[str,str] = {}) -> MDP:
+        with tempfile.TemporaryDirectory() as tempdirname:
+            temp_model_file = os.path.join(tempdirname, "model")
+            temp_tra_file = temp_model_file + ".tra"
+            temp_lab_file = temp_model_file + ".lab"
+            if prism.prism_to_tra(model_file_path,temp_model_file,prism_constants,extra_labels):
+                return MDP.from_file(temp_lab_file,temp_tra_file)
+            else:
+                assert False, "Prism call to create model failed."
 
     @staticmethod
     def from_file(label_file_path : str, tra_file_path : str) -> MDP:

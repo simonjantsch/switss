@@ -5,6 +5,8 @@ from graphviz import Digraph
 import prism as prism
 import re
 import numpy as np
+import tempfile
+import os.path
 
 GRAPHVIZ_COLORS = ['coral2', 'cadetblue3', 'gold', 'coral1', 'aquamarine4', 'darkslategrey',
                    'cyan2', 'antiquewhite3', 'coral', 'azure4', 'darkkhaki', 'deeppink',
@@ -45,9 +47,22 @@ class DTMC:
         self.__labels_by_state = None
 
     @staticmethod
+    def from_prism_model(model_file_path : str,
+                         prism_constants : Dict[str,int] = {},
+                         extra_labels : Dict[str,str] = {}) -> DTMC:
+        with tempfile.TemporaryDirectory() as tempdirname:
+            temp_model_file = os.path.join(tempdirname, "model")
+            temp_tra_file = temp_model_file + ".tra"
+            temp_lab_file = temp_model_file + ".lab"
+            if prism.prism_to_tra(model_file_path,temp_model_file,prism_constants,extra_labels):
+                return DTMC.from_file(temp_lab_file,temp_tra_file)
+            else:
+                assert False, "Prism call to create model failed."
+
+    @staticmethod
     def from_file(label_file_path : str, tra_file_path : str) -> DTMC:
         # identify all states
-        states_by_label, labels_by_state, labelid_to_label = prism.parse_label_file(filepath)
+        states_by_label, labels_by_state, labelid_to_label = prism.parse_label_file(label_file_path)
         # then load the transition matrix
         P = DTMC.__load_transition_matrix(tra_file_path)
         return DTMC(P, states_by_label)
