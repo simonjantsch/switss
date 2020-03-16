@@ -9,3 +9,12 @@
     * scipy
     * numpy
     * bidict
+
+## Sphinx (Documentation)
+* install Sphinx via `pip3 install sphinx`
+* generate documentation by doing the following steps: 
+```sh
+cd docs
+make html
+xdg-open build/html/index.html
+```
