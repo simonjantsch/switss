@@ -1,0 +1,456 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>DTMC module &#8212; Farkas  documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="#">Farkas  documentation</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="toctree-wrapper compound">
+</div>
+<div class="section" id="dtmc-module">
+<h1>DTMC module<a class="headerlink" href="#dtmc-module" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="dtmc.DTMC">
+<em class="property">class </em><code class="sig-prename descclassname">dtmc.</code><code class="sig-name descname">DTMC</code><span class="sig-paren">(</span><em class="sig-param">P</em>, <em class="sig-param">states_by_label=None</em><span class="sig-paren">)</span><a class="headerlink" href="#dtmc.DTMC" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initializes a new DTMC.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>P</strong> (<em>scipy.sparse.dok_matrix</em>) – A (NxN) matrix that contains the transition probabilities</p></li>
+<li><p><strong>states_by_label</strong> (<em>Dict</em><em>[</em><em>str</em><em>, </em><em>Set</em><em>[</em><em>int</em><em>]</em><em>]</em><em>, </em><em>optional</em>) – A function that assigns labels (string) to sets of states, defaults to None</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="method">
+<dt id="dtmc.DTMC.from_file">
+<em class="property">static </em><code class="sig-name descname">from_file</code><span class="sig-paren">(</span><em class="sig-param">label_file_path</em>, <em class="sig-param">tra_file_path</em><span class="sig-paren">)</span><a class="headerlink" href="#dtmc.DTMC.from_file" title="Permalink to this definition">¶</a></dt>
+<dd><p>Creates a DTMC from a model specified by a set of labels and transitions.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>label_file_path</strong> (<em>str</em>) – the file describing state labels (type is .lab)</p></li>
+<li><p><strong>tra_file_path</strong> (<em>str</em>) – the file describing state transitions (type is .tra)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>the resulting DTMC</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p><a class="reference internal" href="#dtmc.DTMC" title="dtmc.DTMC">dtmc.DTMC</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="dtmc.DTMC.from_prism_model">
+<em class="property">static </em><code class="sig-name descname">from_prism_model</code><span class="sig-paren">(</span><em class="sig-param">model_file_path</em>, <em class="sig-param">prism_constants={}</em>, <em class="sig-param">extra_labels={}</em><span class="sig-paren">)</span><a class="headerlink" href="#dtmc.DTMC.from_prism_model" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initializes a new DTMC from a PRISM model</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>model_file_path</strong> (<em>str</em>) – file path of model without file type (e.g. tra or lab)</p></li>
+<li><p><strong>prism_constants</strong> (<em>Dict</em><em>[</em><em>str</em><em>,</em><em>int</em><em>]</em><em>, </em><em>optional</em>) – A dictionary of constants to be assigned in the model, defaults to {}</p></li>
+<li><p><strong>extra_labels</strong> (<em>Dict</em><em>[</em><em>str</em><em>,</em><em>str</em><em>]</em><em>, </em><em>optional</em>) – A dictionary that defines additional labels (than the ones defined in the prism module) to be added to the .lab file. The keys are label names and the values are PRISM expressions over the module variables, defaults to {}</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>the DTMC</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p><a class="reference internal" href="#dtmc.DTMC" title="dtmc.DTMC">dtmc.DTMC</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="dtmc.DTMC.graphviz_digraph">
+<code class="sig-name descname">graphviz_digraph</code><span class="sig-paren">(</span><em class="sig-param">state_map=None</em>, <em class="sig-param">trans_map=None</em><span class="sig-paren">)</span><a class="headerlink" href="#dtmc.DTMC.graphviz_digraph" title="Permalink to this definition">¶</a></dt>
+<dd><p>creates a graphviz.Digraph object from this DTMC.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state_map</strong> (<em>(</em><em>stateidx</em><em>, </em><em>labels</em><em>) </em><em>-&gt; {&quot;color&quot; : str</em><em>, </em><em>&quot;label&quot; : str</em><em>, </em><em>&quot;enable&quot; : bool}</em><em> , </em><em>optional</em>) – a function that is able to enable/disable states and computes a color and a label, defaults to None</p></li>
+<li><p><strong>trans_map</strong> (<em>(</em><em>sourceidx</em><em>, </em><em>destidx</em><em>, </em><em>sourcelabels</em><em>, </em><em>destlabels</em><em>, </em><em>p</em><em>) </em><em>-&gt; {&quot;color&quot; : str</em><em>, </em><em>&quot;label&quot; : str</em><em>, </em><em>&quot;enable&quot; : bool}</em><em>, </em><em>optional</em>) – a function that is able to enable/disable state transitions and computes a color and a label, defaults to None</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>the Digraph</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>graphviz.Digraph</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="dtmc.DTMC.labels_by_state">
+<code class="sig-name descname">labels_by_state</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#dtmc.DTMC.labels_by_state" title="Permalink to this definition">¶</a></dt>
+<dd><p>inverse of dtmc.states_by_label, i.e. gives a dictionary that specifies a set of labels for each state.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>the dictionary</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>Dict[int, Set[str]]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="dtmc.DTMC.reachable">
+<em class="property">static </em><code class="sig-name descname">reachable</code><span class="sig-paren">(</span><em class="sig-param">P</em>, <em class="sig-param">initial</em>, <em class="sig-param">mode</em><span class="sig-paren">)</span><a class="headerlink" href="#dtmc.DTMC.reachable" title="Permalink to this definition">¶</a></dt>
+<dd><p>returns the set of all states that are forward or backwards reachable from a set of states</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>P</strong> (<em>scipy.sparse.dok_matrix</em>) – the transition matrix</p></li>
+<li><p><strong>initial</strong> (<em>Set</em><em>[</em><em>int</em><em>]</em>) – initial set of states for the reachability check</p></li>
+<li><p><strong>mode</strong> (<em>str</em>) – either “forward” or “backward”; the reachability mode</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>the set of states that are reachable</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>Set[int]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="dtmc.DTMC.reduce">
+<code class="sig-name descname">reduce</code><span class="sig-paren">(</span><em class="sig-param">initial_label</em>, <em class="sig-param">targets_label</em><span class="sig-paren">)</span><a class="headerlink" href="#dtmc.DTMC.reduce" title="Permalink to this definition">¶</a></dt>
+<dd><p>Creates a reduced DTMC from a given transition matrix, an initial state (index) and a set of target states (indices).
+Will do a forwards (states which are reachable from the initial state) and
+backwards (states which are able to reach the target states) reachability test on the states of the given DTMC.
+Removes states which fail the forwards reachability test. Will also remap all target states to a single new
+target state and all fail states (states which fail the backwards reachability test) to one single fail state.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>initial_label</strong> (<em>str</em>) – the label of the initial state, which must yield exactly one initial state</p></li>
+<li><p><strong>targets_label</strong> (<em>str</em>) – the label of the target states, which must yield at least one target state</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>the reduced DTMC</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p><a class="reference internal" href="#dtmc.ReducedDTMC" title="dtmc.ReducedDTMC">dtmc.ReducedDTMC</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="dtmc.DTMC.save">
+<code class="sig-name descname">save</code><span class="sig-paren">(</span><em class="sig-param">filepath</em><span class="sig-paren">)</span><a class="headerlink" href="#dtmc.DTMC.save" title="Permalink to this definition">¶</a></dt>
+<dd><p>Saves the .tra and .lab-file according to the given filepath</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>filepath</strong> (<em>str</em>) – the file path</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>path of .tra and .lab-file</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>Tuple[str,str]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="dtmc.DTMC.states_by_label">
+<code class="sig-name descname">states_by_label</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#dtmc.DTMC.states_by_label" title="Permalink to this definition">¶</a></dt>
+<dd><p>A dictionary that yields a set of states for each label.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>the dictionary</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>Dict[str, Set[int]]</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="dtmc.ReducedDTMC">
+<em class="property">class </em><code class="sig-prename descclassname">dtmc.</code><code class="sig-name descname">ReducedDTMC</code><span class="sig-paren">(</span><em class="sig-param">P</em>, <em class="sig-param">to_target</em>, <em class="sig-param">initial</em><span class="sig-paren">)</span><a class="headerlink" href="#dtmc.ReducedDTMC" title="Permalink to this definition">¶</a></dt>
+<dd><p>Creates a DTMC from a given transition matrix (not containing reachability probabilities from or to the target state),
+a vector containing the probabilties of reaching the target state in one step (to_target= <span class="math notranslate nohighlight">\(b\)</span>) and a given initial state index.
+This is equivalent to giving the DTMC in the form <span class="math notranslate nohighlight">\(x = P x + b\)</span>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>P</strong> (<em>scipy.sparse.dok_matrix</em>) – (NxN) transition matrix</p></li>
+<li><p><strong>to_target</strong> (<em>np.ndarray</em>) – probability of reaching the target state in one step</p></li>
+<li><p><strong>initial</strong> (<em>int</em>) – index of the initial state</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="method">
+<dt id="dtmc.ReducedDTMC.as_dtmc">
+<code class="sig-name descname">as_dtmc</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#dtmc.ReducedDTMC.as_dtmc" title="Permalink to this definition">¶</a></dt>
+<dd><p>creates a DTMC from this ReducedDTMC.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>the DTMC</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p><a class="reference internal" href="#dtmc.DTMC" title="dtmc.DTMC">dtmc.DTMC</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="mdp-module">
+<h1>MDP module<a class="headerlink" href="#mdp-module" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="mdp.MDP">
+<em class="property">class </em><code class="sig-prename descclassname">mdp.</code><code class="sig-name descname">MDP</code><span class="sig-paren">(</span><em class="sig-param">P</em>, <em class="sig-param">index_by_state_action</em>, <em class="sig-param">states_by_label=None</em><span class="sig-paren">)</span><a class="headerlink" href="#mdp.MDP" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initializes a MDP.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>P</strong> (<em>scipy.sparse.dok_matrix</em>) – A (C x N) matrix where N is the number of states of the MDP, and C is the number of active state-action pairs.
+A row gives the probabilistic distribution over successor states for some state-action pair.</p></li>
+<li><p><strong>index_by_state_action</strong> (<em>bidict.bidict</em>) – A bidirectional dictionary that maps a state-action pair to its index in the matrix P.</p></li>
+<li><p><strong>states_by_label</strong> (<em>Dict</em><em>[</em><em>str</em><em>, </em><em>Set</em><em>[</em><em>int</em><em>]</em><em>]</em><em>, </em><em>optional</em>) – A dictionary that defines labels over the MDP.
+Each label is mapped to a subset of the states, defaults to None</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="method">
+<dt id="mdp.MDP.reachable">
+<em class="property">static </em><code class="sig-name descname">reachable</code><span class="sig-paren">(</span><em class="sig-param">P</em>, <em class="sig-param">index_by_state_action</em>, <em class="sig-param">initial</em>, <em class="sig-param">mode</em><span class="sig-paren">)</span><a class="headerlink" href="#mdp.MDP.reachable" title="Permalink to this definition">¶</a></dt>
+<dd><p>Computes the set of states that are either forwards and backwards reachable from some given state.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>P</strong> (<em>scipy.sparse.dok_matrix</em>) – the transition matrix</p></li>
+<li><p><strong>index_by_state_action</strong> (<em>bidict.bidict</em>) – a mapping from state-action pairs to an index set <span class="math notranslate nohighlight">\(\{0,\dots,C\}\)</span></p></li>
+<li><p><strong>initial</strong> (<em>Set</em><em>[</em><em>int</em><em>]</em>) – set of initial states</p></li>
+<li><p><strong>mode</strong> (<em>str</em>) – either “forward” or “backward”, indicating the direction of search</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>the set of all forwards or backwards reachable states</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>Set[int]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="mdp.MDP.reduce">
+<code class="sig-name descname">reduce</code><span class="sig-paren">(</span><em class="sig-param">initial_label</em>, <em class="sig-param">targets_label</em><span class="sig-paren">)</span><a class="headerlink" href="#mdp.MDP.reduce" title="Permalink to this definition">¶</a></dt>
+<dd><p>Creates a reduced MDP from a given transition matrix, an initial state (index) and a set of target states (indices).
+Will do a forwards (states which are reachable from the initial state) and
+backwards (states which are able to reach the target states) reachability test on the states of the given MDP.
+Removes states which fail the forwards reachability test. Will also remap all target states to a single new
+target state and all fail states (states which fail the backwards reachability test) to one single fail state.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>initial_label</strong> (<em>str</em>) – the label of the initial state, which must yield exactly one initial state</p></li>
+<li><p><strong>targets_label</strong> (<em>str</em>) – the label of the target states, which must yield at least one target state</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>the reduced MDP</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>mdp.ReducedMDP</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="mdp.MDP.save">
+<code class="sig-name descname">save</code><span class="sig-paren">(</span><em class="sig-param">filepath</em><span class="sig-paren">)</span><a class="headerlink" href="#mdp.MDP.save" title="Permalink to this definition">¶</a></dt>
+<dd><p>Saves the .tra and .lab-file according to the fiven filepath</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>filepath</strong> (<em>str</em>) – the file path</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>path of .tra-file, path of .lab-file</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>Tuple[str,str]</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-prism">
+<span id="prism-module"></span><h1>Prism module<a class="headerlink" href="#module-prism" title="Permalink to this headline">¶</a></h1>
+<dl class="function">
+<dt id="prism.parse_label_file">
+<code class="sig-prename descclassname">prism.</code><code class="sig-name descname">parse_label_file</code><span class="sig-paren">(</span><em class="sig-param">filepath</em><span class="sig-paren">)</span><a class="headerlink" href="#prism.parse_label_file" title="Permalink to this definition">¶</a></dt>
+<dd><p>Parses a .lab-file</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>filepath</strong> (<em>str</em>) – the filepath</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>a dictionary mapping labels to states, a dictionary mapping states to labels, a dictionary mapping indices to labels</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>Tuple[Dict[str,Set[int]], Dict[int,Set[str]], Dict[int,str]]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="prism.prism_to_tra">
+<code class="sig-prename descclassname">prism.</code><code class="sig-name descname">prism_to_tra</code><span class="sig-paren">(</span><em class="sig-param">model_path</em>, <em class="sig-param">destination_path</em>, <em class="sig-param">prism_constants={}</em>, <em class="sig-param">extra_labels={}</em><span class="sig-paren">)</span><a class="headerlink" href="#prism.prism_to_tra" title="Permalink to this definition">¶</a></dt>
+<dd><p>Translates a prism model into an explicit representation as .tra,.sta,.lab files.
+To this end prism is called, which needs to be present in the path.
+In order to add additional labels to the model, the model file is copied into a temporary file which is appended by the label declarations.</p>
+<p>The command that is executed is:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>prism filepath -const <span class="o">[</span><span class="nv">C</span><span class="o">=</span>j <span class="k">for</span> <span class="o">(</span>C,j<span class="o">)</span> in prism_constants<span class="o">]</span> -exportmodel destination_path.tra,sta,lab
+</pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>model_path</strong> (<em>str</em>) – A prism model file (.nm,.pm)</p></li>
+<li><p><strong>destination_path</strong> (<em>str</em>) – a filepath without extension where the resulting explicit model files are written to.
+For example, passing “FILE” will create the files “FILE.tra”, “FILE.lab” and “FILE.sta”.</p></li>
+<li><p><strong>prism_constants</strong> (<em>Dict</em><em>[</em><em>str</em><em>, </em><em>int</em><em>]</em><em>, </em><em>optional</em>) – A dictionary of constants to be assigned in the model, defaults to {}</p></li>
+<li><p><strong>extra_labels</strong> (<em>Dict</em><em>[</em><em>str</em><em>, </em><em>str</em><em>]</em><em>, </em><em>optional</em>) – A dictionary that defines additional labels (than the ones defined in the prism module) to be added
+to the .lab file. The keys are label names and the values are PRISM expressions over the module variables. Defaults to {}</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>True, if model was constructed successfully, otherwise False.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+<div class="section" id="module-graphviz_utils">
+<span id="vizualization-module"></span><h1>Vizualization module<a class="headerlink" href="#module-graphviz_utils" title="Permalink to this headline">¶</a></h1>
+<dl class="function">
+<dt id="graphviz_utils.color_from_hash">
+<code class="sig-prename descclassname">graphviz_utils.</code><code class="sig-name descname">color_from_hash</code><span class="sig-paren">(</span><em class="sig-param">obj</em><span class="sig-paren">)</span><a class="headerlink" href="#graphviz_utils.color_from_hash" title="Permalink to this definition">¶</a></dt>
+<dd><p>Derives an inidividual color from an object that can be used for a graphviz-graph. It does so
+by calculating the hash-code of the object which then maps to the respective color.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>obj</strong> – some object</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>a valid graphviz-coloring</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+<div class="section" id="indices-and-tables">
+<h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Permalink to this headline">¶</a></h1>
+<ul class="simple">
+<li><p><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></p></li>
+<li><p><a class="reference internal" href="py-modindex.html"><span class="std std-ref">Module Index</span></a></p></li>
+<li><p><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></p></li>
+</ul>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="#">Table of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">DTMC module</a></li>
+<li><a class="reference internal" href="#mdp-module">MDP module</a></li>
+<li><a class="reference internal" href="#module-prism">Prism module</a></li>
+<li><a class="reference internal" href="#module-graphviz_utils">Vizualization module</a></li>
+<li><a class="reference internal" href="#indices-and-tables">Indices and tables</a></li>
+</ul>
+
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/index.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="#">Farkas  documentation</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2020, Funke, Jantsch, Harder.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.4.4.
+    </div>
+  </body>
+</html>
