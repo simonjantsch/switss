@@ -7,40 +7,22 @@ import re
 import numpy as np
 import tempfile
 import os.path
-
-GRAPHVIZ_COLORS = ['coral2', 'cadetblue3', 'gold', 'coral1', 'aquamarine4', 'darkslategrey',
-                   'cyan2', 'antiquewhite3', 'coral', 'azure4', 'darkkhaki', 'deeppink',
-                   'antiquewhite4', 'beige', 'firebrick3', 'firebrick1', 'brown1', 'darkgreen',
-                   'cornsilk1', 'darkgoldenrod2', 'cornsilk2', 'bisque3', 'darkseagreen', 'darkgoldenrod1',
-                   'deeppink3', 'darkviolet', 'chocolate2', 'crimson', 'goldenrod', 'darkseagreen2',
-                   'cornflowerblue', 'blue2', 'aquamarine2', 'darkolivegreen1', 'antiquewhite1', 'brown',
-                   'deepskyblue3', 'darkslateblue', 'dodgerblue2', 'burlywood4', 'floralwhite',
-                   'burlywood3', 'blue', 'blue3', 'deeppink1', 'blue4', 'dodgerblue4', 'cyan4', 'chocolate1',
-                   'aquamarine1', 'darkgoldenrod4', 'darkturquoise', 'darkorchid1', 'dimgray', 'cadetblue2',
-                   'darkolivegreen', 'darkorchid3', 'cadetblue1', 'azure1', 'deeppink2', 'burlywood2', 'chartreuse3',
-                   'gold3', 'darkseagreen4', 'dodgerblue3', 'firebrick4', 'blanchedalmond', 'cyan', 'darkslategray',
-                   'gold2', 'dimgrey', 'gold4', 'goldenrod2', 'goldenrod1', 'burlywood', 'cadetblue', 'gainsboro',
-                   'bisque', 'deepskyblue4', 'cyan1', 'coral4', 'darkorchid2', 'deepskyblue1',
-                   'darkorange3', 'ghostwhite', 'bisque2', 'darkslategray2', 'darkolivegreen3', 'cadetblue4',
-                   'deepskyblue', 'aquamarine3', 'cyan3', 'brown2', 'darkseagreen1', 'chocolate4',
-                   'darkorange', 'darkorange1', 'blueviolet', 'chartreuse', 'antiquewhite2', 'gold1',
-                   'cornsilk3', 'darkolivegreen2', 'chartreuse2', 'darkgoldenrod', 'brown3', 'bisque1',
-                   'darksalmon', 'deeppink4', 'blue1', 'darkgoldenrod3', 'darkolivegreen4', 'aliceblue',
-                   'burlywood1', 'darkslategray1', 'azure2', 'azure', 'darkorchid', 'dodgerblue',
-                   'cornsilk', 'darkseagreen3', 'firebrick', 'chocolate', 'goldenrod3', 'coral3', 'firebrick2',
-                   'deepskyblue2', 'bisque4', 'darkslategray4', 'darkorange2', 'azure3', 'brown4', 'chartreuse1',
-                   'chartreuse4', 'dodgerblue1', 'cornsilk4', 'darkorchid4', 'forestgreen', 'chocolate3',
-                   'antiquewhite', 'goldenrod4', 'darkslategray3', 'darkorange4', 'aquamarine']
-
-
-def color_from_hash(obj):
-    from hashlib import md5
-    hc = int(md5(str(obj).encode("utf-8")).hexdigest(), 16)
-    return GRAPHVIZ_COLORS[hc % len(GRAPHVIZ_COLORS)]
+import graphviz_utils
 
 class DTMC:
 
     def __init__(self, P : dok_matrix, states_by_label : Dict[str, Set[int]] = None):
+        """
+        Initializes a DTMC.
+        
+        Parameters
+        ----------
+        P : dok_matrix
+            A (N x N) matrix that contains transition probabilities (from,to).
+        states_by_label : Dict[str, Set[int]], optional
+            A function that assigns labels (string) to sets of states.
+        """
+
         self.P = P
         self.N = P.shape[0]
         self.__states_by_label = states_by_label
@@ -50,6 +32,27 @@ class DTMC:
     def from_prism_model(model_file_path : str,
                          prism_constants : Dict[str,int] = {},
                          extra_labels : Dict[str,str] = {}) -> DTMC:
+        """
+        Creates a DTMC from a PRISM model.
+        
+        Parameters
+        ----------
+        model_file_path : str
+            file path of model without file type (e.g. tra or lab)
+        prism_constants : Dict[str,int], optional
+            A dictionary of constants to be assigned in the model.
+        extra_labels : Dict[str,str], optional
+            A dictionary that defines additional labels (than the ones defined in the prism module) to be added to the .lab file.
+            The keys are label names and the values are PRISM expressions over the module variables.
+        
+        Returns
+        -------
+        DTMC
+            the DTMC
+        """        '''
+        Creates a discrete time markov chain (DTMC) from a PRISM-model. 
+        '''
+
         with tempfile.TemporaryDirectory() as tempdirname:
             temp_model_file = os.path.join(tempdirname, "model")
             temp_tra_file = temp_model_file + ".tra"
@@ -61,16 +64,47 @@ class DTMC:
 
     @staticmethod
     def from_file(label_file_path : str, tra_file_path : str) -> DTMC:
+        """
+        Creates a DTMC from a model specified through a set of labels and transitions.
+        
+        Parameters
+        ----------
+        label_file_path : str
+            the file describing state labels (type is .lab)
+        tra_file_path : str
+            the file describing state transitions (type is .tra)
+        
+        Returns
+        -------
+        DTMC
+            the resulting DTMC.
+        """        
         # identify all states
-        states_by_label, labels_by_state, labelid_to_label = prism.parse_label_file(label_file_path)
+        states_by_label, _, _ = prism.parse_label_file(label_file_path)
         # then load the transition matrix
         P = DTMC.__load_transition_matrix(tra_file_path)
-        return DTMC(P, states_by_label)
+        return DTMC(P, states_by_label)    
 
-    def states_by_label(self):
+    def states_by_label(self) -> Dict[str, Set[int]]:
+        """
+        A dictionary that yields a set of states for each label.
+        
+        Returns
+        -------
+        Dict[str, Set[int]]
+            the dictionary.
+        """             
         return self.__states_by_label
 
-    def labels_by_state(self):
+    def labels_by_state(self) -> Dict[int, Set[str]]:
+        """
+        Computes the inverse of states_by_label, i.e. gives a dictionary that specifies a set of labels for each state.
+        
+        Returns
+        -------
+        Dict[int, Set[str]]
+            the dictionary.
+        """                        
         if self.__labels_by_state is None:
             self.__labels_by_state = dict(enumerate([set({}) for i in range(self.N)]))
             for label, states in self.__states_by_label.items():
@@ -196,7 +230,7 @@ class DTMC:
     def graphviz_digraph(self, state_map = None, trans_map = None) -> Digraph:
 
         def standard_state_map(stateidx, labels):
-            return { "color" : color_from_hash(tuple(sorted(labels))),
+            return { "color" : graphviz_utils.color_from_hash(tuple(sorted(labels))),
                      "label" : "State %d\n%s" % (stateidx,",".join(labels)),
                      "enable" : True }
 

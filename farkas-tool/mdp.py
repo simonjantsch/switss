@@ -19,7 +19,7 @@ class MDP:
 
         Parameters
         ----------
-        P : dok_matrik
+        P : dok_matrix
             A (C x N) matrix where N is the number of states of the MDP, and C is the number of active state-action pairs.
             A row gives the probabilistic distribution over successor states for some state-action pair.
 
@@ -71,15 +71,15 @@ class MDP:
     @staticmethod
     def from_file(label_file_path : str, tra_file_path : str) -> MDP:
         # identify all states
-        states_by_label, labels_by_state, labelid_to_label = prism.parse_label_file(label_file_path)
+        states_by_label, _, _ = prism.parse_label_file(label_file_path)
         # then load the transition matrix
         index_by_state_action,P = MDP.__load_transition_matrix(tra_file_path)
         return MDP(P, index_by_state_action,states_by_label)
 
-    def states_by_label(self):
+    def states_by_label(self) -> Dict[str, Set[int]]:
         return self.__states_by_label
 
-    def labels_by_state(self):
+    def labels_by_state(self) -> Dict[int, Set[str]]:
         if self.__labels_by_state is None:
             self.__labels_by_state = dict(enumerate([set({}) for i in range(self.N)]))
             for label, states in self.__states_by_label.items():
