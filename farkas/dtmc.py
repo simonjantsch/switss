@@ -1,8 +1,6 @@
-from __future__ import annotations
 from scipy.sparse import dok_matrix
-from typing import Set, Dict, Tuple, Callable
 from graphviz import Digraph
-import prism as prism
+from prism import parse_label_file, prism_to_tra
 import re
 import numpy as np
 import tempfile
@@ -11,16 +9,13 @@ import graphviz_utils
 
 class DTMC:
 
-    def __init__(self, P : dok_matrix, states_by_label : Dict[str, Set[int]] = None):
-        """
-        Initializes a DTMC.
+    def __init__(self, P, states_by_label = None):
+        """Initializes a new DTMC.
         
-        Parameters
-        ----------
-        P : dok_matrix
-            A (N x N) matrix that contains transition probabilities (from,to).
-        states_by_label : Dict[str, Set[int]], optional
-            A function that assigns labels (string) to sets of states.
+        :param P:  A (NxN) matrix that contains the transition probabilities
+        :type P: scipy.sparse.dok_matrix
+        :param states_by_label: A function that assigns labels (string) to sets of states, defaults to None
+        :type states_by_label: Dict[str, Set[int]], optional
         """
 
         self.P = P
@@ -29,82 +24,58 @@ class DTMC:
         self.__labels_by_state = None
 
     @staticmethod
-    def from_prism_model(model_file_path : str,
-                         prism_constants : Dict[str,int] = {},
-                         extra_labels : Dict[str,str] = {}) -> DTMC:
-        """
-        Creates a DTMC from a PRISM model.
+    def from_prism_model(model_file_path, prism_constants = {}, extra_labels = {}):
+        """Initializes a new DTMC from a PRISM model
         
-        Parameters
-        ----------
-        model_file_path : str
-            file path of model without file type (e.g. tra or lab)
-        prism_constants : Dict[str,int], optional
-            A dictionary of constants to be assigned in the model.
-        extra_labels : Dict[str,str], optional
-            A dictionary that defines additional labels (than the ones defined in the prism module) to be added to the .lab file.
-            The keys are label names and the values are PRISM expressions over the module variables.
-        
-        Returns
-        -------
-        DTMC
-            the DTMC
-        """        '''
-        Creates a discrete time markov chain (DTMC) from a PRISM-model. 
-        '''
-
+        :param model_file_path: file path of model without file type (e.g. tra or lab)
+        :type model_file_path: str
+        :param prism_constants: A dictionary of constants to be assigned in the model, defaults to {}
+        :type prism_constants: Dict[str,int], optional
+        :param extra_labels: A dictionary that defines additional labels (than the ones defined in the prism module) to be added to the .lab file. The keys are label names and the values are PRISM expressions over the module variables, defaults to {}
+        :type extra_labels: Dict[str,str], optional
+        :return: the DTMC
+        :rtype: dtmc.DTMC
+        """       
         with tempfile.TemporaryDirectory() as tempdirname:
             temp_model_file = os.path.join(tempdirname, "model")
             temp_tra_file = temp_model_file + ".tra"
             temp_lab_file = temp_model_file + ".lab"
-            if prism.prism_to_tra(model_file_path,temp_model_file,prism_constants,extra_labels):
+            if prism_to_tra(model_file_path,temp_model_file,prism_constants,extra_labels):
                 return DTMC.from_file(temp_lab_file,temp_tra_file)
             else:
                 assert False, "Prism call to create model failed."
 
     @staticmethod
-    def from_file(label_file_path : str, tra_file_path : str) -> DTMC:
-        """
-        Creates a DTMC from a model specified through a set of labels and transitions.
+    def from_file(label_file_path, tra_file_path):
+        """Creates a DTMC from a model specified by a set of labels and transitions.
         
-        Parameters
-        ----------
-        label_file_path : str
-            the file describing state labels (type is .lab)
-        tra_file_path : str
-            the file describing state transitions (type is .tra)
-        
-        Returns
-        -------
-        DTMC
-            the resulting DTMC.
-        """        
+        :param label_file_path: the file describing state labels (type is .lab)
+        :type label_file_path: str
+        :param tra_file_path: the file describing state transitions (type is .tra)
+        :type tra_file_path: str
+        :return: the resulting DTMC
+        :rtype: dtmc.DTMC
+        """              
         # identify all states
-        states_by_label, _, _ = prism.parse_label_file(label_file_path)
+        states_by_label, _, _ = parse_label_file(label_file_path)
         # then load the transition matrix
         P = DTMC.__load_transition_matrix(tra_file_path)
         return DTMC(P, states_by_label)    
 
-    def states_by_label(self) -> Dict[str, Set[int]]:
-        """
-        A dictionary that yields a set of states for each label.
+    def states_by_label(self):
+        """A dictionary that yields a set of states for each label.
         
-        Returns
-        -------
-        Dict[str, Set[int]]
-            the dictionary.
-        """             
+        :return: the dictionary
+        :rtype: Dict[str, Set[int]]
+        """        
         return self.__states_by_label
 
-    def labels_by_state(self) -> Dict[int, Set[str]]:
-        """
-        Computes the inverse of states_by_label, i.e. gives a dictionary that specifies a set of labels for each state.
+    def labels_by_state(self):
+        """inverse of dtmc.states_by_label, i.e. gives a dictionary that specifies a set of labels for each state.
         
-        Returns
-        -------
-        Dict[int, Set[str]]
-            the dictionary.
-        """                        
+        :return: the dictionary
+        :rtype: Dict[int, Set[str]]
+        """                   
         if self.__labels_by_state is None:
             self.__labels_by_state = dict(enumerate([set({}) for i in range(self.N)]))
             for label, states in self.__states_by_label.items():
@@ -113,21 +84,14 @@ class DTMC:
         return self.__labels_by_state
 
     @staticmethod
-    def __load_transition_matrix(filepath : str) -> dok_matrix:
-        '''
-        Loads a transition matrix from a .tra-file.
-
-        Parameters
-        ----------
-        filepath : str
-            A .tra-file which contains the transition probabilities.
-
-        Returns
-        -------
-        dok_matrix
-            transition matrix in the form (source, destination)
-
-        '''
+    def __load_transition_matrix(filepath):
+        """Loads a transition matrix from a .tra-file.
+        
+        :param filepath: A .tra-file which contains the transition probabilities.
+        :type filepath: str
+        :return: a (NxN) transition matrix
+        :rtype: scipy.sparse.dok_matrix
+        """
 
         P = dok_matrix((1,1))
         N = 0
@@ -147,24 +111,20 @@ class DTMC:
                     P[source,dest] = prob
         return P
 
-    def reduce(self, initial_label : str, targets_label : str):
-        '''
-        Creates a reduced DTMC from a given transition matrix, an initial state (index) and a set of target states (indices).
+    def reduce(self, initial_label, targets_label):
+        """Creates a reduced DTMC from a given transition matrix, an initial state (index) and a set of target states (indices).
         Will do a forwards (states which are reachable from the initial state) and
         backwards (states which are able to reach the target states) reachability test on the states of the given DTMC.
         Removes states which fail the forwards reachability test. Will also remap all target states to a single new
         target state and all fail states (states which fail the backwards reachability test) to one single fail state.
-
-        Parameters
-        ----------
-        P : dok_matrix
-            The transition matrix in the form (source, destination).
-        initial : int
-            Index of the initial state.
-        targets : Set[int]
-            Set of indices of the target states.
-
-        '''
+        
+        :param initial_label: the label of the initial state, which must yield exactly one initial state
+        :type initial_label: str
+        :param targets_label: the label of the target states, which must yield at least one target state
+        :type targets_label: str
+        :return: the reduced DTMC
+        :rtype: dtmc.ReducedDTMC
+        """
         assert len(self.states_by_label()[targets_label]) > 0, "There needs to be at least one target state."
         target_states = self.states_by_label()[targets_label]
         # order doesn't matter since there should only be one initial state
@@ -175,7 +135,7 @@ class DTMC:
         # computes states which are able to reach the target states
         reaching_target = DTMC.reachable(self.P, target_states, mode="backward")
         # if a state is not able to reach the target states, consider it as a fail-state
-        P, to_fail = DTMC.__compute_fail_states(self.P, self.N, reaching_target)
+        P, to_fail = DTMC.__compute_fail_states(self.P, reaching_target)
         # compute all states which are reachable from the initial state
         reachable = DTMC.reachable(P, set([initial]), mode="forward")
 
@@ -191,21 +151,14 @@ class DTMC:
 
         return ReducedDTMC(P_red, to_target_red, full_to_red[initial]), full_to_red, red_to_full
 
-    def save(self, filepath : str) -> Tuple[str, str]:
-        '''
-        Saves the .tra and .lab-file according to the given filepath.
-
-        Parameters
-        ----------
-        filepath : str
-            The file path.
-
-        Returns
-        -------
-        Tuple[str, str]
-            (path of .tra-file, path of .lab-file).
-
-        '''
+    def save(self, filepath):
+        """Saves the .tra and .lab-file according to the given filepath
+        
+        :param filepath: the file path
+        :type filepath: str
+        :return: path of .tra and .lab-file
+        :rtype: Tuple[str,str]
+        """        
         tra_path = filepath + ".tra"
         lab_path = filepath + ".lab"
 
@@ -227,7 +180,16 @@ class DTMC:
 
         return tra_path, lab_path
 
-    def graphviz_digraph(self, state_map = None, trans_map = None) -> Digraph:
+    def graphviz_digraph(self, state_map = None, trans_map = None):
+        """creates a graphviz.Digraph object from this DTMC.
+        
+        :param state_map: a function that is able to enable/disable states and computes a color and a label, defaults to None
+        :type state_map: (stateidx, labels) -> {"color" : str, "label" : str, "enable" : bool} , optional
+        :param trans_map: a function that is able to enable/disable state transitions and computes a color and a label, defaults to None
+        :type trans_map: (sourceidx, destidx, sourcelabels, destlabels, p) -> {"color" : str, "label" : str, "enable" : bool}, optional
+        :return: the Digraph
+        :rtype: graphviz.Digraph
+        """        
 
         def standard_state_map(stateidx, labels):
             return { "color" : graphviz_utils.color_from_hash(tuple(sorted(labels))),
@@ -269,28 +231,20 @@ class DTMC:
         return dg
 
     @staticmethod
-    def __compute_fail_states(P : dok_matrix, N : int, reaching_target : Set[int]) -> Tuple[dok_matrix, Set[int], np.ndarray]:
-        '''
-        Computes a vector (to_fail) which contains the probability of reaching the fail state in one step for each state.
+    def __compute_fail_states(P, reaching_target):
+        """Computes a vector (to_fail) which contains the probability of reaching the fail state in one step for each state.
+        
+        :param P: A (NxN) transition matrix
+        :type P: scipy.sparse.dok_matrix
+        :param reaching_target: set of states that are not able to reach the target state. All states which are not able to reach
+            the target state are considered as fail states.
+        :type reaching_target: Set[int]
+        :return: the resulting transition matrix if all states which are not able to reach the target states are removed
+            and the "to_fail" vector. 
+        :rtype: Tuple[scipy.sparse.dok_matrix, np.ndarray]
+        """        
 
-        P : dok_matrix
-            Transition matrix in the form (source, destination).
-        N : int
-            Size of the transition matrix.
-        reaching_target : Set[int]
-            These are the states which are not able to reach the target state.
-            All states which are not in "reaching_target" are considered as fail states.
-
-        Returns
-        -------
-        P_tmp : dok_matrix
-            The resulting transition matrix if all states which are not able to reach the target state are removed.
-        to_fail : np.ndarray
-            i-th index contains the probability of reaching a state which is not in
-            "reaching_target" in one step from the i-th state.
-
-        '''
-
+        N = P.shape[0]
         to_fail = np.zeros(N)
         P_tmp = dok_matrix((N,N))
 
@@ -305,24 +259,18 @@ class DTMC:
 
 
     @staticmethod
-    def reachable(P : dok_matrix, initial : Set[int], mode : str) -> Set[int]:
-        '''
-
-        Parameters
-        ----------
-        P : dok_matrix
-            Transition matrix in the form (source, destination).
-        initial : Set[int]
-            Initial set of states.
-        mode : str
-            Must be either "forward" or "backward".
-
-        Returns
-        -------
-        Set[int]
-            A set of all forward or backward-reachable states.
-
-        '''
+    def reachable(P, initial, mode):
+        """returns the set of all states that are forward or backwards reachable from a set of states
+        
+        :param P: the transition matrix
+        :type P: scipy.sparse.dok_matrix
+        :param initial: initial set of states for the reachability check
+        :type initial: Set[int]
+        :param mode: either "forward" or "backward"; the reachability mode
+        :type mode: str
+        :return: the set of states that are reachable
+        :rtype: Set[int]
+        """
         assert mode in ["forward", "backward"], "mode must be either 'forward' or 'backward' but is '%s'." % mode
 
         reachable_states = initial.copy()
@@ -338,27 +286,21 @@ class DTMC:
         return reachable_states
 
     @staticmethod
-    def __remove_unneccessary_target_states(P : dok_matrix, reachable : Set[int], target_states : Set[int]) -> Tuple[Set[int], Set[int]]:
-        '''
-        Removes all target states from "reachable" and "target_states" if they are only reachable through other target states.
+    def __remove_unneccessary_target_states(P, reachable, target_states):
+        """Removes all target states from "reachable" and "target_states" if they are only reachable through other target states.
         They are unneccessary because they will be unreachable from the initial state after
         every target state is remapped to a single new target state. If not removed, the size of P would increase.
-
-        Parameters
-        ----------
-        P : dok_matrix
-            Transition matrix in the form (source, destination).
-        reachable : Set[int]
-            Set of reachable states.
-        target_states : Set[int]
-            Set of all target states.
-
-        Returns
-        -------
-        Tuple[Set[int], Set[int]]
-            (new reachable, new target states).
-
-        '''
+        
+        :param P: A (NxN) transition matrix.
+        :type P: scipy.sparse.dok_matrix
+        :param reachable: set of reachable states
+        :type reachable: Set[int]
+        :param target_states: set of all target states
+        :type target_states: Set[int]
+        :return: a new set containing only states which are reachable and will not be removed,
+            and a new set containing only target states which will not be removed.
+        :rtype: Tuple[Set[int],Set[int]]
+        """
         _reachable = set({})
 
         # only keep target states that are reachable from at least one state which is not a target state
@@ -376,42 +318,26 @@ class DTMC:
         return _reachable, _target_states
 
     @staticmethod
-    def __restrict_to_reachable(P_old : dok_matrix,
-                                initial_old : int,
-                                reachable : Set[int],
-                                target_states : Set[int],
-                                to_fail_full : np.ndarray) -> Tuple[dok_matrix, np.ndarray, Dict[int, int], Dict[int, int]]:
-        '''
-        Creates a new transition matrix (P) from another transition matrix (P_old) by
+    def __restrict_to_reachable(P_old, initial_old, reachable, target_states, to_fail_full):
+        """Creates a new transition matrix (P) from another transition matrix (P_old) by
         removing all unreachable states. All target states will be remapped to a single
         new target state with probability 1; all the other states will lead to the target
         state with probability 0.
-
-        Parameters
-        ----------
-        P_old : dok_matrix
-            Transition matrix before removal of unreachable states.
-        initial_old : int
-            Index of the initial state.
-        reachable : Set[int]
-            Set of states which are forwards and backwards reachable.
-        target_states : Set[int]
-            Set of target states.
-        to_fail_full : np.ndarray
-            Transition probability of reaching a fail state in one step.
-
-        Returns
-        -------
-        P : dok_matrix
-            Transition matrix after removal of unreachable states.
-        to_target : np.ndarray
-            Probability of reaching the target state in one step.
-        full_to_reduced : Dict[int, int]
-            State index mapping from full form to reduced form.
-        reduced_to_full : Dict[int, int]
-            State index mapping from reduced form to full form.
-
-        '''
+        
+        :param P_old: old transition matrix
+        :type P_old: scipy.sparse.dok_matrix
+        :param initial_old: index of initial state in the old transition matrix
+        :type initial_old: int
+        :param reachable: set of states which are forwards and backwards reachable
+        :type reachable: Set[int]
+        :param target_states: set of target states
+        :type target_states: Set[int]
+        :param to_fail_full: transition probability of reaching a fail state in one step
+        :type to_fail_full: np.ndarray
+        :return: a new transition matrix, a vector containing transition probabilities from states to target states in one step,
+        a dictionary that maps from P-states to P_old-states, a dictionary that maps from P_old-states to P-states
+        :rtype: Tuple[scipy.sparse.dok_matrix, np.ndarray, Dict[int,int], Dict[int,int]]
+        """
         reachable_but_not_target = reachable.difference(target_states)
 
         N = len(reachable)
@@ -439,48 +365,39 @@ class DTMC:
 
 class ReducedDTMC:
 
-    def __init__(self, P : dok_matrix, to_target : np.ndarray, initial : int):
-        '''
-        Creates a DTMC from a given transition matrix (not containing reachability probabilities from or to the target state),
-        a vector containing the probabilities of reaching the target state in one step (to_target=b) and a given initial state index.
-
-        This is equivalent to giving the DTMC in the form
-
-            $$ x = P x + b $$
-
-        where solving the linear equation system for x would yield the probability of eventually reaching the
-        target state for each state x1,...xN.
-
-        Parameters
-        ----------
-        P : dok_matrix
-            Transition matrix in the form (source, destination).
-        to_target : np.ndarray
-            Probability of reaching the target state in one step.
-        initial : int
-            Index of the initial state.
-
-        '''
+    def __init__(self, P, to_target, initial):     
+        """Creates a DTMC from a given transition matrix (not containing reachability probabilities from or to the target state),
+        a vector containing the probabilties of reaching the target state in one step (to_target= :math:`b`) and a given initial state index.
+        This is equivalent to giving the DTMC in the form :math:`x = P x + b`. 
+        
+        :param P: (NxN) transition matrix
+        :type P: scipy.sparse.dok_matrix
+        :param to_target: probability of reaching the target state in one step
+        :type to_target: np.ndarray
+        :param initial: index of the initial state
+        :type initial: int
+        """
         self.P = P
         self.to_target = to_target
         self.initial = initial
         self.N = P.shape[0]
 
-    def as_dtmc(self) -> DTMC:
+    def as_dtmc(self):
+        """creates a DTMC from this ReducedDTMC.
+        
+        :return: the DTMC
+        :rtype: dtmc.DTMC
+        """        
         P_compl, target_state, fail_state = self.__transition_matrix()
         labels = { "init" : set({self.initial}), "target" : set({target_state}), "fail" : set({fail_state}) }
         return DTMC(P_compl, labels)
 
-    def __transition_matrix(self) -> Tuple[dok_matrix, int, int]:
-        '''
-        Computes the transition matrix (including fail and target state).
-
-        Returns
-        -------
-        Tuple[dok_matrix, int, int]
-            (transition matrix, index of target state, index of fail state).
-
-        '''
+    def __transition_matrix(self):
+        """Computes the transition matrix (including fail and target state)
+        
+        :return: the transition matrix, index of the target state, index of the fail state
+        :rtype: Tuple[scipy.sparse.dok_matrix, int, int]
+        """
         # creates a transition matrix which includes the target and fail state
         P_compl = dok_matrix((self.N+2, self.N+2))
         target_state = self.N

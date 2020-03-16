@@ -1,12 +1,17 @@
-from __future__ import annotations
-from typing import Set, Dict, Tuple, Callable
 import re
 from subprocess import check_output, CalledProcessError
 import tempfile
 from shutil import copyfileobj
 
 
-def parse_label_file(filepath : str) -> Tuple[Dict[str, Set[int]],Dict[str, Set[int]],Dict[str, Set[int]]]:
+def parse_label_file(filepath):
+    """Parses a .lab-file
+    
+    :param filepath: the filepath
+    :type filepath: str
+    :return: a dictionary mapping labels to states, a dictionary mapping states to labels, a dictionary mapping indices to labels
+    :rtype: Tuple[Dict[str,Set[int]], Dict[int,Set[str]], Dict[int,str]]
+    """
     labelid_to_label = {}
     states_by_label = {}
     labels_by_state = {}
@@ -33,41 +38,30 @@ def parse_label_file(filepath : str) -> Tuple[Dict[str, Set[int]],Dict[str, Set[
 
     return states_by_label, labels_by_state, labelid_to_label
 
-def prism_to_tra(model_path : str,
-                 destination_path : str,
-                 prism_constants : Dict[str,int] = {},
-                 extra_labels : Dict[str,str] = {}
-                 ) -> boolean:
-    '''
-    Translates a prism model into an explicit representation as .tra,.sta,.lab files.
+def prism_to_tra(model_path, destination_path, prism_constants = {}, extra_labels = {}):
+    """Translates a prism model into an explicit representation as .tra,.sta,.lab files.
     To this end prism is called, which needs to be present in the path.
     In order to add additional labels to the model, the model file is copied into a temporary file which is appended by the label declarations.
-
+    
     The command that is executed is:
 
-    'prism filepath -const [C=j for (C,j) in prism_constants] -exportmodel destination_path.tra,sta,lab'
+    .. code-block:: sh
 
-     Parameters
-     ----------
-     model_path : str
-       A prism model file (.nm,.pm)
+        prism filepath -const [C=j for (C,j) in prism_constants] -exportmodel destination_path.tra,sta,lab
 
-     destination_path : str
-       A filepath (without file extension) where the resulting explicit model files are written to.
-       For example, passing "FILE" will create the files "FILE.tra" "FILE.lab" and "FILE.sta".
-
-     prism_constants : Dict[str,int]
-       A dictionary of constants to be assigned in the model.
-
-     extra_labels : Dict[str,str]
-       A dictionary that defines additional labels (than the ones defined in the prism module) to be added
-       to the .lab file.
-       The keys are label names and the values are PRISM expressions over the module variables.
-
-     Returns
-     -------
-      True, if model was constructed successfully, otherwise False.
-     '''
+    :param model_path: A prism model file (.nm,.pm)
+    :type model_path: str
+    :param destination_path: a filepath without extension where the resulting explicit model files are written to.
+        For example, passing "FILE" will create the files "FILE.tra", "FILE.lab" and "FILE.sta".
+    :type destination_path: str
+    :param prism_constants: A dictionary of constants to be assigned in the model, defaults to {}
+    :type prism_constants: Dict[str, int], optional
+    :param extra_labels: A dictionary that defines additional labels (than the ones defined in the prism module) to be added
+      	to the .lab file. The keys are label names and the values are PRISM expressions over the module variables. Defaults to {}
+    :type extra_labels: Dict[str, str], optional
+    :return: True, if model was constructed successfully, otherwise False.
+    :rtype: bool
+    """    
     const_strings = (["-const"] + [','.join([C+"="+str(i) for (C,i) in prism_constants])]) if len(prism_constants) > 0 else []
 
     with tempfile.NamedTemporaryFile() as namedtf:

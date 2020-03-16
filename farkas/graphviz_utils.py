@@ -25,6 +25,14 @@ GRAPHVIZ_COLORS = ['coral2', 'cadetblue3', 'gold', 'coral1', 'aquamarine4', 'dar
 
 
 def color_from_hash(obj):
+    """Derives an inidividual color from an object that can be used for a graphviz-graph. It does so
+    by calculating the hash-code of the object which then maps to the respective color. 
+    
+    :param obj: some object
+    :type obj: -
+    :return: a valid graphviz-coloring
+    :rtype: str
+    """    
     ''' derives an individual color from an object (as a string) that can be used for a graphviz-graph '''
     from hashlib import md5
     hc = int(md5(str(obj).encode("utf-8")).hexdigest(), 16)

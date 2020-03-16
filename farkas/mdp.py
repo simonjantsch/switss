@@ -1,36 +1,25 @@
-from __future__ import annotations
 from bidict import bidict
 from graphviz import Digraph
 from scipy.sparse import dok_matrix
-from typing import Set, Dict, Tuple, Callable
 import numpy as np
 import re
 import tempfile
 import os.path
-import prism as prism
+from prism import prism_to_tra, parse_label_file
 
 class MDP:
-    def __init__(self,
-                 P : dok_matrix,
-                 index_by_state_action: bidict,
-                 states_by_label : Dict[str, Set[int]] = None):
-        '''
-        Initialises an MDP.
-
-        Parameters
-        ----------
-        P : dok_matrix
-            A (C x N) matrix where N is the number of states of the MDP, and C is the number of active state-action pairs.
+    def __init__(self, P, index_by_state_action, states_by_label = None):
+        """Initializes a MDP.
+        
+        :param P: A (C x N) matrix where N is the number of states of the MDP, and C is the number of active state-action pairs.
             A row gives the probabilistic distribution over successor states for some state-action pair.
-
-        index_by_state_actions : bidict
-            A bidirectional dictionary that maps a state-action pair to its index in the matrix P.
-
-        states_by_label : Dict[str, Set[int]]
-            A dictionary that defines labels over the MDP.
-            Each label is mapped to a subset of the states.
-
-        '''
+        :type P: scipy.sparse.dok_matrix
+        :param index_by_state_action: A bidirectional dictionary that maps a state-action pair to its index in the matrix P.
+        :type index_by_state_action: bidict.bidict
+        :param states_by_label: A dictionary that defines labels over the MDP.
+            Each label is mapped to a subset of the states, defaults to None
+        :type states_by_label: Dict[str, Set[int]], optional
+        """
         (C,N) = P.shape
         assert len(index_by_state_action.values()) == C, "The number of state-action pairs must correspond to the number of rows in the matrix."
         assert len(set([x for x,_ in index_by_state_action.keys()])) == N, "Each state needs participate in some state-action pair."
@@ -44,42 +33,40 @@ class MDP:
 
 
     @staticmethod
-    def __get_state(index_by_state_action : bidict, index : int) -> int:
+    def __get_state(index_by_state_action, index):
         return index_by_state_action.inverse[index][0]
 
     @staticmethod
-    def __get_action(index_by_state_action : bidict, index : int) -> int:
+    def __get_action(index_by_state_action, index):
         return index_by_state_action.inverse[index][1]
 
     @staticmethod
-    def __get_state_action(index_by_state_action : bidict, index : int) -> int:
+    def __get_state_action(index_by_state_action, index):
         return index_by_state_action.inverse[index]
 
     @staticmethod
-    def from_prism_model(model_file_path : str,
-                         prism_constants : Dict[str,int] = {},
-                         extra_labels : Dict[str,str] = {}) -> MDP:
+    def from_prism_model(model_file_path, prism_constants = {}, extra_labels = {}):
         with tempfile.TemporaryDirectory() as tempdirname:
             temp_model_file = os.path.join(tempdirname, "model")
             temp_tra_file = temp_model_file + ".tra"
             temp_lab_file = temp_model_file + ".lab"
-            if prism.prism_to_tra(model_file_path,temp_model_file,prism_constants,extra_labels):
+            if prism_to_tra(model_file_path,temp_model_file,prism_constants,extra_labels):
                 return MDP.from_file(temp_lab_file,temp_tra_file)
             else:
                 assert False, "Prism call to create model failed."
 
     @staticmethod
-    def from_file(label_file_path : str, tra_file_path : str) -> MDP:
+    def from_file(label_file_path, tra_file_path):
         # identify all states
-        states_by_label, _, _ = prism.parse_label_file(label_file_path)
+        states_by_label, _, _ = parse_label_file(label_file_path)
         # then load the transition matrix
         index_by_state_action,P = MDP.__load_transition_matrix(tra_file_path)
         return MDP(P, index_by_state_action,states_by_label)
 
-    def states_by_label(self) -> Dict[str, Set[int]]:
+    def states_by_label(self):
         return self.__states_by_label
 
-    def labels_by_state(self) -> Dict[int, Set[str]]:
+    def labels_by_state(self):
         if self.__labels_by_state is None:
             self.__labels_by_state = dict(enumerate([set({}) for i in range(self.N)]))
             for label, states in self.__states_by_label.items():
@@ -88,24 +75,14 @@ class MDP:
         return self.__labels_by_state
 
     @staticmethod
-    def __load_transition_matrix(tra_file_path : str) -> Tuple[bidict,dok_matrix]:
-        '''
-        Loads a transition matrix from a .tra-file.
-
-        Parameters
-        ----------
-        filepath : str
-            A .tra-file which contains the transition probabilities.
-
-        Returns
-        -------
-        bidict :
-            A bidirectional dictionary that maps state-action pairs into an index set {0,..,C}.
-
-        dok_matrix
-            transition matrix in the form (index, destination)
-        '''
-
+    def __load_transition_matrix(tra_file_path):
+        """Loads a transition matrix from a .tra-file
+        
+        :param tra_file_path: filepath to .tra-file
+        :type tra_file_path: str
+        :return: a bidict that contains mappings from state-action pairs to an index set :math:`\{0,\dots,C\}` and a transition matrix  
+        :rtype: Tuple[bidict.bidict, scipy.sparse.dok_matrix]
+        """
         P = dok_matrix((1,1))
         index_by_state_action = bidict()
 
@@ -136,24 +113,20 @@ class MDP:
 
         return index_by_state_action,P
 
-    def reduce(self, initial_label : str, targets_label : str):
-        '''
-        Creates a reduced MDP from a given transition matrix, an initial state (index) and a set of target states (indices).
+    def reduce(self, initial_label, targets_label):
+        """Creates a reduced MDP from a given transition matrix, an initial state (index) and a set of target states (indices).
         Will do a forwards (states which are reachable from the initial state) and
         backwards (states which are able to reach the target states) reachability test on the states of the given MDP.
         Removes states which fail the forwards reachability test. Will also remap all target states to a single new
         target state and all fail states (states which fail the backwards reachability test) to one single fail state.
-
-        Parameters
-        ----------
-        P : dok_matrix
-            The transition matrix in the form (index, destination).
-        initial : int
-            Index of the initial state.
-        targets : Set[int]
-            Set of indices of the target states.
-
-        '''
+        
+        :param initial_label: the label of the initial state, which must yield exactly one initial state
+        :type initial_label: str
+        :param targets_label: the label of the target states, which must yield at least one target state
+        :type targets_label: str
+        :return: the reduced MDP
+        :rtype: mdp.ReducedMDP
+        """
         assert len(self.states_by_label()[targets_label]) > 0, "There needs to be at least one target state."
         target_states = self.states_by_label()[targets_label]
         # order doesn't matter since there should only be one initial state
@@ -189,21 +162,14 @@ class MDP:
 
         return ReducedMDP(P_red, index_to_state_action_red, to_target_red, full_to_red[initial]), full_to_red, red_to_full
 
-    def save(self, filepath : str) -> Tuple[str, str]:
-        '''
-        Saves the .tra and .lab-file according to the given filepath.
-
-        Parameters
-        ----------
-        filepath : str
-            The file path.
-
-        Returns
-        -------
-        Tuple[str, str]
-            (path of .tra-file, path of .lab-file).
-
-        '''
+    def save(self, filepath):
+        """Saves the .tra and .lab-file according to the fiven filepath
+        
+        :param filepath: the file path 
+        :type filepath: str
+        :return: path of .tra-file, path of .lab-file
+        :rtype: Tuple[str,str]
+        """
         tra_path = filepath + ".tra"
         lab_path = filepath + ".lab"
 
@@ -227,11 +193,7 @@ class MDP:
         return tra_path, lab_path
 
     @staticmethod
-    def __compute_fail_states(P : dok_matrix,
-                              index_by_state_action : bidict,
-                              C : int,
-                              N : int,
-                              reaching_target : Set[int]) -> Tuple[dok_matrix, Set[int], np.ndarray]:
+    def __compute_fail_states(P, index_by_state_action, C, N, reaching_target):
         '''
         Computes a vector (to_fail) which contains the probability of reaching the fail state in one step for each state.
 
@@ -271,26 +233,20 @@ class MDP:
         return P_tmp, to_fail
 
     @staticmethod
-    def reachable(P : dok_matrix, index_by_state_action : bidict, initial : Set[int], mode : str) -> Set[int]:
-        '''
-
-        Parameters
-        ----------
-        P : dok_matrix
-            Transition matrix in the form (source, destination).
-        index_by_state_action : bidict
-            Mapping from state-action pairs to an index set {0,..,C}
-        initial : Set[int]
-            Initial set of states.
-        mode : str
-            Must be either "forward" or "backward".
-
-        Returns
-        -------
-        Set[int]
-            A set of all forward or backward-reachable states.
-
-        '''
+    def reachable(P, index_by_state_action, initial, mode):
+        """Computes the set of states that are either forwards and backwards reachable from some given state.
+        
+        :param P: the transition matrix
+        :type P: scipy.sparse.dok_matrix
+        :param index_by_state_action: a mapping from state-action pairs to an index set :math:`\{0,\dots,C\}`
+        :type index_by_state_action: bidict.bidict
+        :param initial: set of initial states
+        :type initial: Set[int]
+        :param mode: either "forward" or "backward", indicating the direction of search
+        :type mode: str
+        :return: the set of all forwards or backwards reachable states
+        :rtype: Set[int]
+        """
         assert mode in ["forward", "backward"], "mode must be either 'forward' or 'backward' but is '%s'." % mode
 
         reachable_states = initial.copy()
@@ -307,10 +263,7 @@ class MDP:
         return reachable_states
 
     @staticmethod
-    def __remove_unneccessary_target_states(P : dok_matrix,
-                                            index_by_state_action : bidict,
-                                            reachable : Set[int],
-                                            target_states : Set[int]) -> Tuple[Set[int], Set[int]]:
+    def __remove_unneccessary_target_states(P, index_by_state_action, reachable, target_states):
         '''
         Removes all target states from "reachable" and "target_states" if they are only reachable through other target states.
         They are unneccessary because they will be unreachable from the initial state after
@@ -350,12 +303,7 @@ class MDP:
         return _reachable, _target_states
 
     @staticmethod
-    def __restrict_to_reachable(P_old : dok_matrix,
-                                index_by_state_action_old : bidict,
-                                initial_old : int,
-                                reachable : Set[int],
-                                target_states : Set[int],
-                                to_fail_full : np.ndarray) -> Tuple[dok_matrix, np.ndarray, Dict[int, int], Dict[int, int]]:
+    def __restrict_to_reachable(P_old, index_by_state_action_old, initial_old, reachable, target_states, to_fail_full):
         '''
         Creates a new transition matrix (P) from another transition matrix (P_old) by
         removing all unreachable states. All target states will be remapped to a single
@@ -429,28 +377,24 @@ class MDP:
 
 class ReducedMDP:
 
-    def __init__(self, P : dok_matrix, index_by_state_action : bidict, to_target : np.ndarray, initial : int):
-        '''
-        Creates a MDP from a given transition matrix (not containing reachability probabilities from or to the target state),
+    def __init__(self, P, index_by_state_action, to_target, initial):
+        """Creates a MDP from a given transition matrix (not containing reachability probabilities from or to the target state),
         a vector containing the probabilities of reaching the target state in one step (to_target=b) and a given initial state index.
 
         P and b are exactly as when computing min/max reachability probabilities for MDP using the LPs
 
-            $$ max c x. \;\; (I-P) x \leq b $$
-            $$ min c x. \;\; (I-P) x \geq b $$
-
-        Parameters
-        ----------
-        P : dok_matrix
-            Transition matrix in the form (index, destination).
-        index_by_state_action : bidict
-            Mapping from state-action pairs to an index set {0,..,C}
-        to_target : np.ndarray
-            Probability of reaching the target state in one step.
-        initial : int
-            Index of the initial state.
-
-        '''
+            :math:`\max c x. \; (I-P) x \leq b`
+            :math:`\min c x. \; (I-P) x \leq b`
+        
+        :param P: transition matrix
+        :type P: scipy.sparse.dok_matrix
+        :param index_by_state_action: mapping from state-action pairs to an index set :math:`\{0,\dots,C\}`.
+        :type index_by_state_action: bidict.bidict
+        :param to_target: probability of reaching the target state in one step
+        :type to_target: np.ndarray
+        :param initial: index of the initial state
+        :type initial: int
+        """
         self.P = P
         self.to_target = to_target
         self.index_by_state_action = index_by_state_action
@@ -458,27 +402,29 @@ class ReducedMDP:
         self.C = P.shape[0]
         self.N = P.shape[1]
 
-    def as_mdp(self) -> DTMC:
+    def as_mdp(self):
+        """Creates and MDP from this ReducedMDP.
+        
+        :return: the MDP
+        :rtype: mdp.MDP
+        """        
         P_compl, index_by_state_action_compl, target_state, fail_state = self.__transition_matrix()
         labels = { "init" : set({self.initial}), "target" : set({target_state}), "fail" : set({fail_state}) }
         return MDP(P_compl, labels)
 
-    def __transition_matrix(self) -> Tuple[dok_matrix, int, int]:
-        '''
-        Computes the transition matrix (including fail and target state).
-
-        Returns
-        -------
-        The transition matrix and index_to_state_actions bidict of the corresponding complete MDP with a single target and fail state.
-
-        '''
+    def __transition_matrix(self):
+        """computes the transition matrix (including fail and target state)
+        
+        :return: the transition matrix, index-to-state-actions bidict, target and fail state indices
+        :rtype: Tuple[scipy.sparse.dok_matrix, bidict.bidict, int, int]
+        """
         # creates a transition matrix which includes the target and fail state
         P_compl = dok_matrix((self.C+2, self.N+2))
         target_state = self.N
         fail_state = self.N+1
         index_by_state_action_compl = self.index_by_state_action.copy()
-        index_by_state_action_compl[(target_state,0)] = C
-        index_by_state_action_compl[(fail_state,0)] = C+1
+        index_by_state_action_compl[(target_state,0)] = self.C
+        index_by_state_action_compl[(fail_state,0)] = self.C+1
 
         not_to_fail = np.zeros(self.N)
         for (index, dest), p in self.P.items():
