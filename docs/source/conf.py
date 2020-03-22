@@ -12,7 +12,7 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../../farkas'))
+sys.path.insert(0, '..')
 
 
 # -- Project information -----------------------------------------------------
@@ -43,7 +43,7 @@ exclude_patterns = []
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'classic'
+html_theme = 'pyramid'
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -52,3 +52,6 @@ html_static_path = ['_static']
 
 # This enables documentation for initializers.
 autoclass_content = 'both'
+
+# Sphinx sorts methods alphabetically, but we want the same as in the source code.
+autodoc_member_order = 'bysource'

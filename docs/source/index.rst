@@ -4,32 +4,26 @@
    contain the root `toctree` directive.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: Contents:
 
-DTMC module
+Models
 =================================
-.. autoclass:: dtmc.DTMC
-   :members:
-.. autoclass:: dtmc.ReducedDTMC
-   :members:
-
-MDP module
-=============================
-.. autoclass:: mdp.MDP
+.. automodule:: farkas.model
+   :imported-members:
    :members:
 
-Prism module
-===================
-.. automodule:: prism
+Prism
+=================================
+.. automodule:: farkas.prism
+   :imported-members:
    :members:
 
-Vizualization module
-====================
-.. automodule:: graphviz_utils
+Utils
+=================================
+.. automodule:: farkas.utils
+   :imported-members:
    :members:
-
-
 
 Indices and tables
 ==================
