@@ -9,6 +9,7 @@
     * scipy
     * numpy
     * bidict
+    * pulp
 
 ## Sphinx (Documentation)
 * install Sphinx via `pip3 install sphinx`
@@ -18,3 +19,4 @@ cd docs
 make html
 xdg-open build/html/index.html
 ```
+    

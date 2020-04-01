@@ -4,7 +4,7 @@
    contain the root `toctree` directive.
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 4
    :caption: Contents:
 
 Models
@@ -12,18 +12,35 @@ Models
 .. automodule:: farkas.model
    :imported-members:
    :members:
+   :undoc-members:
 
 Prism
 =================================
 .. automodule:: farkas.prism
    :imported-members:
    :members:
+   :undoc-members:
 
 Utils
 =================================
 .. automodule:: farkas.utils
    :imported-members:
    :members:
+   :undoc-members:
+
+Solver
+=================================
+.. automodule:: farkas.solver
+   :imported-members:
+   :members:
+   :undoc-members:
+
+Problem
+=================================
+.. automodule:: farkas.problem
+   :imported-members:
+   :members:
+   :undoc-members:
 
 Indices and tables
 ==================
