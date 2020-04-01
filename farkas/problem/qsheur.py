@@ -1,4 +1,4 @@
-from . import ProblemFormulation
+from . import ProblemFormulation, ProblemResult
 
 class QSHeur(ProblemFormulation):
     def __init__(self):
@@ -8,4 +8,5 @@ class QSHeur(ProblemFormulation):
         # etc.
 
     def solve(self, reachability_form):
+        # model.ReachabilityForm -> problem.ProblemResult
         pass
