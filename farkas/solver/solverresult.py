@@ -1,0 +1,3 @@
+
+class SolverResult:
+    pass
