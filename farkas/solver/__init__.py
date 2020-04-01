@@ -15,6 +15,21 @@ problems from coefficient vectors and matrices.
     result = wrapper.solve(lp)
     print(result)
 
+.. code-block::
+
+    from farkas.solver import MILP, LP, Wrapper
+    wrapper = Wrapper("cbc")
+    # example for a MILP instance. optimal result should be x_opt=[2,6].
+    # this is the same as the LP instance but with an added integer constraint for the first variable.
+    A = np.matrix([[2,1],[4,-1],[-8,2],[-1,0],[0,-1]])
+    b = np.array([10,8,2,0,0])
+    opt = np.array([-1,-1])
+    I = {0}
+    milp = MILP(A,b,opt,I)
+
+    result = wrapper.solve(milp)
+    print(result)
+
 """
 from .milp import MILP, LP
 from .solverresult import SolverResult
