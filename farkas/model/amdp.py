@@ -8,18 +8,27 @@ import os.path
 import tempfile
 
 from . import ReachabilityForm
-from ..prism import prism
-from ..utils import InvertibleDict
+from ..prism import parse_label_file, prism_to_tra
+from ..utils import InvertibleDict, array_to_dok_matrix
+
 
 class AbstractMDP(ABC):
     def __init__(self, P, index_by_state_action, label_to_states):
-        # TODO: transform P into dok_matrix if neccessary!
-        # TODO: make sure all rows of P sum to one!
-        # TODO: make sure that all values x are 0<=x<=1!
-        self.P = P
+        # transform P into dok_matrix if neccessary
+        self.P = P if isinstance(P, dok_matrix) else array_to_dok_matrix(P)  
         self.C, self.N = self.P.shape
-        self.index_by_state_action = index_by_state_action
+        # transform mapping into bidict if neccessary (applying bidict to bidict doesn't change anything)
+        self.index_by_state_action = bidict(index_by_state_action)
         self.__label_to_states_invertible = InvertibleDict(label_to_states, is_default=True, default=set)
+        self.__check_correctness()
+
+    def __check_correctness(self):
+        # make sure all rows of P sum to one
+        for idx,s in enumerate(self.P.sum(axis=1)):  
+            assert s == 1, "Sum of row %d of P is %d but should be 1." % (idx, s)
+        # make sure that all values x are 0<=x<=1
+        for (i,j), p in self.P.items():
+            assert p >= 0 and p <= 1, "P[%d,%d]=%f, violating 0<=%f<=1." % (i,j,p,p)
 
     @property
     def states_by_label(self):
@@ -237,7 +246,7 @@ class AbstractMDP(ABC):
         :rtype: [This Model]
         """        
         # identify all states
-        states_by_label, _, _ = prism.parse_label_file(label_file_path)
+        states_by_label, _, _ = parse_label_file(label_file_path)
         # then load the transition matrix
         res = cls._load_transition_matrix(tra_file_path)
         return cls(*res, states_by_label)
@@ -301,7 +310,7 @@ class AbstractMDP(ABC):
             temp_model_file = os.path.join(tempdirname, "model")
             temp_tra_file = temp_model_file + ".tra"
             temp_lab_file = temp_model_file + ".lab"
-            if prism.prism_to_tra(model_file_path,temp_model_file,prism_constants,extra_labels):
+            if prism_to_tra(model_file_path,temp_model_file,prism_constants,extra_labels):
                 return cls.from_file(temp_lab_file,temp_tra_file)
             else:
                 assert False, "Prism call to create model failed."

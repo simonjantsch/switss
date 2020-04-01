@@ -3,11 +3,13 @@ from graphviz import Digraph
 from scipy.sparse import dok_matrix
 
 from . import AbstractMDP
-from ..utils import color_from_hash
+from ..utils import color_from_hash, array_to_dok_matrix
 from ..prism import prism
 
 class DTMC(AbstractMDP):
     def __init__(self, P, label_to_states, **kwargs):
+        # transform P into dok_matrix if neccessary
+        P = P if isinstance(P, dok_matrix) else array_to_dok_matrix(P)  
         assert P.shape[0] == P.shape[1], "P must be a (NxN)-matrix but has shape %s" % P.shape
         index_by_state_action = bidict()
         for i in range(P.shape[0]):
