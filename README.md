@@ -1,15 +1,12 @@
 ## Requirements
 * **system** (via `apt-get install`)
-    * python3 (>=3.7)
+    * python3
     * graphviz
-    * [prism](https://www.prismmodelchecker.org/download.php). The `bin/` directory of prism must be added to the `$PATH` variable.
+    * [prism](https://www.prismmodelchecker.org/download.php). The `bin/` directory of prism must be added to the `$PATH` variable,
+    i.e. add `export PATH="[prism install path]/bin:$PATH"` to your .bash_profile.
 
-* **python** (via `pip3 install`)
-    * graphviz
-    * scipy
-    * numpy
-    * bidict
-    * pulp
+## Installation
+Run `python3 setup.py build` and then `sudo python3 setup.py install`.
 
 ## Sphinx (Documentation)
 * install Sphinx via `pip3 install sphinx`
