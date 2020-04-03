@@ -1,0 +1,29 @@
+version: '3.7'
+services:
+
+  core:
+    build:
+      context: .
+      args:
+        - DEPLOY_TOKEN_PWD
+    ports:
+      - "8888:8888"
+    volumes:
+      - type: volume
+        source: doc_html
+        target: /farkas-tool/docs/build/html
+
+  web:
+    image: nginx
+    volumes:
+      - type: volume
+        source: doc_html
+        target: /usr/share/nginx/html
+        read_only: "true"
+    depends_on:
+      - core
+    ports:
+      - "8080:80"
+
+volumes: 
+  doc_html:
