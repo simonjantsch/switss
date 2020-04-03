@@ -76,8 +76,8 @@ class AbstractMDP(ABC):
         """Computes the reachability form of this model, an initial state (index) and a set of target states (indices).
         Will do a forwards (states which are reachable from the initial state) and backwards (states which are able to 
         reach the target states) reachability test on the states of the given MDP. Removes states which fail the forwards 
-        reachability test. Will also remap all target states to a single new target state and all fail states (states 
-        which fail the backwards reachability test) to one single fail state.
+        reachability test. Creates a unique goal state to which all target states move with probability one.
+        All fail states (states which fail the backwards reachability test) are mapped to a single fail state.
         
         :param initial_label: The label of the initial state, which must yield exactly one initial state.
         :type initial_label: str
