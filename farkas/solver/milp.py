@@ -3,7 +3,7 @@ from scipy.sparse import dok_matrix
 import pulp
 
 class MILP:
-    def __init__(self, A, b, opt, integer_constraints):
+    def __init__(self, A, b, opt, integer_constraints, lowBound = None, upBound = None):
         """Returns a Mixed Integer Linear Programming (MILP) formulation of a problem
         
         .. math::
@@ -12,6 +12,7 @@ class MILP:
 
         where :math:`N` is the number of variables and :math:`M` the number of linear constraints.
         If `A`, `b` and `opt` are not given as a `scipy.sparse.dok_matrix`, they are transformed into that form automatically.
+        The optional `lowBound` and `upBound` arguments are global lower/upper bounds on each variable.
 
         :param A: Matrix for inequality conditions  (:math:`A`).
         :type A: :math:`M \\times N`-Matrix
@@ -22,10 +23,16 @@ class MILP:
         :param integer_constraints: Set of indices :math:`I \subseteq \{1,\dots,N-1\}` which 
             indicates integer constraints on variables.
         :type integer_constraints: Set[int]
-        """        
+        :param lowBound: global lower bound for all variables
+        :type lowBound: Float
+        :param upBound: global upper bound for all variables
+        :type upBound: Float
+        """
         self.A = array_to_dok_matrix(A) if not isinstance(A,dok_matrix) else A
         self.b = array_to_dok_matrix(b) if not isinstance(b,dok_matrix) else b
         self.opt = array_to_dok_matrix(opt) if not isinstance(opt,dok_matrix) else opt
+        self.lowBound = lowBound
+        self.upBound = upBound
         self.integer_constraints = integer_constraints
 
     @property
@@ -50,7 +57,7 @@ class MILP:
         objf, variables = [], []
         for varidx in range(self.shape[1]):
             vartype = pulp.LpInteger if varidx in self.integer_constraints else pulp.LpContinuous
-            variables.append(pulp.LpVariable("x%d" % varidx, cat=vartype))
+            variables.append(pulp.LpVariable("x%d" % varidx, lowBound=self.lowBound, upBound=self.upBound, cat=vartype))
             objf.append((variables[varidx], self.opt[varidx,0]))
         # this adds the objective function (which is opt^T*x, i.e. sum_{i=1}^N opt[i]*x[i])
         model += pulp.LpAffineExpression(objf)
@@ -74,7 +81,7 @@ class MILP:
 
 
 class LP(MILP):
-    def __init__(self, A, b, opt):
+    def __init__(self, A, b, opt,lowBound = None, upBound = None):
         """Returns a Linear Programming (LP) formulation of a problem
 
         .. math::
@@ -90,5 +97,9 @@ class LP(MILP):
         :type b: :math:`M \\times 1`-Matrix
         :param opt: Weights for individual variables in x (:math:`\sigma`).
         :type opt: :math:`N \\times 1`-Matrix
-        """        
-        super().__init__(A,b,opt,[])
+        :param lowBound: global lower bound for all variables
+        :type lowBound: Float
+        :param upBound: global upper bound for all variables
+        :type upBound: Float
+        """
+        super().__init__(A,b,opt,[],lowBound,upBound)
