@@ -5,7 +5,11 @@ import numpy as np
 from scipy.sparse import dok_matrix,hstack,vstack
 
 class ReachabilityForm:
-    """ A reachability form is an MDP with a dedicated initial and target state. It is represented by its transition matrix, an initial state and a vector that holds the probability to move to the target state in one step for each state. The target state is not included in the transition matrix. """
+    """ A reachability form is an MDP with a dedicated initial and target state. 
+    It is represented by its transition matrix, an initial state and a vector that holds 
+    the probability to move to the target state in one step for each state. 
+    The target state is not included in the transition matrix. """
+    
     def __init__(self, P, initial, to_target, index_by_state_action):
         self.P = P
         self.initial = initial
