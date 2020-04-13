@@ -47,7 +47,6 @@ class QSHeur(ProblemFormulation):
 
     def solve_min(self, reach_form):
         """Runs the QSheuristic on the Farkas min-polytope of a given reachability form for a given threshold."""
-        problem_results = dict()
         _,N = reach_form.P.shape
 
         current_weights = self.initializer.initialize(reach_form)
@@ -72,19 +71,16 @@ class QSHeur(ProblemFormulation):
                 induced_states = to_one_if_positive(res_vector[:N])
                 # computes the subsystem induced by the result of this iteration
                 subsys,mapping = reach_form.induced_subsystem(induced_states)
-                problem_results[i] = ProblemResult("success",subsys,mapping)
+                yield ProblemResult("success",subsys,mapping)
                 
                 current_weights = self.updater.update(heur_i_result.result)
 
             else:
                 # failed to optimize LP
-                problem_results[i] = ProblemResult(heur_i_result.status)
-
-        return problem_results
+                yield ProblemResult(heur_i_result.status)
 
     def solve_max(self, reach_form, initial_weights = None):
         """Runs the QSheuristic on the Farkas max-polytope of a given reachability form for a given threshold."""
-        problem_results = dict()
         C,N = reach_form.P.shape
 
         current_weights = self.initializer.initialize(reach_form)
@@ -112,12 +108,10 @@ class QSHeur(ProblemFormulation):
                         induced_states[st] = 1
 
                 subsys,mapping = reach_form.induced_subsystem(induced_states)
-                problem_results[i] = ProblemResult("success",subsys,mapping)
+                yield ProblemResult("success",subsys,mapping)
 
                 current_weights = self.updater.update(heur_i_result.result)
 
             else:
                 # failed to optimize LP
-                problem_results[i] = ProblemResult(heur_i_result.status)
-
-        return problem_results
+                yield ProblemResult(heur_i_result.status)

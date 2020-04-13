@@ -24,7 +24,5 @@ class AllOnesInitializer(Initializer):
 
 class InverseResultUpdater(Updater):
     def update(self, x):
-        return np.array([1/v if v > 0 else 1e8 for v in x])
-        # C = np.max(x)
-        # assert C > 0, "Entries in x are all 0"
-        # return np.array([1/v if v > 0 else C for v in x])
+        C = np.max(x) + 1e8
+        return np.array([1/v if v > 0 else C for v in x])
