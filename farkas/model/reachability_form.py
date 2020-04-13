@@ -84,61 +84,61 @@ class ReachabilityForm:
 
         return I
 
-def induced_subsystem(reach_form, state_vector):
-    """ Given a reachability form with :math:`N` states and a vector in :math:`\{0,1\}^N` computes the induced subsystem of that vector.
+    def induced_subsystem(self, state_vector):
+        """ Given a reachability form with :math:`N` states and a vector in :math:`\{0,1\}^N` computes the induced subsystem of that vector.
 
-    :param reach_form: A reachability form
-    :type reach_form: model.ReachabilityForm
-    :param state_vector: a vector indicating which states to keep
-    :type state_vector: :math:`N`-vector over :math:`\{0,1\}`
-    :return: The induced subsystem as a rechability form, and a bidirectional mapping from states in the subsystem to states in the original system.
-    :rtype: Tuple[model.ReachabilityForm, bidict]
-    """
-    C,N = reach_form.P.shape
+        :param reach_form: A reachability form
+        :type reach_form: model.ReachabilityForm
+        :param state_vector: a vector indicating which states to keep
+        :type state_vector: :math:`N`-vector over :math:`\{0,1\}`
+        :return: The induced subsystem as a rechability form, and a bidirectional mapping from states in the subsystem to states in the original system.
+        :rtype: Tuple[model.ReachabilityForm, bidict]
+        """
+        C,N = self.P.shape
 
-    assert state_vector.size == N
-    assert state_vector[reach_form.initial] == 1
+        assert state_vector.size == N
+        assert state_vector[self.initial] == 1
 
-    new_to_old_states = bidict()
-    new_index_by_state_action = bidict()
-    new_N = 0
-    new_C = 0
+        new_to_old_states = bidict()
+        new_index_by_state_action = bidict()
+        new_N = 0
+        new_C = 0
 
-    # Map the new states to new indices and compute a map to the old states
-    for i in range(0,N):
-        assert state_vector[i] in [0,1]
-        if state_vector[i] == 1:
-            new_to_old_states[new_N] = i
-            new_N += 1
+        # Map the new states to new indices and compute a map to the old states
+        for i in range(0,N):
+            assert state_vector[i] in [0,1]
+            if state_vector[i] == 1:
+                new_to_old_states[new_N] = i
+                new_N += 1
 
-    # Compute the new number of choices (= rows)
-    for rowidx in range(0,C):
-        (source,action) = reach_form.index_by_state_action.inv[rowidx]
-        if state_vector[source] == 1:
-            new_source = new_to_old_states.inv[source]
-            new_index_by_state_action[(new_source,action)] = new_C
-            new_C += 1
+        # Compute the new number of choices (= rows)
+        for rowidx in range(0,C):
+            (source,action) = self.index_by_state_action.inv[rowidx]
+            if state_vector[source] == 1:
+                new_source = new_to_old_states.inv[source]
+                new_index_by_state_action[(new_source,action)] = new_C
+                new_C += 1
 
-    new_P = dok_matrix((new_C,new_N))
+        new_P = dok_matrix((new_C,new_N))
 
-    # Populate the new transition matrix
-    for (rowidx,target) in reach_form.P.keys():
-        (source,action) = reach_form.index_by_state_action.inv[rowidx]
-        if state_vector[source] == 1 and state_vector[target] == 1:
-            new_source = new_to_old_states.inv[source]
-            new_target = new_to_old_states.inv[target]
-            new_row_idx = new_index_by_state_action[(new_source,action)]
-            new_P[new_row_idx,new_target] = reach_form.P[rowidx,target]
+        # Populate the new transition matrix
+        for (rowidx,target) in self.P.keys():
+            (source,action) = self.index_by_state_action.inv[rowidx]
+            if state_vector[source] == 1 and state_vector[target] == 1:
+                new_source = new_to_old_states.inv[source]
+                new_target = new_to_old_states.inv[target]
+                new_row_idx = new_index_by_state_action[(new_source,action)]
+                new_P[new_row_idx,new_target] = self.P[rowidx,target]
 
 
-    new_to_target = np.zeros(new_N)
+        new_to_target = np.zeros(new_N)
 
-    for new_state in range(0,new_N):
-        old_to_target = reach_form.to_target
-        new_to_target[new_state] = old_to_target[new_to_old_states[new_state]]
+        for new_state in range(0,new_N):
+            old_to_target = self.to_target
+            new_to_target[new_state] = old_to_target[new_to_old_states[new_state]]
 
-    new_initial = new_to_old_states.inv[reach_form.initial]
+        new_initial = new_to_old_states.inv[self.initial]
 
-    subsys_reach_form = ReachabilityForm(new_P,new_initial,new_to_target,new_index_by_state_action)
+        subsys_self = ReachabilityForm(new_P,new_initial,new_to_target,new_index_by_state_action)
 
-    return subsys_reach_form,new_to_old_states
+        return subsys_self,new_to_old_states

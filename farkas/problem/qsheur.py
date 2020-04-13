@@ -1,6 +1,5 @@
 from . import ProblemFormulation, ProblemResult
 from farkas.solver import LP
-from farkas.model.reachability_form import induced_subsystem
 from .qsheurparams import AllOnesInitializer, InverseResultUpdater
 import numpy as np
 
@@ -53,13 +52,6 @@ class QSHeur(ProblemFormulation):
 
         current_weights = self.initializer.initialize(reach_form)
 
-        # sets the initial objective function (all ones is the default value)
-        # if initial_weights == None:
-        #     current_weights = np.ones(N)
-        # else:
-        #     assert initial_weights.size == N
-        #     current_weights = initial_weights
-
         # computes the constraints for the Farkas min-polytope of the given reachability form
         fark_matr,fark_rhs = reach_form.fark_min_constraints(self.threshold)
 
@@ -79,7 +71,7 @@ class QSHeur(ProblemFormulation):
                 to_one_if_positive = np.vectorize(lambda x: 1 if x > 0 else 0)
                 induced_states = to_one_if_positive(res_vector[:N])
                 # computes the subsystem induced by the result of this iteration
-                subsys,mapping = induced_subsystem(reach_form,induced_states)
+                subsys,mapping = reach_form.induced_subsystem(induced_states)
                 problem_results[i] = ProblemResult("success",subsys,mapping)
                 
                 current_weights = self.updater.update(heur_i_result.result)
@@ -103,7 +95,6 @@ class QSHeur(ProblemFormulation):
         # iteratively solves the corresponding LP, and computes the next objective function
         # from the result of the previous round according to the given update function
         for i in range(0,self.iterations):
-            # heur_i_lp = LP(fark_matr,fark_rhs,current_weights,lowBound=0)
             heur_i_lp = LP.from_coefficients(fark_matr,fark_rhs,current_weights)
             for idx in range(fark_matr.shape[1]):
                 heur_i_lp.add_constraint([(idx,1)], ">=", 0)
@@ -120,13 +111,10 @@ class QSHeur(ProblemFormulation):
                         (st,act) = reach_form.index_by_state_action.inv[index]
                         induced_states[st] = 1
 
-                subsys,mapping = induced_subsystem(reach_form,induced_states)
+                subsys,mapping = reach_form.induced_subsystem(induced_states)
                 problem_results[i] = ProblemResult("success",subsys,mapping)
 
                 current_weights = self.updater.update(heur_i_result.result)
-
-                # for x in range(0,C):
-                #     current_weights[x] = self.updater.update(heur_i_result.result[x])
 
             else:
                 # failed to optimize LP
