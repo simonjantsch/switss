@@ -1,7 +1,7 @@
 from . import ProblemFormulation, ProblemResult
 from farkas.solver import LP
 from farkas.model.reachability_form import induced_subsystem
-
+from .qsheurparams import AllOnesInitializer, InverseResultUpdater
 import numpy as np
 
 class QSHeur(ProblemFormulation):
@@ -18,43 +18,47 @@ class QSHeur(ProblemFormulation):
     where :math:`\mathbf{o}_0` is a vector of initial weights (:math:`(1,\ldots,1)` is the default) and :math:`\mathbf{o}_i = \operatorname{upd}(QS(i-1))` for a given update function :math:`\operatorname{upd}` (where pointwise :math:`1/x` if :math:`x \\neq 0`, and a big constant otherwise, is the default). """
     def __init__(self,
                  threshold,
-                 min_or_max,
+                 objective,
                  iterations = 3,
-                 upd_fct = lambda x: 1e7 if x == 0 else 1 / x,
+                 initializer = AllOnesInitializer(),
+                 updater = InverseResultUpdater(),
                  solver_name="cbc"):
         super().__init__()
-        assert min_or_max in ["min","max"]
+        assert objective in ["min","max"]
         assert solver_name in ["gurobi","cbc"]
         assert (threshold >= 0) and (threshold <= 1)
 
-        self.min_or_max = min_or_max
+        self.objective = objective
         self.threshold = threshold
         self.iterations = iterations
         self.solver = solver_name
-        self.upd_fct = upd_fct
+        self.updater = updater
+        self.initializer = initializer
 
     def __repr__(self):
-        return "QSHeur(threshold=%s, objective=%s, solver=%s, iterations=%s)" % (
-            self.threshold, self.min_or_max, self.solver, self.iterations)
+        return "QSHeur(threshold=%s, objective=%s, solver=%s, iterations=%s, initializer=%s, updater=%s)" % (
+            self.threshold, self.objective, self.solver, self.iterations, self.initializer, self.updater)
 
     def solve(self, reach_form):
-        """Runs the QSheuristic on the Farkas (min- or max-) polytope depending on the value in min_or_max."""
-        if self.min_or_max == "min":
+        """Runs the QSheuristic on the Farkas (min- or max-) polytope depending on the value in objective."""
+        if self.objective == "min":
             return self.solve_min(reach_form)
         else:
             return self.solve_max(reach_form)
 
-    def solve_min(self, reach_form, initial_weights = None):
+    def solve_min(self, reach_form):
         """Runs the QSheuristic on the Farkas min-polytope of a given reachability form for a given threshold."""
         problem_results = dict()
         _,N = reach_form.P.shape
 
+        current_weights = self.initializer.initialize(reach_form)
+
         # sets the initial objective function (all ones is the default value)
-        if initial_weights == None:
-            current_weights = np.ones(N)
-        else:
-            assert initial_weights.size == N
-            current_weights = initial_weights
+        # if initial_weights == None:
+        #     current_weights = np.ones(N)
+        # else:
+        #     assert initial_weights.size == N
+        #     current_weights = initial_weights
 
         # computes the constraints for the Farkas min-polytope of the given reachability form
         fark_matr,fark_rhs = reach_form.fark_min_constraints(self.threshold)
@@ -77,9 +81,8 @@ class QSHeur(ProblemFormulation):
                 # computes the subsystem induced by the result of this iteration
                 subsys,mapping = induced_subsystem(reach_form,induced_states)
                 problem_results[i] = ProblemResult("success",subsys,mapping)
-
-                for x in range(0,N):
-                    current_weights[x] = self.upd_fct(heur_i_result.result[x])
+                
+                current_weights = self.updater.update(heur_i_result.result)
 
             else:
                 # failed to optimize LP
@@ -92,12 +95,7 @@ class QSHeur(ProblemFormulation):
         problem_results = dict()
         C,N = reach_form.P.shape
 
-        # sets the initial objective function (all ones is the default value)
-        if initial_weights == None:
-            current_weights = np.ones(C)
-        else:
-            assert initial_weights.size == C
-            current_weights = initial_weights
+        current_weights = self.initializer.initialize(reach_form)
 
         # computes the constraints for the Farkas max-polytope of the given reachability form
         fark_matr,fark_rhs = reach_form.fark_max_constraints(self.threshold)
@@ -125,8 +123,10 @@ class QSHeur(ProblemFormulation):
                 subsys,mapping = induced_subsystem(reach_form,induced_states)
                 problem_results[i] = ProblemResult("success",subsys,mapping)
 
-                for x in range(0,C):
-                    current_weights[x] = self.upd_fct(heur_i_result.result[x])
+                current_weights = self.updater.update(heur_i_result.result)
+
+                # for x in range(0,C):
+                #     current_weights[x] = self.updater.update(heur_i_result.result[x])
 
             else:
                 # failed to optimize LP
