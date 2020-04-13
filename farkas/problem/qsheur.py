@@ -1,5 +1,5 @@
 from . import ProblemFormulation, ProblemResult
-from farkas.solver import LP, Wrapper
+from farkas.solver import LP
 from farkas.model.reachability_form import induced_subsystem
 
 import numpy as np
@@ -30,7 +30,8 @@ class QSHeur(ProblemFormulation):
         self.min_or_max = min_or_max
         self.threshold = threshold
         self.iterations = iterations
-        self.solver = Wrapper(solver_name)
+        self.solver = solver_name
+        # self.solver = Wrapper(solver_name)
         self.upd_fct = upd_fct
 
     def solve(self, reach_form):
@@ -59,8 +60,12 @@ class QSHeur(ProblemFormulation):
         # from the result of the previous round according to the given update function
         for i in range(0,self.iterations):
 
-            heur_i_lp = LP(fark_matr,fark_rhs,current_weights,lowBound=0,upBound=1)
-            heur_i_result = self.solver.solve(heur_i_lp)
+            heur_i_lp = LP.from_coefficients(fark_matr,fark_rhs,current_weights)
+            for idx in range(fark_matr.shape[1]):
+                heur_i_lp.add_constraint([(idx,1)], ">=", 0)
+                heur_i_lp.add_constraint([(idx,1)], "<=", 1)
+
+            heur_i_result = heur_i_lp.solve(self.solver) # .solve(heur_i_lp)
 
             if heur_i_result.status == "optimal":
                 res_vector = heur_i_result.result
@@ -97,8 +102,12 @@ class QSHeur(ProblemFormulation):
         # iteratively solves the corresponding LP, and computes the next objective function
         # from the result of the previous round according to the given update function
         for i in range(0,self.iterations):
-            heur_i_lp = LP(fark_matr,fark_rhs,current_weights,lowBound=0)
-            heur_i_result = self.solver.solve(heur_i_lp)
+            # heur_i_lp = LP(fark_matr,fark_rhs,current_weights,lowBound=0)
+            heur_i_lp = LP.from_coefficients(fark_matr,fark_rhs,current_weights)
+            for idx in range(fark_matr.shape[1]):
+                heur_i_lp.add_constraint([(idx,1)], ">=", 0)
+
+            heur_i_result = heur_i_lp.solve(self.solver) # .solve(heur_i_lp)
 
             if heur_i_result.status == "optimal":
                 res_vector = heur_i_result.result

@@ -1,38 +1,17 @@
 import numpy as np
 
 class SolverResult:
-    def __init__(self, problem, variables):
-        """Initializes a `SolverResult` from a pulp-model and the corresponding list of variables.
+    def __init__(self, status, result):
+        """Result of a solved MILP or LP instance.
         
-        :param problem: The (solved) pulp-model.
-        :type problem: pulp.LpProblem
-        :param variables: The list of corresponding variables.
-        :type variables: List[pulp.LpVariable]
+        :param status: Status of the solved instance, e.g. optimal, infeasible, unbounded or undefined.
+        :type status: str
+        :param result: Resulting variable assignments.
+        :type result: List[float]
         """        
-        assert problem.status in [1,-1,-2,-3]
-        self.__status = {  1:"optimal", 
-                        -1:"infeasible", 
-                        -2:"unbounded", 
-                        -3:"undefined"}[problem.status]
-        self.__result = list(map(lambda var: var.value(), variables))
-
-    @property
-    def status(self):
-        """The status of a solved LP/MILP instance. May be optimal, infeasible, unbounded or undefined.
-        
-        :return: The status.
-        :rtype: str
-        """        
-        return self.__status
-
-    @property
-    def result(self):
-        """The result of a solved LP/MILP instance. 
-        
-        :return: A list containing assignments to variables.
-        :rtype: List[float]
-        """        
-        return self.__result
+        assert status in ["optimal", "infeasible", "unbounded", "undefined"]
+        self.status = status
+        self.result = result
 
     def __str__(self):
         return "SolverResult(status=%s, result=%s)" % (self.status, self.result)
