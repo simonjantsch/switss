@@ -1,10 +1,10 @@
 from ..model import ReachabilityForm
+from . import MinimalWitness
 
 class ProblemResult:
-    def __init__(self, status,reachability_form=None,mapping=None):
+    def __init__(self, status, witness):
         self.status = status
-        self.reachability_form = reachability_form
-        self.mapping = mapping
+        self.witness = witness
 
     def __repr__(self):
-        return "ProblemResult(status=%s, result=%s)" % (self.status, self.reachability_form)
+        return "ProblemResult(status=%s, witness=%s)" % (self.status, self.witness)

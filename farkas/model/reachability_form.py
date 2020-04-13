@@ -85,7 +85,8 @@ class ReachabilityForm:
         return I
 
     def induced_subsystem(self, state_vector):
-        """ Given a reachability form with :math:`N` states and a vector in :math:`\{0,1\}^N` computes the induced subsystem of that vector.
+        """ Given a reachability form with :math:`N` states and a vector in :math:`\{0,1\}^N` 
+        computes the induced subsystem of that vector.
 
         :param reach_form: A reachability form
         :type reach_form: model.ReachabilityForm

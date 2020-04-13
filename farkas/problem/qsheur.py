@@ -1,4 +1,4 @@
-from . import ProblemFormulation, ProblemResult
+from . import ProblemFormulation, ProblemResult, MinimalWitness
 from farkas.solver import LP
 from .qsheurparams import AllOnesInitializer, InverseResultUpdater
 import numpy as np
@@ -47,43 +47,42 @@ class QSHeur(ProblemFormulation):
 
     def solve_min(self, reach_form):
         """Runs the QSheuristic on the Farkas min-polytope of a given reachability form for a given threshold."""
-        _,N = reach_form.P.shape
+        C,N = reach_form.P.shape
 
-        current_weights = self.initializer.initialize(reach_form)
+        current_weights = self.initializer.initialize(reach_form, self.objective)
 
         # computes the constraints for the Farkas min-polytope of the given reachability form
         fark_matr,fark_rhs = reach_form.fark_min_constraints(self.threshold)
+        print(fark_matr.shape, fark_rhs.shape, current_weights.shape,(C,N))
 
         # iteratively solves the corresponding LP, and computes the next objective function
         # from the result of the previous round according to the given update function
-        for i in range(0,self.iterations):
+        for i in range(self.iterations):
 
             heur_i_lp = LP.from_coefficients(fark_matr,fark_rhs,current_weights)
             for idx in range(fark_matr.shape[1]):
                 heur_i_lp.add_constraint([(idx,1)], ">=", 0)
                 heur_i_lp.add_constraint([(idx,1)], "<=", 1)
 
-            heur_i_result = heur_i_lp.solve(self.solver) # .solve(heur_i_lp)
-
+            heur_i_result = heur_i_lp.solve(self.solver)
+            
             if heur_i_result.status == "optimal":
                 res_vector = heur_i_result.result
-                to_one_if_positive = np.vectorize(lambda x: 1 if x > 0 else 0)
-                induced_states = to_one_if_positive(res_vector[:N])
-                # computes the subsystem induced by the result of this iteration
-                subsys,mapping = reach_form.induced_subsystem(induced_states)
-                yield ProblemResult("success",subsys,mapping)
-                
-                current_weights = self.updater.update(heur_i_result.result)
+                res_vector = np.clip(res_vector, 0, 1)
+                witness = MinimalWitness(reach_form, res_vector)
 
+                yield ProblemResult("success", witness)
+                
+                current_weights = self.updater.update(heur_i_result.result, self.objective)
             else:
                 # failed to optimize LP
-                yield ProblemResult(heur_i_result.status)
+                yield ProblemResult(heur_i_result.status, None)
 
     def solve_max(self, reach_form, initial_weights = None):
         """Runs the QSheuristic on the Farkas max-polytope of a given reachability form for a given threshold."""
         C,N = reach_form.P.shape
 
-        current_weights = self.initializer.initialize(reach_form)
+        current_weights = self.initializer.initialize(reach_form, self.objective)
 
         # computes the constraints for the Farkas max-polytope of the given reachability form
         fark_matr,fark_rhs = reach_form.fark_max_constraints(self.threshold)
@@ -91,27 +90,22 @@ class QSHeur(ProblemFormulation):
         # iteratively solves the corresponding LP, and computes the next objective function
         # from the result of the previous round according to the given update function
         for i in range(0,self.iterations):
+            # print(fark_matr.shape, fark_rhs.shape, current_weights.shape,(C,N))
             heur_i_lp = LP.from_coefficients(fark_matr,fark_rhs,current_weights)
             for idx in range(fark_matr.shape[1]):
                 heur_i_lp.add_constraint([(idx,1)], ">=", 0)
 
-            heur_i_result = heur_i_lp.solve(self.solver) # .solve(heur_i_lp)
-
+            heur_i_result = heur_i_lp.solve(self.solver)
+            
             if heur_i_result.status == "optimal":
                 res_vector = heur_i_result.result
-                # the states induced by the results vector are those that have a positive entry
-                # for some of their actions
-                induced_states = np.zeros(N)
-                for index in range(0,C):
-                    if res_vector[index] > 0:
-                        (st,act) = reach_form.index_by_state_action.inv[index]
-                        induced_states[st] = 1
+                res_vector = np.clip(res_vector, 0, 1)
+                witness = MinimalWitness(reach_form, res_vector)
 
-                subsys,mapping = reach_form.induced_subsystem(induced_states)
-                yield ProblemResult("success",subsys,mapping)
+                yield ProblemResult("success", witness)
 
-                current_weights = self.updater.update(heur_i_result.result)
+                current_weights = self.updater.update(heur_i_result.result, self.objective)
 
             else:
                 # failed to optimize LP
-                yield ProblemResult(heur_i_result.status)
+                yield ProblemResult(heur_i_result.status, None)

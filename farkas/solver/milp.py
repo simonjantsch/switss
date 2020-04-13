@@ -2,6 +2,7 @@ from ..utils import array_to_dok_matrix
 from . import SolverResult
 from scipy.sparse import dok_matrix
 import pulp
+import numpy as np
 
 class MILP:
     """
@@ -69,7 +70,7 @@ class MILP:
                     -1:"infeasible", 
                     -2:"unbounded", 
                     -3:"undefined"}[self.__pulpmodel.status]
-        result = [var.value() for var in self.__variables]
+        result = np.array([var.value() for var in self.__variables])
         return SolverResult(status, result)
 
     def _assert_expression(self, expression):
