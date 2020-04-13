@@ -201,7 +201,7 @@ class MILP:
 
         return model
 
-    def __str__(self):
+    def __repr__(self):
         return str(self.__pulpmodel)
 
 

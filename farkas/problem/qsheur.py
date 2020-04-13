@@ -31,8 +31,11 @@ class QSHeur(ProblemFormulation):
         self.threshold = threshold
         self.iterations = iterations
         self.solver = solver_name
-        # self.solver = Wrapper(solver_name)
         self.upd_fct = upd_fct
+
+    def __repr__(self):
+        return "QSHeur(threshold=%s, objective=%s, solver=%s, iterations=%s)" % (
+            self.threshold, self.min_or_max, self.solver, self.iterations)
 
     def solve(self, reach_form):
         """Runs the QSheuristic on the Farkas (min- or max-) polytope depending on the value in min_or_max."""

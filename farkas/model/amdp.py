@@ -333,3 +333,10 @@ class AbstractMDP(ABC):
     @abstractclassmethod
     def _load_transition_matrix(cls, filepath):
         pass
+
+    def __repr__(self):
+        return "%s(C=%s, N=%s, labels={%s})" % (
+                        type(self).__name__, 
+                        self.C, 
+                        self.N, 
+                        ", ".join(["%s (%d)" % (k, len(v)) for k,v in self.states_by_label.items()]))

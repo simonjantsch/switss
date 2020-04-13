@@ -16,6 +16,8 @@ class ReachabilityForm:
         self.to_target = to_target
         self.index_by_state_action = index_by_state_action
 
+    def __repr__(self):
+        return "ReachabilityForm(C=%s, N=%s, initial=%s)" % (self.P.shape[0], self.P.shape[1], self.initial)
 
     def fark_min_constraints(self, threshold):
         """ Returns the constraints of the Farkas-min polytope:

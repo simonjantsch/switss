@@ -5,3 +5,6 @@ class ProblemResult:
         self.status = status
         self.reachability_form = reachability_form
         self.mapping = mapping
+
+    def __repr__(self):
+        return "ProblemResult(status=%s, result=%s)" % (self.status, self.reachability_form)

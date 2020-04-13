@@ -15,8 +15,8 @@ class InvertibleDict:
     def __contains__(self, item):
         return item in self.d
 
-    def __str__(self):
-        return str(self.d)
+    def __repr__(self):
+        return self.d.__repr__()
 
     def keys(self):
         return self.d.keys()
