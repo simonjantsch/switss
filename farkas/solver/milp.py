@@ -128,19 +128,23 @@ class MILP:
         self.__constraint_iter += 1
 
     def add_variables(self, *domains):
-        """Adds a list of variables to this MILP. Each element in `domains` must be either `integer` or `real`.
+        """Adds a list of variables to this MILP. Each element in `domains` must be either `integer`, `binary` or `real`.
         
         :return: Index or indices of new variables.
         :rtype: either List[int] or int.
         """        
         l = []
         for domain in domains:
-            assert domain in ["integer", "real"]
+            assert domain in ["integer", "real", "binary"]
 
-            cat = { "real" : pulp.LpContinuous, "integer" : pulp.LpInteger }[domain]
+            cat = { "real" : pulp.LpContinuous, "integer" : pulp.LpInteger, "binary" : pulp.LpInteger }[domain]
             varidx = len(self.__variables)
             var = pulp.LpVariable("x%d" % varidx, cat=cat)
             self.__variables.append(var)
+
+            if domain == "binary":
+                self.add_constraint([(varidx, 1)], ">=", 0)
+                self.add_constraint([(varidx, 1)], "<=", 1)
 
             if len(domains) == 1:
                 return varidx
@@ -166,7 +170,7 @@ class MILP:
         :type b: :math:`M \\times 1`-Matrix
         :param opt: Weights for individual variables in x (:math:`\sigma`).
         :type opt: :math:`N \\times 1`-Matrix
-        :param domains: Array of strings, e.g. ["real", "integer", "integer",...] which indicates the domain for each variable.
+        :param domains: Array of strings, e.g. ["real", "integer", "integer", "binary", ...] which indicates the domain for each variable.
         :type domains: List[str]
         :param objective: "min" or "max", defaults to "min"
         :type objective: str, optional
