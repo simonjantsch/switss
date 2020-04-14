@@ -72,8 +72,9 @@ class MILP:
                     -1:"infeasible", 
                     -2:"unbounded", 
                     -3:"undefined"}[self.__pulpmodel.status]
-        result = np.array([var.value() for var in self.__variables])
-        return SolverResult(status, result)
+        result_vector = np.array([var.value() for var in self.__variables])
+        result_value = self.__pulpmodel.objective.value()
+        return SolverResult(status, result_vector, result_value)
 
     def _assert_expression(self, expression):
         for idx,(var,coeff) in enumerate(expression):
