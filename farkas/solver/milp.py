@@ -38,8 +38,7 @@ class MILP:
         print(result)
     """
 
-    __solvers = {}
-
+    
     def __init__(self, objective="min"):
         """Initializes an empty MILP.
         
@@ -61,11 +60,14 @@ class MILP:
         :rtype: solver.SolverResult
         """        
         assert solver in ["gurobi", "cbc"]
-        if solver not in MILP.__solvers:
-            MILP.__solvers[solver] = { "gurobi" : pulp.GUROBI_CMD, "cbc" : pulp.PULP_CBC_CMD }[solver]()
-        solver = MILP.__solvers[solver]
-        
-        self.__pulpmodel.solve(solver=solver)
+
+        if solver == "gurobi":
+            self.__pulpmodel.setSolver(pulp.GUROBI(epgap=0, MIPGapAbs=0, FeasibilityTol=1e-9, IntFeasTol=1e-9))
+        elif solver == "cbc":
+            self.__pulpmodel.setSolver(pulp.PULP_CBC_CMD())
+
+        self.__pulpmodel.solve()
+
         status = {   1:"optimal", 
                     -1:"infeasible", 
                     -2:"unbounded", 
