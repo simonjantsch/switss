@@ -67,13 +67,13 @@ class QSHeur(ProblemFormulation):
             heur_i_result = heur_i_lp.solve(self.solver)
             
             if heur_i_result.status == "optimal":
-                res_vector = heur_i_result.result
+                res_vector = heur_i_result.result_vector
                 res_vector = np.clip(res_vector, 0, 1)
                 witness = MinimalWitness(reach_form, res_vector)
 
                 yield ProblemResult("success", witness)
                 
-                current_weights = self.updater.update(heur_i_result.result, self.mode)
+                current_weights = self.updater.update(heur_i_result.result_vector, self.mode)
             else:
                 # failed to optimize LP
                 yield ProblemResult(heur_i_result.status, None)
@@ -98,13 +98,13 @@ class QSHeur(ProblemFormulation):
             heur_i_result = heur_i_lp.solve(self.solver)
             
             if heur_i_result.status == "optimal":
-                res_vector = heur_i_result.result
+                res_vector = heur_i_result.result_vector
                 res_vector = np.clip(res_vector, 0, 1)
                 witness = MinimalWitness(reach_form, res_vector)
 
                 yield ProblemResult("success", witness)
 
-                current_weights = self.updater.update(heur_i_result.result, self.mode)
+                current_weights = self.updater.update(heur_i_result.result_vector, self.mode)
 
             else:
                 # failed to optimize LP
