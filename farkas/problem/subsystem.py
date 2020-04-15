@@ -72,4 +72,4 @@ class Subsystem:
         return graph
 
     def __repr__(self):
-        return "MinimalWitness(system=%s, states=%s)" % (self.__system, int(self.subsystem_mask.sum()))
+        return "Subsystem(system=%s, states=%s)" % (self.__system, int(self.subsystem_mask.sum()))
