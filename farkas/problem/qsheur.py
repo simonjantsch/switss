@@ -47,13 +47,13 @@ class QSHeur(ProblemFormulation):
 
     def solve_min(self, reach_form):
         """Runs the QSheuristic on the Farkas min-polytope of a given reachability form for a given threshold."""
-        C,N = reach_form.P.shape
+        C,_ = reach_form.P.shape
 
         current_weights = self.initializer.initialize(reach_form, self.mode)
 
         # computes the constraints for the Farkas min-polytope of the given reachability form
         fark_matr,fark_rhs = reach_form.fark_min_constraints(self.threshold)
-        print(fark_matr.shape, fark_rhs.shape, current_weights.shape,(C,N))
+        # print(fark_matr.shape, fark_rhs.shape, current_weights.shape,(C,N))
 
         # iteratively solves the corresponding LP, and computes the next objective function
         # from the result of the previous round according to the given update function
@@ -67,9 +67,19 @@ class QSHeur(ProblemFormulation):
             heur_i_result = heur_i_lp.solve(self.solver)
             
             if heur_i_result.status == "optimal":
-                res_vector = heur_i_result.result_vector
-                res_vector = np.clip(res_vector, 0, 1)
-                witness = MinimalWitness(reach_form, res_vector)
+                # for the min-form, the resulting vector will be N-dimensional, carrying values only for states.
+                state_weights = heur_i_result.result_vector
+                state_weights = np.clip(state_weights, 0, 1)
+
+                # this creates a new C-dimensional vector which carries values for state-action pairs. 
+                # every state-action pair is assigned the weight the state has.
+                # this "blowing-up" will make it easier for visualizing subsystems.
+                state_action_weights = np.zeros(C)
+                for idx in range(C):
+                    state,_ = reach_form.index_by_state_action.inv[idx]
+                    state_action_weights[idx] = state_weights[state]
+
+                witness = MinimalWitness(reach_form, state_action_weights)
 
                 yield ProblemResult("success", witness)
                 
@@ -80,7 +90,7 @@ class QSHeur(ProblemFormulation):
 
     def solve_max(self, reach_form, initial_weights = None):
         """Runs the QSheuristic on the Farkas max-polytope of a given reachability form for a given threshold."""
-        C,N = reach_form.P.shape
+        # C,N = reach_form.P.shape
 
         current_weights = self.initializer.initialize(reach_form, self.mode)
 
@@ -98,9 +108,10 @@ class QSHeur(ProblemFormulation):
             heur_i_result = heur_i_lp.solve(self.solver)
             
             if heur_i_result.status == "optimal":
-                res_vector = heur_i_result.result_vector
-                res_vector = np.clip(res_vector, 0, 1)
-                witness = MinimalWitness(reach_form, res_vector)
+                # for the max-form, the resulting vector will be C-dimensional, carrying values for states and actions.
+                state_action_weights = heur_i_result.result_vector
+                state_action_weights = np.clip(state_action_weights, 0, 1)
+                witness = MinimalWitness(reach_form, state_action_weights)
 
                 yield ProblemResult("success", witness)
 
