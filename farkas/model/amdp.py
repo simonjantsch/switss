@@ -60,15 +60,17 @@ class AbstractMDP(ABC):
         """        
         assert mode in ["forward", "backward"], "Mode must be either 'forward' or 'backward' but is %s." % mode
         reachable = from_set.copy()
+        active = from_set.copy()
+        blacklist = set()
         neighbour_iter = { "forward" : self._successors, "backward" : self._predecessors }[mode]
         while True:
-            old_count = len(reachable)
-            newtmp = set({})
-            for fromidx in reachable:
-                succ = set(map(lambda sap: sap[0], neighbour_iter(fromidx)))
-                newtmp.update(succ)
-            reachable.update(newtmp)
-            if old_count == len(reachable):
+            # old_count = len(reachable)
+            fromidx = active.pop()
+            blacklist.add(fromidx)
+            succ = set(map(lambda sap: sap[0], neighbour_iter(fromidx)))
+            active = active.union(succ).difference(blacklist)
+            reachable.update(active)
+            if len(active) == 0: # old_count == len(reachable):
                 break
         return reachable
 
@@ -91,7 +93,7 @@ class AbstractMDP(ABC):
         initial_state_count = len(self.states_by_label[initial_label])
         assert initial_state_count == 1, "There were %d initial states given. Must be 1." % initial_state_count
         initial = list(self.states_by_label[initial_label])[0]
-
+        
         backward_reachable = self.reachable_set(target_states, "backward")
         forward_reachable = self.reachable_set(set([initial]), "forward")
         # states which are reachable from the initial state AND are able to reach target states
