@@ -1,4 +1,4 @@
-from . import ProblemFormulation, ProblemResult, MinimalWitness
+from . import ProblemFormulation, ProblemResult, Subsystem
 from farkas.solver import LP
 from .qsheurparams import AllOnesInitializer, InverseResultUpdater
 import numpy as np
@@ -79,7 +79,7 @@ class QSHeur(ProblemFormulation):
                     state,_ = reach_form.index_by_state_action.inv[idx]
                     state_action_weights[idx] = state_weights[state]
 
-                witness = MinimalWitness(reach_form, state_action_weights)
+                witness = Subsystem(reach_form, state_action_weights)
 
                 yield ProblemResult("success", witness)
                 
@@ -111,7 +111,7 @@ class QSHeur(ProblemFormulation):
                 # for the max-form, the resulting vector will be C-dimensional, carrying values for states and actions.
                 state_action_weights = heur_i_result.result_vector
                 state_action_weights = np.clip(state_action_weights, 0, 1)
-                witness = MinimalWitness(reach_form, state_action_weights)
+                witness = Subsystem(reach_form, state_action_weights)
 
                 yield ProblemResult("success", witness)
 

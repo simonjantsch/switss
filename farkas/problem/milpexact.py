@@ -1,4 +1,4 @@
-from . import ProblemFormulation, ProblemResult, MinimalWitness
+from . import ProblemFormulation, ProblemResult, Subsystem
 from farkas.solver import LP, MILP, SolverResult
 
 from bidict import bidict
@@ -30,7 +30,15 @@ class MILPExact(ProblemFormulation):
         var_groups = dict([(i,[i]) for i in range(N)])
         milp_result = min_nonzero_entries(fark_matr,fark_rhs,var_groups,upper_bound=1,solver=self.solver)
 
-        return MinimalWitness(reach_form, milp_result.result_vector)
+        # this creates a new C-dimensional vector which carries values for state-action pairs. 
+        # every state-action pair is assigned the weight the state has.
+        # this "blowing-up" will make it easier for visualizing subsystems.
+        state_action_weights = np.zeros(C)
+        for idx in range(C):
+            state,_ = reach_form.index_by_state_action.inv[idx]
+            state_action_weights[idx] = milp_result.result_vector[state]
+
+        return Subsystem(reach_form, milp_result.result_vector)
 
     def solve_max(self, reach_form):
 
@@ -41,7 +49,7 @@ class MILPExact(ProblemFormulation):
         var_groups = dict([(i,[i]) for i in range(C)])
         milp_result = min_nonzero_entries(fark_matr,fark_rhs,var_groups,upper_bound=None,solver=self.solver)
 
-        return MinimalWitness(reach_form, milp_result.result_vector)
+        return Subsystem(reach_form, milp_result.result_vector)
 
 
     def __repr__(self):

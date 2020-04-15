@@ -3,7 +3,7 @@ from graphviz import Digraph
 from ..model import DTMC, MDP
 from ..utils import color_from_hash
 
-class MinimalWitness:
+class Subsystem:
     def __init__(self, system, state_action_weights):
         assert state_action_weights.shape[0] == system.P.shape[0], (
             "result shape must be the amount of state-action pairs (%d!=%d)." % (state_action_weights.shape[0], system.P.shape[0]))
@@ -31,20 +31,15 @@ class MinimalWitness:
         graph = Digraph()
         model = None
 
-        # apply min-max-scaling for better weight indication.
-        sa_weights_scaled = self.__state_action_weights
-        # 0-entries would distort the outcome
-        min_0_ignored = min(filter(lambda x:x>0, sa_weights_scaled))
-        sa_weights_scaled = (sa_weights_scaled - min_0_ignored)/(np.max(sa_weights_scaled) - min_0_ignored)
-
         def state_map(stateidx, labels):
             in_subsystem = (stateidx < len(self.subsystem_mask) and self.subsystem_mask[stateidx])
             label = "State %d\n%s" % (stateidx,",".join(labels))
             color = color_from_hash( tuple([sorted(labels), in_subsystem]) )
             if self.is_quadratic and in_subsystem:
-                weight = sa_weights_scaled[stateidx]
+                weight = self.__state_action_weights[stateidx]
+                # coloring works, but is disabled for now.
                 # color = "gray%d" % int(100-weight*100)
-                label = "{}\nweight={:.3f}".format(label, weight)
+                label = "{}\nweight={:.5f}".format(label, weight)
                 
             return { "style" : "filled",  
                      "color" : color,  
@@ -55,9 +50,10 @@ class MinimalWitness:
             color, label = "black", str(action)
             if in_subsystem:
                 index = self.__system.index_by_state_action[(sourceidx, action)]
-                weight = sa_weights_scaled[index]
+                weight = self.__state_action_weights[index]
+                # coloring works, but is disabled for now.
                 # color = "gray%d" % int(weight*100)
-                label = "{}\nweight={:.3f}".format(label, weight)
+                label = "{}\nweight={:.5f}".format(label, weight)
                 
             return { "node" : { "color" : color,   
                                 "label" : label,
@@ -76,4 +72,4 @@ class MinimalWitness:
         return graph
 
     def __repr__(self):
-        return "MinimalWitness(system=%s, states=%s)" % (self.__system, self.subsystem_mask.sum())
+        return "MinimalWitness(system=%s, states=%s)" % (self.__system, int(self.subsystem_mask.sum()))

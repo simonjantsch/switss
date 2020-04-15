@@ -1,10 +1,10 @@
 from ..model import ReachabilityForm
-from . import MinimalWitness
+from . import Subsystem
 
 class ProblemResult:
-    def __init__(self, status, witness):
+    def __init__(self, status, subsystem):
         self.status = status
-        self.witness = witness
+        self.subsystem = subsystem
 
     def __repr__(self):
-        return "ProblemResult(status=%s, witness=%s)" % (self.status, self.witness)
+        return "ProblemResult(status=%s, subsystem=%s)" % (self.status, self.subsystem)
