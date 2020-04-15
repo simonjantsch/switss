@@ -59,16 +59,14 @@ class AbstractMDP(ABC):
         :rtype: Set[int]
         """        
         assert mode in ["forward", "backward"], "Mode must be either 'forward' or 'backward' but is %s." % mode
-        reachable = from_set.copy()
+        reachable = set()
         active = from_set.copy()
-        blacklist = set()
         neighbour_iter = { "forward" : self._successors, "backward" : self._predecessors }[mode]
         while True:
             fromidx = active.pop()
-            blacklist.add(fromidx)
+            reachable.add(fromidx)
             succ = set(map(lambda sap: sap[0], neighbour_iter(fromidx)))
-            active.update(succ.difference(blacklist))
-            reachable.update(active)
+            active.update(succ.difference(reachable))
             if len(active) == 0:
                 break
         return reachable
