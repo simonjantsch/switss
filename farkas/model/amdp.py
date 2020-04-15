@@ -64,13 +64,12 @@ class AbstractMDP(ABC):
         blacklist = set()
         neighbour_iter = { "forward" : self._successors, "backward" : self._predecessors }[mode]
         while True:
-            # old_count = len(reachable)
             fromidx = active.pop()
             blacklist.add(fromidx)
             succ = set(map(lambda sap: sap[0], neighbour_iter(fromidx)))
-            active = active.union(succ).difference(blacklist)
+            active.update(succ.difference(blacklist))
             reachable.update(active)
-            if len(active) == 0: # old_count == len(reachable):
+            if len(active) == 0:
                 break
         return reachable
 
