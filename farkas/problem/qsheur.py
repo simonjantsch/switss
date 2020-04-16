@@ -7,7 +7,7 @@ class QSHeur(ProblemFormulation):
     """The class QSHeur implements a class of iterative heuristics for computing small witnessing subsystems.
     Its goal is to find points in the corresponding Farkas-polytope with a small number of positive entries.
     It works as follows.
-    Given a reachability form, let :math:`\\mathcal{F}(\\lambda)` be its Farkas (min- or max-)polytope for a given threshold :math:`\\lambda`.
+    Given a reachability form, let :math:`\\mathcal{F}(\\lambda)` be its Farkas (y- or z-)polytope for a given threshold :math:`\\lambda`.
     Then, the vector :math:`QS(i)` is an optimal solution of the LP:
 
     .. math::
@@ -52,7 +52,7 @@ class QSHeur(ProblemFormulation):
         current_weights = self.initializer.initialize(reach_form, self.mode)
 
         # computes the constraints for the Farkas min-polytope of the given reachability form
-        fark_matr,fark_rhs = reach_form.fark_min_constraints(self.threshold)
+        fark_matr,fark_rhs = reach_form.fark_z_constraints(self.threshold)
         # print(fark_matr.shape, fark_rhs.shape, current_weights.shape,(C,N))
 
         # iteratively solves the corresponding LP, and computes the next objective function
@@ -95,7 +95,7 @@ class QSHeur(ProblemFormulation):
         current_weights = self.initializer.initialize(reach_form, self.mode)
 
         # computes the constraints for the Farkas max-polytope of the given reachability form
-        fark_matr,fark_rhs = reach_form.fark_max_constraints(self.threshold)
+        fark_matr,fark_rhs = reach_form.fark_y_constraints(self.threshold)
 
         # iteratively solves the corresponding LP, and computes the next objective function
         # from the result of the previous round according to the given update function

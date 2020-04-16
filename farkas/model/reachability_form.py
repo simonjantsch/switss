@@ -19,8 +19,8 @@ class ReachabilityForm:
     def __repr__(self):
         return "ReachabilityForm(C=%s, N=%s, initial=%s)" % (self.P.shape[0], self.P.shape[1], self.initial)
 
-    def fark_min_constraints(self, threshold):
-        """ Returns the constraints of the Farkas-min polytope:
+    def fark_z_constraints(self, threshold):
+        """ Returns matrix and rhs of the Farkas z-constraints:
 
         .. math::
 
@@ -28,9 +28,9 @@ class ReachabilityForm:
 
         where :math:`\mathbf{b}`` is the vector "to_target", :math:`\lambda` is the threshold and :math:`I` is the matrix that for every row (state,action) has a 1 in the column "state".
 
-        :param threshold: The threshold :math:`\lambda` for which the Farkas-min polytope should be constructed
+        :param threshold: The threshold :math:`\lambda` for which the Farkas z-constraints should be constructed
         :type threshold: Float
-        :return: :math:`C+1 \\times N`-matrix :math:`M`, and :math:`N`-vector :math:`rhs` such that :math:`M \mathbf{z} \leq rhs` yields the Farkas-min polytope
+        :return: :math:`C+1 \\times N`-matrix :math:`M`, and :math:`N`-vector :math:`rhs` such that :math:`M \mathbf{z} \leq rhs` yields the Farkas z-constraints
         """
         C,N = self.P.shape
         I = self._reach_form_id_matrix()
@@ -43,11 +43,11 @@ class ReachabilityForm:
         delta[self.initial] = 1
 
         # TODO: check whether the casting to dok_matrix is necessary
-        fark_min_matr = dok_matrix(vstack(((I-self.P),-delta)))
-        return fark_min_matr, rhs
+        fark_z_matr = dok_matrix(vstack(((I-self.P),-delta)))
+        return fark_z_matr, rhs
 
-    def fark_max_constraints(self, threshold):
-        """ Returns the constraints of the Farkas-max polytope:
+    def fark_y_constraints(self, threshold):
+        """ Returns the constraints of the Farkas y-constraints:
 
         .. math::
 
@@ -55,9 +55,9 @@ class ReachabilityForm:
 
         where :math:`\mathbf{b}`` is the vector "to_target", :math:`\lambda` is the threshold and :math:`I` is the matrix that for every row (state,action) has a 1 in the column "state". The vector :math:`\delta_{\\texttt{init}}` is 1 for the initial state, and otherwise 0.
 
-        :param threshold: The threshold :math:`\lambda` for which the Farkas-max polytope should be constructed
+        :param threshold: The threshold :math:`\lambda` for which the Farkas y-constraints should be constructed
         :type threshold: Float
-        :return: :math:`N+1 \\times C`-matrix :math:`M`, and :math:`C`-vector :math:`rhs` such that :math:`M \mathbf{y} \leq rhs` yields the Farkas-max polytope
+        :return: :math:`N+1 \\times C`-matrix :math:`M`, and :math:`C`-vector :math:`rhs` such that :math:`M \mathbf{y} \leq rhs` yields the Farkas y-constraints
         """
         C,N = self.P.shape
         I = self._reach_form_id_matrix()
@@ -69,9 +69,9 @@ class ReachabilityForm:
         rhs[N] = -threshold
 
         # TODO: check whether the casting to dok_matrix is necessary
-        fark_max_matr = dok_matrix(hstack(((I-self.P),-b)).T)
+        fark_y_matr = dok_matrix(hstack(((I-self.P),-b)).T)
 
-        return fark_max_matr, rhs
+        return fark_y_matr, rhs
 
     def _reach_form_id_matrix(self):
         """Computes the matrix :math:`I` for a given reachability form that for every row (st,act) has an entry 1 at the column corresponding to st."""

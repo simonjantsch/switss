@@ -25,7 +25,7 @@ class MILPExact(ProblemFormulation):
 
         C,N = reach_form.P.shape
 
-        fark_matr,fark_rhs = reach_form.fark_min_constraints(self.threshold)
+        fark_matr,fark_rhs = reach_form.fark_z_constraints(self.threshold)
 
         var_groups = dict([(i,[i]) for i in range(N)])
         milp_result = min_nonzero_entries(fark_matr,fark_rhs,var_groups,upper_bound=1,solver=self.solver)
@@ -44,7 +44,7 @@ class MILPExact(ProblemFormulation):
 
         C,N = reach_form.P.shape
 
-        fark_matr,fark_rhs = reach_form.fark_max_constraints(self.threshold)
+        fark_matr,fark_rhs = reach_form.fark_y_constraints(self.threshold)
 
         var_groups = dict([(i,[i]) for i in range(C)])
         milp_result = min_nonzero_entries(fark_matr,fark_rhs,var_groups,upper_bound=None,solver=self.solver)
