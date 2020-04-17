@@ -64,7 +64,7 @@ class MILP:
         if solver == "gurobi":
             self.__pulpmodel.setSolver(pulp.GUROBI(epgap=0, MIPGapAbs=0, FeasibilityTol=1e-9, IntFeasTol=1e-9))
         elif solver == "cbc":
-            self.__pulpmodel.setSolver(pulp.PULP_CBC_CMD())
+            self.__pulpmodel.setSolver(pulp.PULP_CBC_CMD(fracGap=1e-9))
 
         self.__pulpmodel.solve()
 
@@ -157,14 +157,15 @@ class MILP:
         return l
 
     @classmethod
-    def from_coefficients(cls, A, b, opt, domains, objective="min"):
+    def from_coefficients(cls, A, b, opt, domains, sense="<=", objective="min"):
         """Returns a Mixed Integer Linear Programming (MILP) formulation of a problem
         
         .. math::
 
-            \min_x/\max_x\ \sigma^T x \quad \\text{ s.t. } \quad Ax \leq b, \ x_i \in \mathbb{D}_i,\ \\forall i=1,\dots,N
+            \min_x/\max_x\ \sigma^T x \quad \\text{ s.t. } \quad Ax \circ b, \ x_i \in \mathbb{D}_i,\ \\forall i=1,\dots,N
 
-        where :math:`N` is the number of variables and :math:`M` the number of linear constraints. :math:`\mathbb{D}_i` indicates
+        where :math:`\circ \in \{ \leq, \geq \}`, :math:`N` is the number of variables and :math:`M`
+        the number of linear constraints. :math:`\mathbb{D}_i` indicates
         the domain of each variable. If `A`, `b` and `opt` are not given as a `scipy.sparse.dok_matrix`, 
         they are transformed into that form automatically.
         
@@ -176,6 +177,8 @@ class MILP:
         :type opt: :math:`N \\times 1`-Matrix
         :param domains: Array of strings, e.g. ["real", "integer", "integer", "binary", ...] which indicates the domain for each variable.
         :type domains: List[str]
+        :param sense: "<=" or ">=", defaults to "<="
+        :type sense: str, optional
         :param objective: "min" or "max", defaults to "min"
         :type objective: str, optional
         :return: The resulting MILP.
@@ -201,7 +204,7 @@ class MILP:
             for (_,j), a in row.items():
                 lhs.append((j, a))
             # adds constraint: A[constridx,:]^T * x <= b[constridx]
-            model.add_constraint(lhs, "<=", b[constridx,0])
+            model.add_constraint(lhs, sense, b[constridx,0])
 
         return model
 
@@ -242,29 +245,32 @@ class LP(MILP):
     """
 
     @classmethod
-    def from_coefficients(cls, A, b, opt, objective="min"):
+    def from_coefficients(cls, A, b, opt, sense="<=",objective="min"):
         """Returns a Linear Programming (LP) formulation of a problem
 
         .. math::
-        
-            \min_x/\max_x\ \sigma^T x \quad \\text{s.t.}\quad Ax \leq b
-        
 
-        where :math:`N` is the number of variables and :math:`M` the number of linear constraints.
-        If `A`, `b` and `opt` are not given as a `scipy.sparse.dok_matrix`, they are transformed into that form automatically.
-        
+            \min_x/\max_x\ \sigma^T x \quad \\text{s.t.}\quad Ax \circ b
+
+        where :math:`\circ \in \{\leq,\geq\}` :math:`N` is the number of
+        variables and :math:`M` the number of linear constraints.
+        If `A`, `b` and `opt` are not given as a `scipy.sparse.dok_matrix`,
+        they are transformed into that form automatically.
+
         :param A: Matrix for inequality conditions  (:math:`A`).
         :type A: :math:`M \\times N`-Matrix
         :param b: Vector for inequality conditions  (:math:`b`).
         :type b: :math:`M \\times 1`-Matrix
         :param opt: Weights for individual variables in x (:math:`\sigma`).
         :type opt: :math:`N \\times 1`-Matrix
+        :param sense: "<=" or ">=", defaults to "<="
+        :type sense: str, optional
         :param objective: "min" or "max", defaults to "min"
         :type objective: str, optional
         :return: The resulting LP.
         :rtype: solver.LP
         """
-        return MILP.from_coefficients(A,b,opt,["real"]*A.shape[1],objective=objective)
+        return MILP.from_coefficients(A,b,opt,["real"]*A.shape[1],sense=sense,objective=objective)
 
     def add_variables(self, count):
         """Adds a number of variables to the LP.
