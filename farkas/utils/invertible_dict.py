@@ -1,4 +1,5 @@
 from collections import defaultdict
+from collections.abc import Iterable
 
 class InvertibleDict:
     def __init__(self, d, is_default=False, default=None):
@@ -11,7 +12,10 @@ class InvertibleDict:
         if self.is_default and key not in self.d:
             return self.default()
         return self.d[key]
-    
+
+    def __setitem__(self,key,item):
+        self.d[key] = item
+
     def __contains__(self, item):
         return item in self.d
 
@@ -28,8 +32,11 @@ class InvertibleDict:
     def inv(self):
         if self.i is None:
             self.i = defaultdict(set)
-            for key, values in self.d.items():
-                for val in values:
+            for key, val in self.d.items():
+                if isinstance(val,Iterable):
+                    for v in val:
+                        self.i[v].add(key)
+                else:
                     self.i[val].add(key)
             self.i = InvertibleDict(dict(self.i), is_default=self.is_default, default=self.default)
         return self.i
