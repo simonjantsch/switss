@@ -1,7 +1,7 @@
 import numpy as np
 
 class SolverResult:
-    def __init__(self, status, result_vector, result_value):
+    def __init__(self, status, result_vector, value):
         """Result of a solved MILP or LP instance.
         
         :param status: Status of the solved instance, e.g. optimal, infeasible, unbounded or undefined.
@@ -12,7 +12,7 @@ class SolverResult:
         assert status in ["optimal", "infeasible", "unbounded", "undefined"]
         self.status = status
         self.result_vector = result_vector
-        self.result_value = result_value
+        self.value = value
 
     def __repr__(self):
-        return "SolverResult(status=%s, result_vector=%s, result_value=%s)" % (self.status, self.result_vector, self.result_value)
+        return "SolverResult(status=%s, result_vector=%s, value=%s)" % (self.status, self.result_vector, self.value)
