@@ -25,7 +25,7 @@ class AbstractMDP(ABC):
     def __check_correctness(self):
         # make sure all rows of P sum to one
         for idx,s in enumerate(self.P.sum(axis=1)):  
-            assert s == 1, "Sum of row %d of P is %d but should be 1." % (idx, s)
+            assert np.round(s,9) == 1, "Sum of row %d of P is %f but should be 1." % (idx, s)
         # make sure that all values x are 0<=x<=1
         for (i,j), p in self.P.items():
             assert p >= 0 and p <= 1, "P[%d,%d]=%f, violating 0<=%f<=1." % (i,j,p,p)

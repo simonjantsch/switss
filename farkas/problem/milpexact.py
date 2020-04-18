@@ -1,5 +1,5 @@
-from . import ProblemFormulation, ProblemResult, Subsystem
-from farkas.solver import LP, MILP, SolverResult
+from . import ProblemFormulation, ProblemResult, Subsystem, var_groups_program, project_from_binary_indicators, var_groups_from_state_groups
+from farkas.solver import SolverResult
 from farkas.utils import InvertibleDict
 
 from bidict import bidict
@@ -48,12 +48,14 @@ class MILPExact(ProblemFormulation):
 
         fark_matr,fark_rhs = reach_form.fark_z_constraints(self.threshold)
 
-        if state_groups == None:
-            var_groups = InvertibleDict(dict([(i,i) for i in range(N)]))
-        else:
-            var_groups = state_groups
+        var_groups = var_groups_from_state_groups(
+            reach_form,state_groups,mode="min")
 
-        milp_result = min_nonzero_entries(fark_matr,fark_rhs,var_groups,upper_bound=1,solver=self.solver)
+        milp_result = min_nonzero_groups(fark_matr,
+                                          fark_rhs,
+                                          var_groups,
+                                          upper_bound=1,
+                                          solver=self.solver)
 
         # this creates a new C-dimensional vector which carries values for state-action pairs.
         # every state-action pair is assigned the weight the state has.
@@ -63,7 +65,10 @@ class MILPExact(ProblemFormulation):
             state,_ = reach_form.index_by_state_action.inv[idx]
             state_action_weights[idx] = milp_result.result_vector[state]
 
-        return Subsystem(reach_form, state_action_weights)
+        witness = Subsystem(reach_form, state_action_weights)
+
+        return ProblemResult(
+            milp_result.status,witness,milp_result.value)
 
     def solve_max(self, reach_form,state_groups=None):
 
@@ -71,76 +76,41 @@ class MILPExact(ProblemFormulation):
 
         fark_matr,fark_rhs = reach_form.fark_y_constraints(self.threshold)
 
-        var_groups = InvertibleDict(dict())
+        var_groups = var_groups_from_state_groups(
+            reach_form,state_groups,mode="max")
 
-        for st_act_idx in range(C):
-            (state,action) = reach_form.index_by_state_action.inv[st_act_idx]
-            if state_groups != None:
-                if state in state_groups.keys():
-                    var_groups[st_act_idx] = state_groups[state]
-            else:
-                var_groups[st_act_idx] = state
+        milp_result = min_nonzero_groups(fark_matr,
+                                        fark_rhs,
+                                        var_groups,
+                                        upper_bound=None,
+                                        solver=self.solver)
 
-        milp_result = min_nonzero_entries(fark_matr,fark_rhs,var_groups,upper_bound=None,solver=self.solver)
+        witness = Subsystem(reach_form, milp_result.result_vector)
 
-        return Subsystem(reach_form, milp_result.result_vector)
+        return ProblemResult(
+            milp_result.status,witness,milp_result.value)
 
 
-def min_nonzero_entries(matrix,
-                        rhs,
-                        var_groups,
-                        upper_bound = None,
-                        solver = "cbc"):
+def min_nonzero_groups(matrix,
+                      rhs,
+                      var_groups,
+                      upper_bound = None,
+                      solver = "cbc"):
     C,N = matrix.shape
 
     # TODO assertion on var_groups and rhs
 
-    print(var_groups)
-
-    min_nonzero_milp = MILP.from_coefficients(matrix,rhs,np.zeros(N),["real"]*N,objective="min")
-    objective_expr = []
-
-    if upper_bound == None:
-        upper_obj = np.ones(N)
-        upper_bound_LP = LP.from_coefficients(matrix,rhs,upper_obj,objective="max")
-        for idx in range(N):
-            upper_bound_LP.add_constraint([(idx,1)],">=",0)
-        lp_result = upper_bound_LP.solve(solver=solver)
-        upper_bound = lp_result.result_value
-
-    for idx in range(N):
-        min_nonzero_milp.add_constraint([(idx,1)], ">=", 0)
-        min_nonzero_milp.add_constraint([(idx,1)], "<=", upper_bound)
-
-    indicator_var_to_vargroup_idx = bidict()
-    for (var_idx,group_idx) in var_groups.items():
-        if group_idx not in indicator_var_to_vargroup_idx.values():
-            indicator_var = min_nonzero_milp.add_variables(*["binary"])
-            indicator_var_to_vargroup_idx[indicator_var] = group_idx
-            objective_expr.append((indicator_var,1))
-        min_nonzero_milp.add_constraint([(var_idx,1),(indicator_var,-upper_bound)],"<=",0)
-
-    min_nonzero_milp.set_objective_function(objective_expr)
+    min_nonzero_milp, indicator_var_to_vargroup_idx = var_groups_program(
+        matrix, rhs, var_groups, upper_bound, indicator_type="binary")
 
     milp_result = min_nonzero_milp.solve(solver)
 
-    result_projected = np.zeros(N)
-    handled_vars = dict()
-    group_idx_to_vars = var_groups.inv
-    for (indicator,group_idx) in indicator_var_to_vargroup_idx.items():
-        if milp_result.result_vector[indicator] == 1:
-            for var_idx in group_idx_to_vars[group_idx]:
-                result_projected[var_idx] = milp_result.result_vector[var_idx]
-                handled_vars[var_idx] = True
-        else:
-            for var_idx in group_idx_to_vars[group_idx]:
-                result_projected[var_idx] = 0
-                handled_vars[var_idx] = True
+    result_projected = project_from_binary_indicators(
+        milp_result.result_vector,
+        N,
+        var_groups,
+        indicator_var_to_vargroup_idx)
 
-    for n in range(N):
-        if n not in handled_vars.keys():
-            result_projected[n] = milp_result.result_vector[n]
-        elif not handled_vars[n]:
-            result_projected[n] = milp_result.result_vector[n]
-
-    return SolverResult(milp_result.status, result_projected, milp_result.result_value)
+    return SolverResult(milp_result.status,
+                        result_projected,
+                        milp_result.value)

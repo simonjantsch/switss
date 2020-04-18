@@ -19,15 +19,13 @@ class Updater(ABC):
         return type(self).__name__
 
 class AllOnesInitializer(Initializer):
-    def initialize(self, reachability_form, mode):
-        assert mode in ["max","min"]
-        # max-form -> requires action-state-dimension (C)
-        # min-form -> requires state-dimension (N)
-        dim = { "max" : 0, "min" : 1}[mode]
-        return np.ones(reachability_form.P.shape[dim])
+    def initialize(self, indicator_keys):
+        return [(i,1) for i in indicator_keys]
 
 class InverseResultUpdater(Updater):
-    def update(self, x, mode):
-        assert mode in ["max","min"]
+    def update(self, x, indicator_keys):
         C = np.max(x) + 1e8
-        return np.array([1/v if v > 0 else C for v in x])
+        objective = []
+        for i in indicator_keys:
+            objective.append((i, 1/x[i] if x[i] > 0 else C))
+        return objective

@@ -35,13 +35,13 @@ def generate_farkas_certificate(reach_form, mode, sense, threshold,solver="cbc")
 
     if lp_result.status == "optimal":
         if sense == ">":
-            if lp_result.result_value > threshold:
+            if lp_result.value > threshold:
                 return lp_result.result_vector
             else:
                 print("Property is not satisfied!")
                 return None
         elif sense == "<":
-            if lp_result.result_value < threshold:
+            if lp_result.value < threshold:
                 return lp_result.result_vector
             else:
                 print("Property is not satisfied!")
