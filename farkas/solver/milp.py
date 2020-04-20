@@ -214,7 +214,7 @@ class MILP:
 
 class LP(MILP):
     """
-    A LP can either be initialized through a specification of coefficient matrices and -vectors 
+    An LP can either be initialized through a specification of coefficient matrices and -vectors 
     or manually, i.e. by adding variables, constraints and the objective function by hand.
 
     .. code-block::

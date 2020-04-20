@@ -4,17 +4,33 @@ from .qsheurparams import AllOnesInitializer, InverseResultUpdater
 import numpy as np
 
 class QSHeur(ProblemFormulation):
-    """The class QSHeur implements a class of iterative heuristics for computing small witnessing subsystems.
-    Its goal is to find points in the corresponding Farkas-polytope with a small number of positive entries.
-    It works as follows.
-    Given a reachability form, let :math:`\\mathcal{F}(\\lambda)` be its Farkas (y- or z-)polytope for a given threshold :math:`\\lambda`.
-    Then, the vector :math:`QS(i)` is an optimal solution of the LP:
+    """The class QSHeur implements a class of iterative heuristics for
+    computing small witnessing subsystems.
+    Its goal is to find points in the corresponding Farkas-polytope
+    with a small number of positive entries.
+    It works using a similar linear program to the one in MILPExact.
+    Let :math:`\\mathcal{F}(\\lambda)` be the Farkas (y- or z-)polytope
+    for a threshold :math:`\\lambda` of some reachability form.
+    The i-th solution is the vector :math:`QS_{\mathbf{x}}(i)`, namely
+    the :math:`\mathbf{x}` part of an optimal solution of the LP:
 
     .. math::
 
-       \min \mathbf{o}_i \cdot \mathbf{x} \quad \\text{ subj. to } \quad \mathbf{x} \in \\mathcal{F}(\\lambda)
+       \min \mathbf{o}_i \cdot \sigma \;\; \\text{ subj. to } \quad \mathbf{x} \in \\mathcal{F}(\\lambda) \;\; \\text{ and }  \;\; \mathbf{x}(i) \leq K \cdot \sigma(g(i))
 
-    where :math:`\mathbf{o}_0` is a vector of initial weights (:math:`(1,\ldots,1)` is the default) and :math:`\mathbf{o}_i = \operatorname{upd}(QS(i-1))` for a given update function :math:`\operatorname{upd}` (where pointwise :math:`1/x` if :math:`x \\neq 0`, and a big constant otherwise, is the default). """
+    where :math:`\mathbf{o}_0` is a vector of initial weights
+    (:math:`(1,\ldots,1)` is the default) and
+    :math:`\mathbf{o}_i = \operatorname{upd}(QS_{\sigma}(i-1))` for a given
+    update function :math:`\operatorname{upd}` (where pointwise :math:`1/x`
+    if :math:`x \\neq 0`, and a big constant otherwise, is the default).
+    The vector :math:`QS_{\sigma}(i-1)` is the :math:`\sigma` part of the
+    :math:`i-1`-th iteration of the heuristic.
+
+    The function :math:`g` is specified using the state_groups parameter
+    and is used to "group" states as in MILPExact.
+    The default setting :math:`g = id` results in the standard minimization
+    where all states are considered equally.
+    """
     def __init__(self,
                  threshold,
                  mode,
@@ -41,7 +57,7 @@ class QSHeur(ProblemFormulation):
             self.threshold, self.mode, self.solver, self.iterations, self.initializer, self.updater)
 
     def solve(self, reach_form):
-        """Runs the QSheuristic on the Farkas (y- or z-) polytope
+        """Runs the QSheuristic using the Farkas (y- or z-) polytope
         depending on the value in mode."""
         if self.mode == "min":
             return self.solve_min(reach_form)
@@ -49,7 +65,7 @@ class QSHeur(ProblemFormulation):
             return self.solve_max(reach_form)
 
     def solve_min(self, reach_form):
-        """Runs the QSheuristic on the Farkas z-polytope of a given
+        """Runs the QSheuristic using the Farkas z-polytope of a given
         reachability form for a given threshold."""
         C,N = reach_form.P.shape
 
@@ -106,7 +122,7 @@ class QSHeur(ProblemFormulation):
                 yield ProblemResult(heur_result.status, None,None)
 
     def solve_max(self, reach_form, initial_weights = None):
-        """Runs the QSheuristic on the Farkas y-polytope of a given reachability form for a given threshold."""
+        """Runs the QSheuristic using the Farkas y-polytope of a given reachability form for a given threshold."""
         C,N = reach_form.P.shape
 
         fark_matr,fark_rhs = reach_form.fark_y_constraints(self.threshold)
