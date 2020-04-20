@@ -54,17 +54,21 @@ class MILP:
     def solve(self, solver="cbc"):
         """Solves this problem and returns the problem result.
         
-        :param solver: The solver that should be used. Currently supported are "cbc" or "gurobi", defaults to "cbc"
+        :param solver: The solver that should be used. Currently supported are "cbc", "gurobi", "glpk" and "cplex", defaults to "cbc"
         :type solver: str, optional
         :return: Result.
         :rtype: solver.SolverResult
         """        
-        assert solver in ["gurobi", "cbc"]
+        assert solver in ["gurobi","cbc","glpk","cplex"]
 
         if solver == "gurobi":
             self.__pulpmodel.setSolver(pulp.GUROBI(epgap=0, MIPGapAbs=0, FeasibilityTol=1e-9, IntFeasTol=1e-9))
         elif solver == "cbc":
             self.__pulpmodel.setSolver(pulp.PULP_CBC_CMD(fracGap=1e-9))
+        elif solver == "glpk":
+            self.__pulpmodel.setSolver(pulp.GLPK_CMD())
+        elif solver == "cplex":
+            self.__pulpmodel.setSolver(pulp.CPLEX_PY())
 
         self.__pulpmodel.solve()
 

@@ -41,7 +41,6 @@ class QSHeur(ProblemFormulation):
                  solver_name="cbc"):
         super().__init__()
         assert mode in ["min","max"]
-        assert solver_name in ["gurobi","cbc"]
         assert (threshold >= 0) and (threshold <= 1)
 
         self.mode = mode
