@@ -59,14 +59,13 @@ def generate_farkas_certificate(reach_form, mode, sense, threshold,solver="cbc")
         print("Property is not satisfied!")
         return None
 
-def check_farkas_certificate(reach_form, mode, sense, threshold, farkas_vec, prec=5):
+def check_farkas_certificate(reach_form, mode, sense, threshold, farkas_vec, tol=1e-8):
     """Given a reachability form, mode, sense, threshold and candidate vector, checks
     whether the vector is a legal Farkas certificate for the reachability constraint.
 
-    To cope with the problem of imprecise LP-solver results, the function allows to
-    define a precision :math:`prec` (the default value is 5).
-    It will then round the vector pointwise to :math:`prec` decimals and check the
-    certificate conditions afterwards.
+    To allow small deviations when checking the certificate conditions one can set the
+    tol (for tolerance) parameter (defaults to 1e-8).
+    It is then checked that any constraint deviates by at most the value in tol.
     """
 
     assert (threshold >= 0) and (threshold <= 1)
@@ -78,16 +77,14 @@ def check_farkas_certificate(reach_form, mode, sense, threshold, farkas_vec, pre
 
     res_vec = farkas_matr.dot(farkas_vec)
 
-    res_vec_rounded = np.round(res_vec,prec)
-
     if sense == "<=":
-        return (res_vec_rounded >= rhs).all()
+        return (res_vec + tol >= rhs).all()
     elif sense == "<":
-        return (res_vec_rounded >= rhs).all() and res_vec_rounded[D] > rhs[D]
+        return (res_vec + tol >= rhs).all() and (res_vec[D] + tol) > rhs[D]
     elif sense == ">=":
-        return (res_vec_rounded <= rhs).all()
+        return (res_vec - tol <= rhs).all()
     elif sense == ">":
-        return (res_vec_rounded <= rhs).all() and res_vec_rounded[D] < rhs[D]
+        return (res_vec - tol <= rhs).all() and (res_vec[D] + tol) < rhs[D]
 
     assert False
 
