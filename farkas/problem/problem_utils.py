@@ -40,9 +40,9 @@ def var_groups_program(matr,
     objective_expr = []
 
     for (var_idx,group_idx) in var_groups.items():
-        if group_idx not in indicator_var_to_vargroup_idx.values():
-            indicator_var = var_groups_program.add_variables(
-                *[indicator_type])
+        group_idx = next(iter(group_idx))
+        if group_idx not in indicator_var_to_vargroup_idx.inv.keys():
+            indicator_var = var_groups_program.add_variables(*[indicator_type])
             if indicator_type != "binary":
                 var_groups_program.add_constraint([(indicator_var,1)],"<=",1)
                 var_groups_program.add_constraint(
@@ -92,11 +92,11 @@ def var_groups_from_state_groups(reach_form,state_groups,mode):
 
     if mode == "min":
         if state_groups == None:
-            return InvertibleDict(dict([(i,i) for i in range(N)]))
+            return bidict({ i : i for i in range(N) })
         else:
             return state_groups
     else:
-        var_groups = InvertibleDict(dict([]))
+        var_groups = InvertibleDict({}, is_default=True)
         for st_act_idx in range(C):
             (state,action) = reach_form.index_by_state_action.inv[st_act_idx]
             if state_groups != None:
