@@ -62,7 +62,8 @@ class MILP:
         assert solver in ["gurobi","cbc","glpk","cplex"]
 
         if solver == "gurobi":
-            self.__pulpmodel.setSolver(pulp.GUROBI(epgap=0, MIPGapAbs=0, FeasibilityTol=1e-9, IntFeasTol=1e-9))
+            self.__pulpmodel.setSolver(pulp.GUROBI_CMD(
+                options=[("epgap",0), ("MIPGapAbs",0), ("FeasibilityTol",1e-9), ("IntFeasTol",1e-9)]))
         elif solver == "cbc":
             self.__pulpmodel.setSolver(pulp.PULP_CBC_CMD(fracGap=1e-9))
         elif solver == "glpk":

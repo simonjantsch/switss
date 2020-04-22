@@ -165,4 +165,4 @@ class QSHeur(ProblemFormulation):
 
             else:
                 # failed to optimize LP
-                yield ProblemResult(heur_i_result.status, None,None)
+                yield ProblemResult(heur_result.status, None,None)

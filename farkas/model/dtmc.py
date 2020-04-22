@@ -14,9 +14,9 @@ class DTMC(AbstractMDP):
         index_by_state_action = bidict()
         for i in range(P.shape[0]):
             index_by_state_action[(i,0)] = i
-        super().__init__(P, index_by_state_action, label_to_states)
+        super().__init__(P, index_by_state_action, {}, label_to_states)
 
-    def digraph(self, state_map = None, trans_map = None):
+    def digraph(self, state_map = None, trans_map = None, action_map = None):
         """Creates a graphviz.Digraph object from this instance. When a digraph object is created, 
         new nodes are added for states plus additional transitions which are edges between nodes. 
         `state_map` and `trans_map` are functions that, on some input, compute keyword arguments for

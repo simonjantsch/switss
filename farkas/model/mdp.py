@@ -1,14 +1,15 @@
 from graphviz import Digraph
 from scipy.sparse import dok_matrix
 from bidict import bidict
+from collections import defaultdict
 
 from . import AbstractMDP
 from ..prism import prism
 from ..utils import color_from_hash
 
 class MDP(AbstractMDP):
-    def __init__(self, P, index_by_state_action, label_to_states):
-        super().__init__(P, index_by_state_action, label_to_states)
+    def __init__(self, P, index_by_state_action, label_to_actions, label_to_states):
+        super().__init__(P, index_by_state_action, label_to_actions, label_to_states)
 
     def digraph(self, state_map = None, trans_map = None, action_map = None):      
         """Creates a graphviz.Digraph object from this instance. When a digraph object is created, 
@@ -70,9 +71,12 @@ class MDP(AbstractMDP):
                      "label" : str(round(p,10)) }
 
         def standard_action_map(sourceidx, action, sourcelabels):
-            return { "node" : { "color" : "black", 
-                                "label" : str(action),
-                                "style" : "solid", 
+            # print(self.label_by_action)
+            label = self.label_by_action[(sourceidx,action)]
+            return { "node" : { # "color" :  color_from_hash(label), 
+                                "label" :  "%s\n%s" % (action, "".join(label)),
+                                "color" : "black",
+                                # "style" : "filled", 
                                 "shape" : "rectangle" }, 
                      "edge" : { "color" : "black",
                                 "dir" : "none" } }
@@ -88,7 +92,7 @@ class MDP(AbstractMDP):
         existing_state_action_pairs = set({})
 
         for (idx, dest), p in self.P.items():
-            source, action = self._state_action_pair_by_idx(idx)
+            source, action = self.index_by_state_action.inv[idx]
 
             # transition from source to dest w/ probability p
             if p > 0:
@@ -126,7 +130,7 @@ class MDP(AbstractMDP):
             tra_file.write("%d %d %d\n" % (self.N, self.C, self.P.nnz))
             for (index,dest), p in self.P.items():
                 if p > 0:
-                    source,action = self._state_action_pair_by_idx(index)
+                    source,action = self.index_by_state_action.inv[index]
                     tra_file.write("%d %d %d %f\n" % (source, action, dest, p))
 
         with open(lab_path, "w") as lab_file:
@@ -152,6 +156,7 @@ class MDP(AbstractMDP):
         """
         P = dok_matrix((1,1))
         index_by_state_action = bidict()
+        label_to_actions = defaultdict(set)
 
         with open(filepath,"r") as tra_file:
             # the first line should have format "#states #choices #transitions"
@@ -169,6 +174,9 @@ class MDP(AbstractMDP):
                 action = int(line_split[1])
                 dest = int(line_split[2])
                 prob = float(line_split[3])
+                if len(line_split) == 5:
+                    actionlabel = line_split[4]
+                    label_to_actions[actionlabel].add((source,action))
 
                 if (source,action) in index_by_state_action:
                     index = index_by_state_action[(source,action)]
@@ -178,4 +186,4 @@ class MDP(AbstractMDP):
                     max_index += 1
                 P[index,dest] = prob
 
-        return P,index_by_state_action
+        return P,index_by_state_action,label_to_actions
