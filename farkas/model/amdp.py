@@ -9,13 +9,13 @@ import tempfile
 
 from . import ReachabilityForm
 from ..prism import parse_label_file, prism_to_tra
-from ..utils import InvertibleDict, array_to_dok_matrix
+from ..utils import InvertibleDict, cast_dok_matrix
 
 
 class AbstractMDP(ABC):
     def __init__(self, P, index_by_state_action, label_to_states):
         # transform P into dok_matrix if neccessary
-        self.P = P if isinstance(P, dok_matrix) else array_to_dok_matrix(P)  
+        self.P = cast_dok_matrix(P)  
         self.C, self.N = self.P.shape
         # transform mapping into bidict if neccessary (applying bidict to bidict doesn't change anything)
         self.index_by_state_action = bidict(index_by_state_action)

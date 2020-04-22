@@ -1,4 +1,4 @@
-from farkas.utils import array_to_dok_matrix
+from farkas.utils import cast_dok_matrix
 
 from bidict import bidict
 import numpy as np
@@ -43,7 +43,7 @@ class ReachabilityForm:
         delta[self.initial] = 1
 
         # TODO: check whether the casting to dok_matrix is necessary
-        fark_z_matr = dok_matrix(vstack(((I-self.P),-delta)))
+        fark_z_matr = vstack(((I-self.P),-delta))
         return fark_z_matr, rhs
 
     def fark_y_constraints(self, threshold):
@@ -62,14 +62,14 @@ class ReachabilityForm:
         C,N = self.P.shape
         I = self._reach_form_id_matrix()
 
-        b = array_to_dok_matrix(self.to_target)
+        b = cast_dok_matrix(self.to_target)
 
         rhs = np.zeros(N+1)
         rhs[self.initial] = 1
         rhs[N] = -threshold
 
         # TODO: check whether the casting to dok_matrix is necessary
-        fark_y_matr = dok_matrix(hstack(((I-self.P),-b)).T)
+        fark_y_matr = hstack(((I-self.P),-b)).T
 
         return fark_y_matr, rhs
 

@@ -1,4 +1,4 @@
-from ..utils import array_to_dok_matrix
+from ..utils import cast_dok_matrix
 from . import SolverResult
 from scipy.sparse import dok_matrix
 import pulp
@@ -189,9 +189,9 @@ class MILP:
         :rtype: solver.MILP
         """
 
-        A = array_to_dok_matrix(A) if not isinstance(A,dok_matrix) else A
-        b = array_to_dok_matrix(b) if not isinstance(b,dok_matrix) else b
-        opt = array_to_dok_matrix(opt) if not isinstance(opt,dok_matrix) else opt
+        A = cast_dok_matrix(A)
+        b = cast_dok_matrix(b)
+        opt = cast_dok_matrix(opt)
 
         model = MILP(objective=objective)
 
