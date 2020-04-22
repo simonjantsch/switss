@@ -17,9 +17,9 @@ sys.path.insert(0, '..')
 
 # -- Project information -----------------------------------------------------
 
-project = 'Farkas'
-copyright = '2020, Funke, Jantsch, Harder'
-author = 'Funke, Jantsch, Harder'
+project = 'SWISS'
+copyright = '2020, Jantsch, S; Harder, H; Funke F'
+author = 'Jantsch, S; Harder, H; Funke F'
 
 
 # -- General configuration ---------------------------------------------------
