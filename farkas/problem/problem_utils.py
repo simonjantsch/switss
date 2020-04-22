@@ -44,8 +44,9 @@ def var_groups_program(matr,
             indicator_var = var_groups_program.add_variables(
                 *[indicator_type])
             if indicator_type != "binary":
+                var_groups_program.add_constraint([(indicator_var,1)],"<=",1)
                 var_groups_program.add_constraint(
-                    [(indicator_var,1)],"<=",1)
+                    [(indicator_var,1)],">=",0)
             indicator_var_to_vargroup_idx[indicator_var] = group_idx
             objective_expr.append((indicator_var,1))
         var_groups_program.add_constraint(
