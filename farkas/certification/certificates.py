@@ -13,7 +13,7 @@ def generate_farkas_certificate(reach_form, mode, sense, threshold,solver="cbc")
 
     farkas_matr,rhs = __get_right_constraint_set(reach_form,mode,sense,threshold)
 
-    D = rhs.shape[0]
+    D = farkas_matr.shape[1]
 
     if sense in ["<=","<"]:
         optimization_mode = "min"
@@ -37,6 +37,9 @@ def generate_farkas_certificate(reach_form, mode, sense, threshold,solver="cbc")
                                    objective_fct,
                                    sense = lp_sense,
                                    objective = optimization_mode)
+
+    for idx in range(D):
+        fark_lp.add_constraint([(idx,1)], ">=" ,0)
 
     lp_result = fark_lp.solve(solver=solver)
 
@@ -72,19 +75,19 @@ def check_farkas_certificate(reach_form, mode, sense, threshold, farkas_vec, tol
 
     farkas_matr,rhs = __get_right_constraint_set(reach_form,mode,sense,threshold)
 
-    D = farkas_vec.shape[0]
-    assert farkas_matr.shape[1] == D
+    N,D = farkas_matr.shape
+    assert farkas_vec.shape[0] == D
 
     res_vec = farkas_matr.dot(farkas_vec)
 
     if sense == "<=":
         return (res_vec + tol >= rhs).all()
     elif sense == "<":
-        return (res_vec + tol >= rhs).all() and (res_vec[D] + tol) > rhs[D]
+        return (res_vec + tol >= rhs).all() and (res_vec[N-1] + tol) > rhs[N-1]
     elif sense == ">=":
         return (res_vec - tol <= rhs).all()
     elif sense == ">":
-        return (res_vec - tol <= rhs).all() and (res_vec[D] + tol) < rhs[D]
+        return (res_vec - tol <= rhs).all() and (res_vec[N-1] + tol) < rhs[N-1]
 
     assert False
 
