@@ -4,7 +4,7 @@ import numpy as np
 
 class Initializer(ABC):
     """Abstract base class for QSHeur-initializers. An initializer 
-    computes the initial objective function :math:`\sigma_0` of a QSHeur-problem.
+    computes the initial objective function :math:`\mathbf{o}_0` of a QSHeur-problem.
     """
 
     def __init__(self, reachability_form, mode):
@@ -21,13 +21,12 @@ class Initializer(ABC):
 
     @abstractmethod
     def initialize(self, indicator_keys):
-        """Computes the initial objective function :math:`\sigma_0` for a QSHeur-run. 
+        """Computes the initial objective function :math:`\mathbf{o}_0` for a QSHeur-run. 
 
-        :param indicator_keys: Set of indices :math:`v_1,\dots,v_m \in \{ 1,\dots,M \}` where :math:`M \in \{N,C\}`
-            is the number of states or state-action-pairs (dependent on mode) and each index :math:`v` corresponds to 
-            such a state or state-action-pair. Only states that occur in this index set should be considered in the objective function.
+        :param indicator_keys: Set of indices :math:`v_1,\dots,v_m` where each index :math:`v` corresponds to one
+            state group variable :math:`\sigma(v)`. Only indices that occur in this set should be considered in the objective function.
         :type indicator_keys: Iterable[int]
-        :return: A list of state-index/coefficient pairings. Each entry is a tuple :math:`(v, \sigma_{i+1}^{(v)})` 
+        :return: A list of index/coefficient pairings. Each entry is a tuple :math:`(v, \mathbf{o}_{0}(v))` 
             where :math:`v \in \{ v_1,\dots,v_m\}`.
         :rtype: List[Tuple[int,float]]
         """
@@ -38,8 +37,8 @@ class Initializer(ABC):
 
 class Updater(ABC):
     """Abstract base class for QSHeur-updaters. An updater 
-    computes the new objective function :math:`\sigma_{i+1}` after each QSHeur-iteration. Computation may
-    or may not be dependent on the last result vector :math:`QS_i`.
+    computes the new objective function :math:`\mathbf{o}_{i+1}` after each QSHeur-iteration. Computation may
+    or may not be dependent on the last result vector :math:`QS(i) = (QS_{\mathbf{x}}(i)\ QS_{\sigma}(i))`.
     """    
 
     def __init__(self, reachability_form, mode):
@@ -56,16 +55,13 @@ class Updater(ABC):
 
     @abstractmethod
     def update(self, last_result, indicator_keys):
-        """Computes the updated objective function :math:`\sigma_{i+1}(QS_i)` for a QSHeur-run from 
-        the past result-vector `last_result` :math:`= QS_i`.
+        """Computes the updated objective function :math:`\mathbf{o}_{i+1}`.
 
-        :param last_result: The past result vector :math:`QS_i`.
-        :type last_result: :math:`N` or :math:`C`-dimensional vector containing values for each state
-        :param indicator_keys: Set of indices :math:`v_1,\dots,v_m \in \{ 1,\dots,M \}` where :math:`M \in \{N,C\}`
-            is the number of states or state-action-pairs (dependent on mode) and each index :math:`v` corresponds to 
-            such a state or state-action-pair. Only states that occur in this index set should be considered in the objective function.
+        :param last_result: The past result vector :math:`QS(i)`.
+        :param indicator_keys: Set of indices :math:`v_1,\dots,v_m` where each index :math:`v` corresponds to one
+            state group variable :math:`\sigma(v)`. Only indices that occur in this set should be considered in the objective function.
         :type indicator_keys: Iterable[int]
-        :return: A list of state-index/coefficient pairings. Each entry is a tuple :math:`(v, \sigma_{i+1}^{(v)})` 
+        :return: A list of index/coefficient pairings. Each entry is a tuple :math:`(v, \mathbf{o}_{i+1}(v))` 
             where :math:`v \in \{ v_1,\dots,v_m\}`.
         :rtype: List[Tuple[int,float]]
         """        
@@ -75,11 +71,11 @@ class Updater(ABC):
         return type(self).__name__
 
 class AllOnesInitializer(Initializer):
-    """Gives each state the same weight, i.e.
+    """Gives each group the same weight, i.e.
     
     .. math::
     
-        \sigma_0^{(v)} = 1, \quad \\forall v \in \{ v_1, \dots v_m \} 
+        \mathbf{o}_0(v) = 1, \quad \\forall v \in \{ v_1, \dots v_m \} 
     
     """
 
@@ -87,39 +83,41 @@ class AllOnesInitializer(Initializer):
         return [(i,1) for i in indicator_keys]
 
 class InverseResultUpdater(Updater):
-    """Gives most weights to states that were removed in the last iteration (i.e. :math:`QS_i^{(v)} = 0`)
-    and increases weight of states that are already close to beeing removed (i.e. small :math:`QS_i^{(v)}`):
+    """Gives most weight to groups that were removed in the last iteration (i.e. :math:`QS_{\sigma}(i)(v) = 0`)
+    and increases weight of groups that are already close to beeing removed (i.e. small :math:`QS_{\sigma}(i)(v)`):
 
     .. math::
 
-        \sigma_{i+1}^{(v)} = \\begin{cases} 
-            1/QS_i^{(v)} & QS_i^{(v)} > 0, \\\ 
-            C & QS_i^{(v)} = 0 
+        \mathbf{o}_{i+1}(v) = \\begin{cases} 
+            1/QS_{\sigma}(i)(v) & QS_{\sigma}(i)(v) > 0, \\\ 
+            C & QS_{\sigma}(i)(v) = 0 
         \end{cases}, \quad \\forall v \in \{v_1,\dots,v_m\}.
 
     where :math:`C \gg 0`.
 
     """    
     def update(self, last_result, indicator_keys):
+        print(last_result.shape)
         C = np.max(last_result) + 1e8
         objective = []
         for i in indicator_keys:
             objective.append((i, 1/last_result[i] if last_result[i] > 0 else C))
         return objective
 
-class InverseReachabilityInitializer(Initializer):
-    """Gives states the most weight that have a low probability of reaching the goal state.
-    Currently only works for min- and max-form if model is a DTMC.
-
-    .. math::
-
-        \sigma_0^{(v)} = 1/(Pr_{v}(\diamond goal)+c), \quad \\forall v \in \{ v_1, \dots v_m \} 
-
-    where :math:`c` is positive but close to zero. 
-    """    
-    def initialize(self, indicator_keys):
-        I = np.identity(self.reachability_form.N)
-        P = self.reachability_form.P
-        to_target = self.reachability_form.to_target
-        reachability = (I-P)**-1 * np.matrix(to_target).T
-        return [(i,1/(reachability[i]+1e-12)) for i in indicator_keys]
+# class InverseReachabilityInitializer(Initializer):
+#     """Gives states the most weight that have a low probability of reaching the goal state.
+#     Currently only works for min- and max-form if model is a DTMC.
+# 
+#     .. math::
+# 
+#         \mathbf{o}_0^{(v)} = 1/(Pr_{v}(\diamond goal)+c), \quad \\forall v \in \{ v_1, \dots v_m \} 
+# 
+#     where :math:`c` is positive but close to zero. 
+#     """    
+#     def initialize(self, indicator_keys):
+#         P = self.reachability_form.P
+#         to_target = self.reachability_form.to_target
+#         I = np.identity(P.shape[0])
+#         reachability = (I-P)**-1 * np.matrix(to_target).T
+#         print(indicator_keys)
+#         return [(i,1/(reachability[i]+1e-12)) for i in indicator_keys]

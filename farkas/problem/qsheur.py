@@ -1,5 +1,6 @@
 from . import ProblemFormulation, ProblemResult, Subsystem, var_groups_program, var_groups_from_state_groups
 from . import AllOnesInitializer, InverseResultUpdater
+from farkas.utils import InvertibleDict
 from farkas.solver import LP
 import numpy as np
 
@@ -80,7 +81,8 @@ class QSHeur(ProblemFormulation):
                                                      indicator_type="real")
 
         indicator_idx = ind_to_grp_idx.keys()
-
+        print(ind_to_grp_idx)
+        print(indicator_idx)
         current_objective = self.initializertype(reach_form, "min").initialize(indicator_idx)
 
         # iteratively solves the corresponding LP, and computes the next
@@ -123,7 +125,7 @@ class QSHeur(ProblemFormulation):
 
         fark_matr,fark_rhs = reach_form.fark_y_constraints(self.threshold)
 
-        var_groups = var_groups_from_state_groups(reach_form,self.state_groups,"max")
+        var_groups = InvertibleDict({ i : set([i]) for i in range(C)})
 
         heur_lp, ind_to_grp_idx = var_groups_program(fark_matr,
                                                      fark_rhs,
@@ -132,6 +134,7 @@ class QSHeur(ProblemFormulation):
                                                      indicator_type="real")
 
         indicator_idx = ind_to_grp_idx.keys()
+        print(indicator_idx)
         current_objective = self.initializertype(reach_form, "max").initialize(indicator_idx)
 
         # iteratively solves the corresponding LP, and computes the
@@ -149,7 +152,7 @@ class QSHeur(ProblemFormulation):
                 state_action_weights = heur_result.result_vector[:C]
                 witness = Subsystem(reach_form, state_action_weights)
 
-                indicator_weights = heur_result.result_vector[N:]
+                indicator_weights = heur_result.result_vector[C:]
                 no_nonzero_groups = len(
                     [i for i in indicator_weights if i > 0])
 

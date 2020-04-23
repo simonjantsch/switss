@@ -36,21 +36,19 @@ def var_groups_program(matr,
         var_groups_program = LP.from_coefficients(
             matr,rhs,np.zeros(N),sense="<=",objective="min")
 
-    indicator_var_to_vargroup_idx = bidict()
+    indicator_var_to_vargroup = bidict()
     objective_expr = []
 
-    for (var_idx,group_idx) in var_groups.items():
-        group_idx = next(iter(group_idx))
-        if group_idx not in indicator_var_to_vargroup_idx.inv.keys():
-            indicator_var = var_groups_program.add_variables(*[indicator_type])
+    for (group,var_indices) in var_groups.items():
+        indicator_var = var_groups_program.add_variables(*[indicator_type])
+        indicator_var_to_vargroup[indicator_var] = group
+        for var_idx in var_indices:
             if indicator_type != "binary":
                 var_groups_program.add_constraint([(indicator_var,1)],"<=",1)
-                var_groups_program.add_constraint(
-                    [(indicator_var,1)],">=",0)
-            indicator_var_to_vargroup_idx[indicator_var] = group_idx
+                var_groups_program.add_constraint([(indicator_var,1)],">=",0)
             objective_expr.append((indicator_var,1))
-        var_groups_program.add_constraint(
-            [(var_idx,1),(indicator_var,-upper_bound)],"<=",0)
+            var_groups_program.add_constraint(
+                [(var_idx,1),(indicator_var,-upper_bound)],"<=",0)
 
     for idx in range(N):
         var_groups_program.add_constraint([(idx,1)], ">=", 0)
@@ -58,22 +56,21 @@ def var_groups_program(matr,
 
     var_groups_program.set_objective_function(objective_expr)
 
-    return var_groups_program,indicator_var_to_vargroup_idx
+    return var_groups_program,indicator_var_to_vargroup
 
 def project_from_binary_indicators(result_vector,
                                    projected_length,
                                    var_groups,
-                                   indicator_var_to_vargroup_idx):
+                                   indicator_var_to_vargroup):
     result_projected = np.zeros(projected_length)
     handled_vars = dict()
-    group_idx_to_vars = var_groups.inv
-    for (indicator,group_idx) in indicator_var_to_vargroup_idx.items():
+    for (indicator,group) in indicator_var_to_vargroup.items():
         if result_vector[indicator] == 1:
-            for var_idx in group_idx_to_vars[group_idx]:
+            for var_idx in var_groups[group]:
                 result_projected[var_idx] = result_vector[var_idx]
                 handled_vars[var_idx] = True
         else:
-            for var_idx in group_idx_to_vars[group_idx]:
+            for var_idx in var_groups[group]:
                 result_projected[var_idx] = 0
                 handled_vars[var_idx] = True
 
@@ -92,16 +89,26 @@ def var_groups_from_state_groups(reach_form,state_groups,mode):
 
     if mode == "min":
         if state_groups == None:
-            return bidict({ i : i for i in range(N) })
+            return InvertibleDict({ i : set([i]) for i in range(N) })
         else:
             return state_groups
     else:
-        var_groups = InvertibleDict({}, is_default=True)
+        var_groups = InvertibleDict(dict([]))
+        if state_groups != None:
+            state_groups.inv
         for st_act_idx in range(C):
-            (state,action) = reach_form.index_by_state_action.inv[st_act_idx]
+            (st,act) = reach_form.index_by_state_action.inv[st_act_idx]
             if state_groups != None:
-                if state in state_groups.keys():
-                    var_groups[st_act_idx] = state_groups[state]
+                if st in state_groups.i.keys():
+                    st_groups = state_groups.i[st]
+                    for g in st_groups:
+                        # if g not in var_groups.keys():
+                        #     var_groups[g] = set()
+                        # TODO change __set_item__ for InvertibleDict
+                        var_groups[g] = st_act_idx
             else:
-                var_groups[st_act_idx] = state
+                # if st not in var_groups.keys():
+                #     var_groups[st] = set()
+                # TODO change __set_item__ for InvertibleDict
+                var_groups[st] = st_act_idx
         return var_groups
