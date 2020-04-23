@@ -1,6 +1,6 @@
 from . import ProblemFormulation, ProblemResult, Subsystem, var_groups_program, var_groups_from_state_groups
+from . import AllOnesInitializer, InverseResultUpdater
 from farkas.solver import LP
-from .qsheurparams import AllOnesInitializer, InverseResultUpdater
 import numpy as np
 
 class QSHeur(ProblemFormulation):
@@ -36,8 +36,8 @@ class QSHeur(ProblemFormulation):
                  mode,
                  iterations = 3,
                  state_groups = None,
-                 initializer = AllOnesInitializer(),
-                 updater = InverseResultUpdater(),
+                 initializertype = AllOnesInitializer,
+                 updatertype = InverseResultUpdater,
                  solver_name="cbc"):
         super().__init__()
         assert mode in ["min","max"]
@@ -47,13 +47,13 @@ class QSHeur(ProblemFormulation):
         self.threshold = threshold
         self.iterations = iterations
         self.solver = solver_name
-        self.updater = updater
-        self.initializer = initializer
+        self.updatertype = updatertype
+        self.initializertype = initializertype
         self.state_groups = state_groups
 
     def __repr__(self):
-        return "QSHeur(threshold=%s, mode=%s, solver=%s, iterations=%s, initializer=%s, updater=%s)" % (
-            self.threshold, self.mode, self.solver, self.iterations, self.initializer, self.updater)
+        return "QSHeur(threshold=%s, mode=%s, solver=%s, iterations=%s, initializertype=%s, updatertype=%s)" % (
+            self.threshold, self.mode, self.solver, self.iterations, self.initializertype, self.updatertype)
 
     def solve(self, reach_form):
         """Runs the QSheuristic using the Farkas (y- or z-) polytope
@@ -81,8 +81,7 @@ class QSHeur(ProblemFormulation):
 
         indicator_idx = ind_to_grp_idx.keys()
 
-        current_objective = self.initializer.initialize(
-            indicator_idx)
+        current_objective = self.initializertype(reach_form, "min").initialize(indicator_idx)
 
         # iteratively solves the corresponding LP, and computes the next
         # objective function from the result of the previous round
@@ -113,14 +112,12 @@ class QSHeur(ProblemFormulation):
                     [i for i in indicator_weights if i > 0])
                 yield ProblemResult("success", witness, no_nonzero_groups)
 
-                current_objective = self.updater.update(
-                    heur_result.result_vector,
-                    indicator_idx)
+                current_objective = self.updatertype(reach_form, "min").update(heur_result.result_vector, indicator_idx)
             else:
                 # failed to optimize LP
                 yield ProblemResult(heur_result.status, None,None)
 
-    def solve_max(self, reach_form, initial_weights = None):
+    def solve_max(self, reach_form):
         """Runs the QSheuristic using the Farkas y-polytope of a given reachability form for a given threshold."""
         C,N = reach_form.P.shape
 
@@ -135,8 +132,7 @@ class QSHeur(ProblemFormulation):
                                                      indicator_type="real")
 
         indicator_idx = ind_to_grp_idx.keys()
-        current_objective = self.initializer.initialize(
-            indicator_idx)
+        current_objective = self.initializertype(reach_form, "max").initialize(indicator_idx)
 
         # iteratively solves the corresponding LP, and computes the
         # next objective function
@@ -159,7 +155,7 @@ class QSHeur(ProblemFormulation):
 
                 yield ProblemResult("success", witness, no_nonzero_groups)
 
-                current_objective = self.updater.update(
+                current_objective = self.updatertype(reach_form, "max").update(
                     heur_result.result_vector,
                     indicator_idx)
 
