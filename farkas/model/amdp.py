@@ -50,10 +50,20 @@ class AbstractMDP(ABC):
 
     @property
     def actions_by_label(self):
+        """Returns a mapping from labels to actions (given as state-action-pairs).
+
+        :return: The mapping.
+        :rtype: Dict[str, Set[Tuple[int,int]]
+        """        
         return self.__label_to_actions_invertible
 
     @property
     def label_by_action(self):
+        """Returns a mapping from actions (given as state-action-pairs) to labels.
+
+        :return: The mapping.
+        :rtype: Dict[Tuple[int,int], Set[str]]
+        """
         return self.__label_to_actions_invertible.inv
 
     def reachable_set(self, from_set, mode):
