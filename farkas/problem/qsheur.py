@@ -1,4 +1,5 @@
 from . import ProblemFormulation, ProblemResult, Subsystem, var_groups_program, var_groups_from_state_groups
+from farkas.utils import InvertibleDict
 from farkas.solver import LP
 from .qsheurparams import AllOnesInitializer, InverseResultUpdater
 import numpy as np
@@ -126,7 +127,7 @@ class QSHeur(ProblemFormulation):
 
         fark_matr,fark_rhs = reach_form.fark_y_constraints(self.threshold)
 
-        var_groups = var_groups_from_state_groups(reach_form,self.state_groups,"max")
+        var_groups = InvertibleDict({ i : set([i]) for i in range(C)})
 
         heur_lp, ind_to_grp_idx = var_groups_program(fark_matr,
                                                      fark_rhs,
@@ -153,7 +154,7 @@ class QSHeur(ProblemFormulation):
                 state_action_weights = heur_result.result_vector[:C]
                 witness = Subsystem(reach_form, state_action_weights)
 
-                indicator_weights = heur_result.result_vector[N:]
+                indicator_weights = heur_result.result_vector[C:]
                 no_nonzero_groups = len(
                     [i for i in indicator_weights if i > 0])
 
