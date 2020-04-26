@@ -63,6 +63,7 @@ class ReachabilityForm:
             if stateidx in reachable:
                 # state is reachable
                 newidx = reachable.index(stateidx) # result is something in [0,...len(reachable)-1]
+                to_reachability_sap[(stateidx,actionidx)] = (newidx,actionidx)
             elif targets_label in system.labels_by_state[stateidx]:
                 # state is not in reachable but a target state
                 # => map to target state
@@ -71,14 +72,13 @@ class ReachabilityForm:
                 # state is not reachable and not a target state
                 # => map to fail state
                 newidx = fail_idx
-            to_reachability_sap[(stateidx,actionidx)] = (newidx,actionidx)
             to_reachability[stateidx] = newidx
 
         if debug:
             print("new state-action mapping: %s" % to_reachability)
 
         # make dictionary invertible -> this is useful since it allows mapping back from the reachability form to full form
-        to_reachability = InvertibleDict(to_reachability, is_default=True)
+        to_reachability = InvertibleDict(to_reachability, is_default=False)
         
         # compute reduced transition matrix (without non-reachable states)
         # compute probability of reaching the target state in one step 
@@ -113,7 +113,7 @@ class ReachabilityForm:
             print("to_target: %s" % to_target)
 
         self.P = new_P
-        self.initial = initial
+        self.initial = to_reachability[initial]
         self.to_target = to_target
         self.index_by_state_action = new_index_by_state_action
         self.__system = self.__initialize_system(to_reachability_sap, system, targets_label)

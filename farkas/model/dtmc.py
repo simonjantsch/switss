@@ -118,7 +118,7 @@ class DTMC(AbstractMDP):
         with open(filepath) as tra_file:
             for line in tra_file:
                 line_split = line.split()
-                # check for first lines, which has format "#states #transitions"
+                # check for first line, which has format "#states #transitions"
                 if len(line_split) == 2:
                     N = int(line_split[0])
                     P.resize((N,N))
