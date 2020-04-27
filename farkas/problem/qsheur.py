@@ -1,4 +1,4 @@
-from . import ProblemFormulation, ProblemResult, Subsystem, var_groups_program, var_groups_from_state_groups
+from . import ProblemFormulation, ProblemResult, Subsystem
 from . import AllOnesInitializer, InverseResultUpdater
 from farkas.utils import InvertibleDict
 from farkas.solver import LP
@@ -27,15 +27,13 @@ class QSHeur(ProblemFormulation):
     The vector :math:`QS_{\sigma}(i-1)` is the :math:`\sigma` part of the
     :math:`i-1`-th iteration of the heuristic.
 
-    The function :math:`g` is specified using the state_groups parameter
-    and is used to "group" states as in MILPExact.
+    The function :math:`g` is specified by providing a list of labels that are present in the model.
     The default setting :math:`g = id` results in the standard minimization
     where all states are considered equally.
     """
     def __init__(self,
                  mode,
                  iterations = 3,
-                 state_groups = None,
                  initializertype = AllOnesInitializer,
                  updatertype = InverseResultUpdater,
                  solver_name="cbc"):
@@ -47,7 +45,6 @@ class QSHeur(ProblemFormulation):
         self.solver = solver_name
         self.updatertype = updatertype
         self.initializertype = initializertype
-        self.state_groups = state_groups
 
     @property
     def details(self):
@@ -60,33 +57,36 @@ class QSHeur(ProblemFormulation):
             "updatertype" : self.updatertype
         }
 
-    def solveiter(self, reach_form, threshold):
+    def solveiter(self, reach_form, threshold,labels=None):
         """Runs the QSheuristic using the Farkas (y- or z-) polytope
         depending on the value in mode."""
         assert (threshold >= 0) and (threshold <= 1)
-        if self.mode == "min":
-            return self.solve_min(reach_form, threshold)
-        else:
-            return self.solve_max(reach_form, threshold)
+        if labels != None:
+            for l in labels:
+                assert l in reach_form.system.statey_by_labels.items()
 
-    def solve_min(self, reach_form, threshold):
+        if self.mode == "min":
+            return self.solve_min(reach_form, threshold, labels)
+        else:
+            return self.solve_max(reach_form, threshold, labels)
+
+    def solve_min(self, reach_form, threshold, labels=None):
         """Runs the QSheuristic using the Farkas z-polytope of a given
         reachability form for a given threshold."""
         C,N = reach_form.P.shape
 
         fark_matr,fark_rhs = reach_form.fark_z_constraints(threshold)
 
-        var_groups = var_groups_from_state_groups(
-            reach_form,self.state_groups,"min")
+        if labels == None:
+            var_groups = InvertibleDict({ i : set([i]) for i in range(N)})
+        else:
+            var_groups = ProblemFormulation._var_groups_from_labels(
+                reach_form, labels, "min")
 
-        heur_lp, ind_to_grp_idx = var_groups_program(fark_matr,
-                                                     fark_rhs,
-                                                     var_groups,
-                                                     upper_bound=1,
-                                                     indicator_type="real")
+        heur_lp, ind_to_grp_idx = ProblemFormulation._var_groups_program(
+            fark_matr,fark_rhs,var_groups,upper_bound=1,indicator_type="real")
 
         indicator_idx = ind_to_grp_idx.keys()
-        # print(indicator_idx)
         current_objective = self.initializertype(reach_form, "min").initialize(indicator_idx)
 
         # iteratively solves the corresponding LP, and computes the next
@@ -123,22 +123,21 @@ class QSHeur(ProblemFormulation):
                 # failed to optimize LP
                 yield ProblemResult(heur_result.status, None,None)
 
-    def solve_max(self, reach_form, threshold):
+    def solve_max(self, reach_form, threshold, labels=None):
         """Runs the QSheuristic using the Farkas y-polytope of a given reachability form for a given threshold."""
         C,N = reach_form.P.shape
 
         fark_matr,fark_rhs = reach_form.fark_y_constraints(threshold)
 
-        var_groups = InvertibleDict({ i : set([i]) for i in range(C)})
+        if labels == None:
+            var_groups = InvertibleDict({ i : set([i]) for i in range(C)})
+        else:
+            var_groups = ProblemFormulation._var_groups_from_labels(
+                reach_form,labels,"max")
 
-        heur_lp, ind_to_grp_idx = var_groups_program(fark_matr,
-                                                     fark_rhs,
-                                                     var_groups,
-                                                     upper_bound=None,
-                                                     indicator_type="real")
-
+        heur_lp, ind_to_grp_idx = ProblemFormulation._var_groups_program(
+            fark_matr,fark_rhs,var_groups,upper_bound=None,indicator_type="real")
         indicator_idx = ind_to_grp_idx.keys()
-        # print(indicator_idx)
         current_objective = self.initializertype(reach_form, "max").initialize(indicator_idx)
 
         # iteratively solves the corresponding LP, and computes the

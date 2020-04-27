@@ -247,7 +247,7 @@ class ReachabilityForm:
         return result.result_vector
 
     def max_z_state_action(self,solver="cbc"):
-        max_z_vec = self.max_z_vector(solver=solver)
+        max_z_vec = self.max_z_state(solver=solver)
         return (self.P.dot(max_z_vec) + self.to_target)
 
     def max_y_state_action(self,solver="cbc"):
@@ -261,7 +261,7 @@ class ReachabilityForm:
 
     def max_y_state(self,solver="cbc"):
         C,N = self.P.shape
-        max_y_vec = self.max_y_vector(solver=solver)
+        max_y_vec = self.max_y_state_action(solver=solver)
         max_y_states = np.zeros(N)
         max_y_states[self.initial] = 1
         for sap_idx in range(C):
@@ -270,7 +270,7 @@ class ReachabilityForm:
         return max_y_states
 
     def pr_min(self,solver="cbc"):
-        return self.max_z_vector()
+        return self.max_z_state()
 
     def pr_max(self,solver="cbc"):
         N,C = self.P.shape

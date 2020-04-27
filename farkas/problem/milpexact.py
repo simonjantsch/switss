@@ -1,4 +1,4 @@
-from . import ProblemFormulation, ProblemResult, Subsystem, var_groups_program, project_from_binary_indicators, var_groups_from_state_groups
+from . import ProblemFormulation, ProblemResult, Subsystem
 from farkas.solver import SolverResult
 from farkas.utils import InvertibleDict
 
@@ -23,13 +23,12 @@ class MILPExact(ProblemFormulation):
 
     It follows that in any solution :math:`\sigma(G)` is one iff one of the variables :math:`\mathbf{x}(i)` such that :math:`g(i) = G` is strictly positive.
     """
-    def __init__(self, mode, state_groups=None, solver="cbc"):
+    def __init__(self, mode, solver="cbc"):
         super().__init__()
         assert mode in ["min","max"]
 
         self.solver = solver
         self.mode = mode
-        self.state_groups = state_groups
 
     @property
     def details(self):
@@ -39,24 +38,31 @@ class MILPExact(ProblemFormulation):
             "solver" : self.solver
         }
 
-    def solveiter(self, reach_form, threshold):
+    def solveiter(self, reach_form, threshold,labels=None):
         """Runs MILPExact using the Farkas (y- or z-) polytope
         depending on the value in mode."""
         assert (threshold >= 0) and (threshold <= 1)
-        if self.mode == "min":
-            return self.solve_min(reach_form, threshold)
-        else:
-            return self.solve_max(reach_form, threshold)
+        if labels != None:
+            for l in labels:
+                assert ("." + l) in reach_form.system.states_by_label.keys()
 
-    def solve_min(self, reach_form, threshold):
+        if self.mode == "min":
+            return self.solve_min(reach_form, threshold, labels)
+        else:
+            return self.solve_max(reach_form, threshold, labels)
+
+    def solve_min(self, reach_form, threshold, labels=None):
         """Runs MILPExact using the Farkas z-polytope."""
 
         C,N = reach_form.P.shape
 
         fark_matr,fark_rhs = reach_form.fark_z_constraints(threshold)
 
-        var_groups = var_groups_from_state_groups(
-            reach_form,self.state_groups,mode="min")
+        if labels == None:
+            var_groups = InvertibleDict({i : set([i]) for i in range(N) })
+        else:
+            var_groups = ProblemFormulation._var_groups_from_labels(
+                reach_form,labels,"min")
 
         milp_result = min_nonzero_groups(fark_matr,
                                           fark_rhs,
@@ -77,15 +83,22 @@ class MILPExact(ProblemFormulation):
         yield ProblemResult(
             milp_result.status,witness,milp_result.value)
 
-    def solve_max(self, reach_form, threshold):
+    def solve_max(self, reach_form, threshold, labels=None):
         """Runs MILPExact using the Farkas y-polytope."""
 
         C,N = reach_form.P.shape
 
         fark_matr,fark_rhs = reach_form.fark_y_constraints(threshold)
 
-        var_groups = var_groups_from_state_groups(
-            reach_form,self.state_groups,mode="max")
+        if labels != None:
+            var_groups = ProblemFormulation._var_groups_from_labels(
+                reach_form, labels, mode="max")
+        else:
+            var_groups = InvertibleDict({})
+            for sap_idx in range(C):
+                (st,act) = reach_form.index_by_state_action.inv[sap_idx]
+                #TODO change when InvertibleDict interface changes
+                var_groups[st] = sap_idx
 
         milp_result = min_nonzero_groups(fark_matr,
                                         fark_rhs,
@@ -106,12 +119,12 @@ def min_nonzero_groups(matrix,
                       solver = "cbc"):
     C,N = matrix.shape
 
-    min_nonzero_milp, indicator_var_to_vargroup_idx = var_groups_program(
+    min_nonzero_milp, indicator_var_to_vargroup_idx = ProblemFormulation._var_groups_program(
         matrix, rhs, var_groups, upper_bound, indicator_type="binary")
 
     milp_result = min_nonzero_milp.solve(solver)
 
-    result_projected = project_from_binary_indicators(
+    result_projected = ProblemFormulation._project_from_binary_indicators(
         milp_result.result_vector,
         N,
         var_groups,
