@@ -48,7 +48,7 @@ class QSHeur(ProblemFormulation):
         self.updatertype = updatertype
         self.initializertype = initializertype
         self.state_groups = state_groups
-        
+
     @property
     def details(self):
         return {
@@ -60,7 +60,7 @@ class QSHeur(ProblemFormulation):
             "updatertype" : self.updatertype
         }
 
-    def solve(self, reach_form, threshold):
+    def solveiter(self, reach_form, threshold):
         """Runs the QSheuristic using the Farkas (y- or z-) polytope
         depending on the value in mode."""
         assert (threshold >= 0) and (threshold <= 1)

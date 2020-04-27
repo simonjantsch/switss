@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod, abstractproperty
+from collections import deque
 
 class ProblemFormulation:
     """A ProblemFormulation is an abstract base class for
@@ -8,7 +9,6 @@ class ProblemFormulation:
     def __init__(self):
         pass
 
-    @abstractmethod
     def solve(self, reachability_form, threshold):
         """Finds a minimal witnessing subsystem for a given reachability form
         such that the probability of reaching the target state is above
@@ -27,7 +27,12 @@ class ProblemFormulation:
         :return: The resulting subsystem (minimal witness).
         :rtype: problem.Subsystem
         """
+        return deque(self.solveiter(reachability_form, threshold), maxlen=1).pop()
+
+    @abstractmethod
+    def solveiter(self, reachability, threshold):
         pass
+
 
     def __repr__(self):
         params = ["%s=%s" % (k,v) for k,v in self.details.items() if k != "type"]
