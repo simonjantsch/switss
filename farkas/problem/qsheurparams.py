@@ -98,7 +98,7 @@ class InverseResultUpdater(Updater):
     """    
     def update(self, last_result, indicator_keys):
         # print(last_result.shape)
-        C = np.max(last_result) + 1e8
+        C = np.max([1/r for r in last_result if r != 0]) + 1
         objective = []
         for i in indicator_keys:
             objective.append((i, 1/last_result[i] if last_result[i] > 0 else C))

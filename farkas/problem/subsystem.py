@@ -15,8 +15,9 @@ class Subsystem:
     @property
     def subsystem_mask(self):
         if self.__subsystem_mask is None:
-            self.__subsystem_mask = np.zeros(self.__reachability_form.P.shape[1])
-            for index in range(self.__reachability_form.P.shape[0]):
+            C,N = self.__reachability_form.P.shape
+            self.__subsystem_mask = np.zeros(N)
+            for index in range(C):
                 if self.__state_action_weights[index] > 0:
                     (st,_) = self.__reachability_form.index_by_state_action.inv[index]
                     self.__subsystem_mask[st] = True
