@@ -33,7 +33,6 @@ class QSHeur(ProblemFormulation):
     where all states are considered equally.
     """
     def __init__(self,
-                 threshold,
                  mode,
                  iterations = 3,
                  state_groups = None,
@@ -42,10 +41,8 @@ class QSHeur(ProblemFormulation):
                  solver_name="cbc"):
         super().__init__()
         assert mode in ["min","max"]
-        assert (threshold >= 0) and (threshold <= 1)
 
         self.mode = mode
-        self.threshold = threshold
         self.iterations = iterations
         self.solver = solver_name
         self.updatertype = updatertype
@@ -53,23 +50,24 @@ class QSHeur(ProblemFormulation):
         self.state_groups = state_groups
 
     def __repr__(self):
-        return "QSHeur(threshold=%s, mode=%s, solver=%s, iterations=%s, initializertype=%s, updatertype=%s)" % (
-            self.threshold, self.mode, self.solver, self.iterations, self.initializertype, self.updatertype)
+        return "QSHeur(mode=%s, solver=%s, iterations=%s, initializertype=%s, updatertype=%s)" % (
+            self.mode, self.solver, self.iterations, self.initializertype, self.updatertype)
 
-    def solve(self, reach_form):
+    def solve(self, reach_form, threshold):
         """Runs the QSheuristic using the Farkas (y- or z-) polytope
         depending on the value in mode."""
+        assert (threshold >= 0) and (threshold <= 1)
         if self.mode == "min":
-            return self.solve_min(reach_form)
+            return self.solve_min(reach_form, threshold)
         else:
-            return self.solve_max(reach_form)
+            return self.solve_max(reach_form, threshold)
 
-    def solve_min(self, reach_form):
+    def solve_min(self, reach_form, threshold):
         """Runs the QSheuristic using the Farkas z-polytope of a given
         reachability form for a given threshold."""
         C,N = reach_form.P.shape
 
-        fark_matr,fark_rhs = reach_form.fark_z_constraints(self.threshold)
+        fark_matr,fark_rhs = reach_form.fark_z_constraints(threshold)
 
         var_groups = var_groups_from_state_groups(
             reach_form,self.state_groups,"min")
@@ -81,8 +79,7 @@ class QSHeur(ProblemFormulation):
                                                      indicator_type="real")
 
         indicator_idx = ind_to_grp_idx.keys()
-        print(ind_to_grp_idx)
-        print(indicator_idx)
+        # print(indicator_idx)
         current_objective = self.initializertype(reach_form, "min").initialize(indicator_idx)
 
         # iteratively solves the corresponding LP, and computes the next
@@ -119,11 +116,11 @@ class QSHeur(ProblemFormulation):
                 # failed to optimize LP
                 yield ProblemResult(heur_result.status, None,None)
 
-    def solve_max(self, reach_form):
+    def solve_max(self, reach_form, threshold):
         """Runs the QSheuristic using the Farkas y-polytope of a given reachability form for a given threshold."""
         C,N = reach_form.P.shape
 
-        fark_matr,fark_rhs = reach_form.fark_y_constraints(self.threshold)
+        fark_matr,fark_rhs = reach_form.fark_y_constraints(threshold)
 
         var_groups = InvertibleDict({ i : set([i]) for i in range(C)})
 
@@ -134,7 +131,7 @@ class QSHeur(ProblemFormulation):
                                                      indicator_type="real")
 
         indicator_idx = ind_to_grp_idx.keys()
-        print(indicator_idx)
+        # print(indicator_idx)
         current_objective = self.initializertype(reach_form, "max").initialize(indicator_idx)
 
         # iteratively solves the corresponding LP, and computes the

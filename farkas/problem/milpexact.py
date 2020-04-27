@@ -23,34 +23,33 @@ class MILPExact(ProblemFormulation):
 
     It follows that in any solution :math:`\sigma(G)` is one iff one of the variables :math:`\mathbf{x}(i)` such that :math:`g(i) = G` is strictly positive.
     """
-    def __init__(self, threshold, mode, state_groups=None, solver="cbc"):
+    def __init__(self, mode, state_groups=None, solver="cbc"):
         super().__init__()
-        assert (threshold >= 0) and (threshold <= 1)
         assert mode in ["min","max"]
 
         self.solver = solver
-        self.threshold = threshold
         self.mode = mode
         self.state_groups = state_groups
 
     def __repr__(self):
-        return "MILPExact(threshold=%s, mode=%s, solver=%s)" % (
-            self.threshold, self.mode, self.solver)
+        return "MILPExact(mode=%s, solver=%s)" % (
+            self.mode, self.solver)
 
-    def solve(self, reach_form):
+    def solve(self, reach_form, threshold):
         """Runs MILPExact using the Farkas (y- or z-) polytope
         depending on the value in mode."""
+        assert (threshold >= 0) and (threshold <= 1)
         if self.mode == "min":
-            return self.solve_min(reach_form)
+            return self.solve_min(reach_form, threshold)
         else:
-            return self.solve_max(reach_form)
+            return self.solve_max(reach_form, threshold)
 
-    def solve_min(self, reach_form):
+    def solve_min(self, reach_form, threshold):
         """Runs MILPExact using the Farkas z-polytope."""
 
         C,N = reach_form.P.shape
 
-        fark_matr,fark_rhs = reach_form.fark_z_constraints(self.threshold)
+        fark_matr,fark_rhs = reach_form.fark_z_constraints(threshold)
 
         var_groups = var_groups_from_state_groups(
             reach_form,self.state_groups,mode="min")
@@ -74,12 +73,12 @@ class MILPExact(ProblemFormulation):
         return ProblemResult(
             milp_result.status,witness,milp_result.value)
 
-    def solve_max(self, reach_form):
+    def solve_max(self, reach_form, threshold):
         """Runs MILPExact using the Farkas y-polytope."""
 
         C,N = reach_form.P.shape
 
-        fark_matr,fark_rhs = reach_form.fark_y_constraints(self.threshold)
+        fark_matr,fark_rhs = reach_form.fark_y_constraints(threshold)
 
         var_groups = var_groups_from_state_groups(
             reach_form,self.state_groups,mode="max")

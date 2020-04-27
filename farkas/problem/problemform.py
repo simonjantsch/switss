@@ -5,5 +5,5 @@ class ProblemFormulation:
         pass
 
     @abstractmethod
-    def solve(self, reachability_form):
+    def solve(self, reachability_form, threshold):
         pass
