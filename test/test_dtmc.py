@@ -22,15 +22,13 @@ def test_create_reach_form():
 def test_minimal_witnesses():
     for dtmc in dtmcs:
         reach_form = ReachabilityForm(dtmc,"init","target")
-        threshold = 0
-        for i in range(11):
+        exact_min = MILPExact("min")
+        exact_max = MILPExact("max")
+        for threshold in [0.1, 0.2, 0.3, 0.4, 0.5, 0.66, 0.7, 0.88, 0.9, 0.999, 1,0.9999999999]:
             print(dtmc)
             print(threshold)
-            exact_min = MILPExact(threshold,"min")
-            exact_max = MILPExact(threshold,"max")
-            result_min = exact_min.solve(reach_form)
-            result_max = exact_max.solve(reach_form)
-            threshold = threshold + 0.1
+            result_min = exact_min.solve(reach_form,threshold)
+            result_max = exact_max.solve(reach_form,threshold)
 
             assert result_min.status == result_max.status
             if result_min.status == "optimal":
