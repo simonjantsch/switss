@@ -36,27 +36,20 @@ def test_minimal_witnesses():
             if result_min.status == "optimal":
                 assert result_min.value == result_max.value
 
-# def test_certificates():
-#     for dtmc in dtmcs:
-#         reach_form = ReachabilityForm(dtmc,"init","target")
-#         for sense in ["<","<=",">",">="]:
-#             threshold = 0
-#             for i in range(11):
-#                 print(dtmc)
-#                 print(threshold)
-#                 fark_cert_min = generate_farkas_certificate(
-#                     reach_form,"min",sense,threshold)
-#                 print(fark_cert_min)
-#                 fark_cert_max = generate_farkas_certificate(
-#                     reach_form,"max",sense,threshold)
-#                 print(fark_cert_max)
-#                 assert (fark_cert_max is None) == (fark_cert_min is None)
-#                 if fark_cert_max is not None:
-#                     check_min = check_farkas_certificate(
-#                         reach_form,"min",sense,threshold,fark_cert_min,tol=1e-4)
-#                     check_max = check_farkas_certificate(
-#                         reach_form,"max",sense,threshold,fark_cert_max,tol=1e-4)
-#                     assert check_min
-#                     assert check_max
-
-#                 threshold = threshold + 0.1
+def test_certificates():
+    for dtmc in dtmcs:
+        reach_form = ReachabilityForm(dtmc,"init","target")
+        for sense in ["<","<=",">",">="]:
+            for threshold in [0.1, 0.2, 0.3, 0.4, 0.5, 0.66, 0.7, 0.88, 0.9, 0.999, 1,0.9999999999]:
+                fark_cert_min = generate_farkas_certificate(
+                    reach_form,"min",sense,threshold)
+                fark_cert_max = generate_farkas_certificate(
+                    reach_form,"max",sense,threshold)
+                assert (fark_cert_max is None) == (fark_cert_min is None)
+                if fark_cert_max is not None:
+                    check_min = check_farkas_certificate(
+                        reach_form,"min",sense,threshold,fark_cert_min,tol=1e-5)
+                    check_max = check_farkas_certificate(
+                        reach_form,"max",sense,threshold,fark_cert_max,tol=1e-5)
+                    assert check_min
+                    assert check_max
