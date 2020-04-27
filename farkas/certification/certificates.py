@@ -87,7 +87,7 @@ def check_farkas_certificate(reach_form, mode, sense, threshold, farkas_vec, tol
     elif sense == ">=":
         return (res_vec - tol <= rhs).all()
     elif sense == ">":
-        return (res_vec - tol <= rhs).all() and (res_vec[N-1] + tol) < rhs[N-1]
+        return (res_vec - tol <= rhs).all() and (res_vec[N-1] - tol) < rhs[N-1]
 
     assert False
 
