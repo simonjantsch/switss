@@ -1,6 +1,7 @@
 from farkas.utils import cast_dok_matrix
 from . import AbstractMDP
 from ..utils import InvertibleDict
+from ..solver.milp import LP
 
 from collections import defaultdict
 from bidict import bidict
@@ -235,6 +236,51 @@ class ReachabilityForm:
             I[i,state] = 1
 
         return I
+
+    def max_z_state(self,solver="cbc"):
+        C,N = self.P.shape
+        matr, rhs = self.fark_z_constraints(0)
+        opt = np.zeros(N)
+        opt[self.initial] = 1
+        max_z_lp = LP.from_coefficients(matr,rhs,opt,sense="<=",objective="max")
+        result = max_z_lp.solve(solver=solver)
+        return result.result_vector
+
+    def max_z_state_action(self,solver="cbc"):
+        max_z_vec = self.max_z_vector(solver=solver)
+        return (self.P.dot(max_z_vec) + self.to_target)
+
+    def max_y_state_action(self,solver="cbc"):
+        N,C = self.P.shape
+
+        matr, rhs = self.fark_y_constraints(0)
+        max_y_lp = LP.from_coefficients(matr,rhs,self.to_target,sense="<=",objective="max")
+
+        result = max_y_lp.solve(solver=solver)
+        return result.result_vector
+
+    def max_y_state(self,solver="cbc"):
+        C,N = self.P.shape
+        max_y_vec = self.max_y_vector(solver=solver)
+        max_y_states = np.zeros(N)
+        max_y_states[self.initial] = 1
+        for sap_idx in range(C):
+            (st,act) = self.index_by_state_action.inv[sap_idx]
+            max_y_states[st] = max_y_states[st] + max_y_vec[sap_idx]
+        return max_y_states
+
+    def pr_min(self,solver="cbc"):
+        return self.max_z_vector()
+
+    def pr_max(self,solver="cbc"):
+        N,C = self.P.shape
+
+        matr, rhs = self.fark_z_constraints(0)
+        opt = np.zeros(N)
+        opt[self.initial] = 1
+        pr_max_z_lp = LP.from_coefficients(matr,rhs,opt,sense=">=",objective="min")
+        result = pr_max_z_lp.solve(solver=solver)
+        return result.result_vector
 
 #     def induced_subsystem(self, state_vector):
 #         """ Given a reachability form with :math:`N` states and a vector in :math:`\{0,1\}^N` 
