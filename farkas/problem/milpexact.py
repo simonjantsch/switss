@@ -30,11 +30,15 @@ class MILPExact(ProblemFormulation):
         self.solver = solver
         self.mode = mode
 
-    def __repr__(self):
-        return "MILPExact(mode=%s, solver=%s)" % (
-            self.mode, self.solver)
+    @property
+    def details(self):
+        return {
+            "type" : "MILPExact",
+            "mode" : self.mode,
+            "solver" : self.solver
+        }
 
-    def solve(self, reach_form, threshold, labels=None):
+    def solveiter(self, reach_form, threshold,labels=None):
         """Runs MILPExact using the Farkas (y- or z-) polytope
         depending on the value in mode."""
         assert (threshold >= 0) and (threshold <= 1)
@@ -76,7 +80,7 @@ class MILPExact(ProblemFormulation):
 
         witness = Subsystem(reach_form, state_action_weights)
 
-        return ProblemResult(
+        yield ProblemResult(
             milp_result.status,witness,milp_result.value)
 
     def solve_max(self, reach_form, threshold, labels=None):
@@ -104,7 +108,7 @@ class MILPExact(ProblemFormulation):
 
         witness = Subsystem(reach_form, milp_result.result_vector)
 
-        return ProblemResult(
+        yield ProblemResult(
             milp_result.status,witness,milp_result.value)
 
 

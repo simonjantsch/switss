@@ -34,7 +34,6 @@ class QSHeur(ProblemFormulation):
     def __init__(self,
                  mode,
                  iterations = 3,
-                 labels = None,
                  initializertype = AllOnesInitializer,
                  updatertype = InverseResultUpdater,
                  solver_name="cbc"):
@@ -47,11 +46,18 @@ class QSHeur(ProblemFormulation):
         self.updatertype = updatertype
         self.initializertype = initializertype
 
-    def __repr__(self):
-        return "QSHeur(mode=%s, solver=%s, iterations=%s, initializertype=%s, updatertype=%s)" % (
-            self.mode, self.solver, self.iterations, self.initializertype, self.updatertype)
+    @property
+    def details(self):
+        return {
+            "type" : "QSHeur",
+            "mode" : self.mode,
+            "solver" : self.solver,
+            "iterations" : self.iterations,
+            "initializertype" : self.initializertype,
+            "updatertype" : self.updatertype
+        }
 
-    def solve(self, reach_form, threshold, labels=None):
+    def solveiter(self, reach_form, threshold,labels=None):
         """Runs the QSheuristic using the Farkas (y- or z-) polytope
         depending on the value in mode."""
         assert (threshold >= 0) and (threshold <= 1)
