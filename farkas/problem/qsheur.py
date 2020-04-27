@@ -48,10 +48,17 @@ class QSHeur(ProblemFormulation):
         self.updatertype = updatertype
         self.initializertype = initializertype
         self.state_groups = state_groups
-
-    def __repr__(self):
-        return "QSHeur(mode=%s, solver=%s, iterations=%s, initializertype=%s, updatertype=%s)" % (
-            self.mode, self.solver, self.iterations, self.initializertype, self.updatertype)
+        
+    @property
+    def details(self):
+        return {
+            "type" : "QSHeur",
+            "mode" : self.mode,
+            "solver" : self.solver,
+            "iterations" : self.iterations,
+            "initializertype" : self.initializertype,
+            "updatertype" : self.updatertype
+        }
 
     def solve(self, reach_form, threshold):
         """Runs the QSheuristic using the Farkas (y- or z-) polytope

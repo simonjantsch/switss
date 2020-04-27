@@ -31,9 +31,13 @@ class MILPExact(ProblemFormulation):
         self.mode = mode
         self.state_groups = state_groups
 
-    def __repr__(self):
-        return "MILPExact(mode=%s, solver=%s)" % (
-            self.mode, self.solver)
+    @property
+    def details(self):
+        return {
+            "type" : "MILPExact",
+            "mode" : self.mode,
+            "solver" : self.solver
+        }
 
     def solve(self, reach_form, threshold):
         """Runs MILPExact using the Farkas (y- or z-) polytope
