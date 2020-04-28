@@ -14,13 +14,17 @@ from ..utils import InvertibleDict, cast_dok_matrix
 class AbstractMDP(ABC):
     def __init__(self, P, index_by_state_action, label_to_actions, label_to_states):
         # transform P into dok_matrix if neccessary
-        self.P = cast_dok_matrix(P)  
+        self.P = cast_dok_matrix(P)
+        # for fast column & row slicing
+        self.__P_csc = self.P.tocsc()
+        self.__P_csr = self.P.tocsr()
         self.C, self.N = self.P.shape
         # transform mapping into bidict if neccessary (applying bidict to bidict doesn't change anything)
         self.index_by_state_action = bidict(index_by_state_action)
         self.__label_to_actions_invertible = InvertibleDict(label_to_actions, is_default=True)
         self.__label_to_states_invertible = InvertibleDict(label_to_states, is_default=True)
         self.__check_correctness()
+        self.__available_actions = None
 
     def __check_correctness(self):
         # make sure all rows of P sum to one
@@ -66,58 +70,67 @@ class AbstractMDP(ABC):
         """
         return self.__label_to_actions_invertible.inv
 
-    def reachable_set(self, from_set, mode):
-        """Computes the set of states that are reachable from the 'from_set'.
+    @property
+    def actions_by_state(self):
+        if self.__available_actions is None:
+            self.__available_actions = InvertibleDict({})
+            for idx in range(self.C):
+                state,action = self.index_by_state_action.inv[idx]
+                self.__available_actions[state] = action
+        return self.__available_actions
+
+    def reachable_mask(self, from_set, mode):
+        """Computes an :math:`N`-dimensional vector which has a True-entry (False otherwise) for
+        every state index that is reachable from 'from_set'.
         
         :param from_set: The set of states the search should start from.
         :type from_set: Set[int]
         :param mode: Either 'forward' or 'backward'. Defines the direction of search.
         :type mode: str
         :return: The set of states that are reachable.
-        :rtype: Set[int]
+        :rtype: Vector[bool]
         """        
         assert mode in ["forward", "backward"], "Mode must be either 'forward' or 'backward' but is %s." % mode
-        reachable = set()
-        active = from_set.copy()
+        reachable = np.zeros(self.N, dtype=np.bool)
+        active = { el for el in from_set }
         neighbour_iter = { "forward" : self.successors, "backward" : self.predecessors }[mode]
         while True:
             fromidx = active.pop()
-            reachable.add(fromidx)
-            succ = set(map(lambda sap: sap[0], neighbour_iter(fromidx)))
-            active.update(succ.difference(reachable))
+            reachable[fromidx] = True
+            succ = { sap[0] for sap in neighbour_iter(fromidx) if reachable[sap[0]] == False }
+            active.update(succ)
             if len(active) == 0:
                 break
         return reachable
 
     def predecessors(self, fromidx):
-        """Yields an iterator that computes state-action-probability-pairs (s,a,p) such that
-        applying action a to state s yields the given state with probability p.
+        """Yields an iterator that computes state-action-pairs (s,a) such that
+        applying action a to state s yields the given state with some probability p > 0.
         
         :param fromidx: The given state.
         :type fromidx: int
-        :yield: A state-action-pair (s,a,p)
+        :yield: A state-action-pair (s,a)
         :rtype: Tuple[int, int, float]
-        """        
-        for (idx,_), p in self.P[:,fromidx].items():
-            if p > 0:
-                tpl = self.index_by_state_action.inv[idx]
-                yield tpl[0], tpl[1], p
+        """       
+        col = self.__P_csc[:,fromidx]
+        for idx in col.nonzero()[0]:
+            s,a = self.index_by_state_action.inv[idx]
+            yield s,a
 
     def successors(self, fromidx):
-        """Yields an iterator that computes state-action-probability-pairs (d,a,p) where applying action a to
-        the given state yields state d with probability p.
+        """Yields an iterator that computes state-action-pairs (d,a) where applying action a to
+        the given state yields state d with some probability p > 0.
         
         :param fromidx: The given state.
         :type fromidx: int
-        :yield: A state-action-probability-pair (d,a,p)
-        :rtype: Tuple[int,int,float]
+        :yield: A state-action-pair (d,a)
+        :rtype: Tuple[int,int]
         """        
-        saps = filter(lambda key: key[0] == fromidx, self.index_by_state_action.keys())
-        for _, action in saps:
-            idx = self.index_by_state_action[(fromidx, action)]
-            for (_,dest), p in self.P[idx,:].items():
-                if p > 0:
-                    yield dest, action, p
+        for a in self.actions_by_state[fromidx]:
+            idx = self.index_by_state_action[(fromidx, a)]
+            row = self.__P_csr[idx,:]
+            for d in row.nonzero()[1]:
+                yield d, a
 
     @classmethod
     def from_file(cls, label_file_path, tra_file_path):
