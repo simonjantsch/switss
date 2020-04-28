@@ -107,20 +107,38 @@ class InverseResultUpdater(Updater):
         objective = [(group, 1/last_result[group] if last_result[group] > 0 else C) for group in self.groups]
         return objective
 
-# class InverseReachabilityInitializer(Initializer):
-#     """Gives states the most weight that have a low probability of reaching the goal state.
-#     Currently only works for min- and max-form if model is a DTMC.
-# 
-#     .. math::
-# 
-#         \mathbf{o}_0^{(v)} = 1/(Pr_{v}(\diamond goal)+c), \quad \\forall v \in \{ v_1, \dots v_m \} 
-# 
-#     where :math:`c` is positive but close to zero. 
-#     """    
-#     def initialize(self, indicator_keys):
-#         P = self.reachability_form.P
-#         to_target = self.reachability_form.to_target
-#         I = np.identity(P.shape[0])
-#         reachability = (I-P)**-1 * np.matrix(to_target).T
-#         print(indicator_keys)
-#         return [(i,1/(reachability[i]+1e-12)) for i in indicator_keys]
+class InverseReachabilityInitializer(Initializer):
+    """Gives states the most weight that have a low probability of reaching the goal state.
+    Currently only works for min- and max-form if model is a DTMC.
+
+    .. math::
+
+        \mathbf{o}_0^{(v)} = 1/(Pr_{v}(\diamond goal)+c), \quad \\forall v \in \{ v_1, \dots v_m \} 
+
+    where :math:`c` is positive but close to zero. 
+    """    
+    def __init__(self, reachability_form, mode, indicator_to_group, solver="cbc", c=1e-12):
+        super(InverseReachabilityInitializer, self).__init__(reachability_form, mode, indicator_to_group)
+        self.solver = solver
+        self.c = c
+
+        self.Pr = None
+        if self.mode == "min":
+            # if mode is min, each variable in a group corresponds to a state
+            Pr_x = self.reachability_form.max_z_state(solver=self.solver)
+            self.Pr = Pr_x
+        else:
+            # if mode is max, each variable in a group corresponds to a state-action pair index
+            Pr_x_a = self.reachability_form.max_z_state_action(solver=self.solver)
+            self.Pr = Pr_x_a
+
+    def initialize(self):
+        ret = []
+
+        for group in self.groups:
+            variables = self.indicator_to_group[group]
+            variablecount = len(variables)
+            weighted_probability = sum([self.Pr[var] for var in variables])/variablecount
+            ret.append((group, 1/(weighted_probability)))
+
+        return ret
