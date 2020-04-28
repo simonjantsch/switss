@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import ABC, abstractmethod, abstractproperty
 from bidict import bidict
 from collections import deque
 import numpy as np
@@ -14,7 +14,7 @@ class ProblemFormulation:
     def __init__(self):
         pass
 
-    def solve(self, reachability_form, threshold):
+    def solve(self, reachability_form, threshold, labels=None):
         """Finds a witnessing subsystem for a given reachability form
         such that the probability of reaching the target state is above
         a given threshold: 
@@ -29,15 +29,25 @@ class ProblemFormulation:
         :type reachability_form: model.ReachabilityForm
         :param threshold: The given threshold.
         :type threshold: float
+        :param labels: A mapping from labels to sets of states or state-action pairs.
+        :type labels: utils.InvertibleDict[str, Set[int]]
         :return: The resulting subsystem (minimal witness).
         :rtype: problem.Subsystem
         """
-        return deque(self.solveiter(reachability_form, threshold), maxlen=1).pop()
+        return deque(self.solveiter(reachability_form, threshold, labels=labels), maxlen=1).pop()
+
+    def solveiter(self, reachability_form, threshold, labels=None):
+        assert (threshold >= 0) and (threshold <= 1)
+        if labels is not None:
+            for l in labels:
+                available = reachability_form.system.states_by_label.keys()
+                assert l in available, "'%s' is not an existing label. Available are %s" % (l,available)
+                
+        return self._solveiter(reachability_form, threshold, labels)
 
     @abstractmethod
-    def solveiter(self, reachability, threshold):
+    def _solveiter(self, reachability, threshold, labels):
         pass
-
 
     def __repr__(self):
         params = ["%s=%s" % (k,v) for k,v in self.details.items() if k != "type"]
@@ -83,21 +93,20 @@ class ProblemFormulation:
         else:
             var_groups_program = LP.from_coefficients(
                 matr,rhs,np.zeros(N),sense="<=",objective="min")
-        indicator_var_to_vargroup = bidict()
+        indicator_to_group = {}
         objective_expr = []
-        for (group,var_indices) in var_groups.items():
-            indicator_var = var_groups_program.add_variables(
-                *[indicator_type])
-            indicator_var_to_vargroup[indicator_var] = group
+        for (group, var_indices) in var_groups.items():
+            indicator_var = var_groups_program.add_variables(indicator_type)
+            indicator_to_group[indicator_var] = var_indices
             for var_idx in var_indices:
                 if indicator_type != "binary":
-                    var_groups_program.add_constraint(
-                        [(indicator_var,1)],"<=",1)
-                    var_groups_program.add_constraint(
-                        [(indicator_var,1)],">=",0)
+                    var_groups_program.add_constraint([(indicator_var,1)],"<=",1)
+                    var_groups_program.add_constraint([(indicator_var,1)],">=",0)
                 objective_expr.append((indicator_var,1))
                 var_groups_program.add_constraint(
                     [(var_idx,1),(indicator_var,-upper_bound)],"<=",0)
+
+        indicator_to_group = InvertibleDict(indicator_to_group)
 
         for idx in range(N):
             var_groups_program.add_constraint([(idx,1)], ">=", 0)
@@ -105,22 +114,23 @@ class ProblemFormulation:
 
         var_groups_program.set_objective_function(objective_expr)
 
-        return var_groups_program,indicator_var_to_vargroup
+        return var_groups_program, indicator_to_group
 
     @staticmethod
     def _project_from_binary_indicators(result_vector,
                                         projected_length,
                                         var_groups,
-                                        indicator_var_to_vargroup):
+                                        indicator_to_group):
         result_projected = np.zeros(projected_length)
         handled_vars = dict()
-        for (indicator,group) in indicator_var_to_vargroup.items():
+        
+        for (indicator,group) in indicator_to_group.items():
             if result_vector[indicator] == 1:
-                for var_idx in var_groups[group]:
+                for var_idx in group:
                     result_projected[var_idx] = result_vector[var_idx]
                     handled_vars[var_idx] = True
             else:
-                for var_idx in var_groups[group]:
+                for var_idx in group:
                     result_projected[var_idx] = 0
                     handled_vars[var_idx] = True
 
@@ -133,24 +143,35 @@ class ProblemFormulation:
         return result_projected
 
     @staticmethod
-    def _var_groups_from_labels(reach_form,labels,mode):
+    def _var_groups_from_labels(reach_form,labels,mode): 
+        """Creates an invertible mapping from labels to states (min) or state-actions pair indices (max), dependent on mode. 
+
+        :param reach_form: The reachability form that contains states with labels respectively. 
+        :type reach_form: model.ReachabilityForm
+        :param labels: List of labels that should be considered.
+        :type labels: list[str]
+        :param mode: either "min" or "max".
+        :type mode: str
+        :return: Mapping from labels to states or state-action pair indices.
+        :rtype: utils.InvertibleDict[str, Set[int]]
+        """              
         assert mode in ["min","max"]
 
         C,N = reach_form.P.shape
 
         sys_st_by_label = reach_form.system.states_by_label
-        min_labels = InvertibleDict(
-            { l : sys_st_by_label["."+l] for l in labels})
+        min_labels = InvertibleDict({ l : sys_st_by_label[l] for l in labels})
 
         if mode == "min":
             return min_labels
         else:
             var_groups = InvertibleDict({})
-            min_labels.inv
+            # the max-form has indices in the range from 1 to C which correspond to state-action pairs.
+            # the goal is now to assign all labels of a state s to all state-actions pairs (s,*).
             for st_act_idx in range(C):
                 (st,act) = reach_form.index_by_state_action.inv[st_act_idx]
-                if st in min_labels.i.keys():
-                    st_labels = min_labels.i[st]
+                if st in min_labels.inv.keys():
+                    st_labels = min_labels.inv[st]
                     for l in st_labels:
                         # if g not in var_groups.keys():
                         #     var_groups[g] = set()

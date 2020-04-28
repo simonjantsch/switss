@@ -7,7 +7,7 @@ class Initializer(ABC):
     computes the initial objective function :math:`\mathbf{o}_0` of a QSHeur-problem.
     """
 
-    def __init__(self, reachability_form, mode):
+    def __init__(self, reachability_form, mode, indicator_to_group):
         """
         :param reachability_form: The reachability-form that should be minimized.
             Computation of objective function may or may not be dependent on the reachability-form.
@@ -18,9 +18,12 @@ class Initializer(ABC):
         assert mode in ["max", "min"]
         self.reachability_form = reachability_form
         self.mode = mode
+        self.indicator_to_group = indicator_to_group
+        self.groups = self.indicator_to_group.keys()
+        self.variables = self.indicator_to_group.inv.keys()
 
     @abstractmethod
-    def initialize(self, indicator_keys):
+    def initialize(self):
         """Computes the initial objective function :math:`\mathbf{o}_0` for a QSHeur-run. 
 
         :param indicator_keys: Set of indices :math:`v_1,\dots,v_m` where each index :math:`v` corresponds to one
@@ -41,7 +44,7 @@ class Updater(ABC):
     or may not be dependent on the last result vector :math:`QS(i) = (QS_{\mathbf{x}}(i)\ QS_{\sigma}(i))`.
     """    
 
-    def __init__(self, reachability_form, mode):
+    def __init__(self, reachability_form, mode, indicator_to_group):
         """
         :param reachability_form: The reachability-form that should be minimized.
             Computation of objective function may or may not be dependent on the reachability-form.
@@ -52,9 +55,12 @@ class Updater(ABC):
         assert mode in ["max", "min"]
         self.reachability_form = reachability_form
         self.mode = mode
+        self.indicator_to_group = indicator_to_group
+        self.groups = self.indicator_to_group.keys()
+        self.variables = self.indicator_to_group.inv.keys()
 
     @abstractmethod
-    def update(self, last_result, indicator_keys):
+    def update(self, last_result):
         """Computes the updated objective function :math:`\mathbf{o}_{i+1}`.
 
         :param last_result: The past result vector :math:`QS(i)`.
@@ -79,8 +85,8 @@ class AllOnesInitializer(Initializer):
     
     """
 
-    def initialize(self, indicator_keys):
-        return [(i,1) for i in indicator_keys]
+    def initialize(self):
+        return [(group,1) for group in self.groups]
 
 class InverseResultUpdater(Updater):
     """Gives most weight to groups that were removed in the last iteration (i.e. :math:`QS_{\sigma}(i)(v) = 0`)
@@ -96,12 +102,9 @@ class InverseResultUpdater(Updater):
     where :math:`C \gg 0`.
 
     """    
-    def update(self, last_result, indicator_keys):
-        # print(last_result.shape)
-        C = np.max([1/r for r in last_result if r != 0]) + 1
-        objective = []
-        for i in indicator_keys:
-            objective.append((i, 1/last_result[i] if last_result[i] > 0 else C))
+    def update(self, last_result):
+        C = np.max([1/last_result[group] for group in self.groups if last_result[group] != 0]) + 1
+        objective = [(group, 1/last_result[group] if last_result[group] > 0 else C) for group in self.groups]
         return objective
 
 # class InverseReachabilityInitializer(Initializer):
