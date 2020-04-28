@@ -38,20 +38,15 @@ class MILPExact(ProblemFormulation):
             "solver" : self.solver
         }
 
-    def solveiter(self, reach_form, threshold,labels=None):
+    def _solveiter(self, reach_form, threshold, labels):
         """Runs MILPExact using the Farkas (y- or z-) polytope
         depending on the value in mode."""
-        assert (threshold >= 0) and (threshold <= 1)
-        if labels != None:
-            for l in labels:
-                assert ("." + l) in reach_form.system.states_by_label.keys()
-
         if self.mode == "min":
             return self.solve_min(reach_form, threshold, labels)
         else:
             return self.solve_max(reach_form, threshold, labels)
 
-    def solve_min(self, reach_form, threshold, labels=None):
+    def solve_min(self, reach_form, threshold, labels):
         """Runs MILPExact using the Farkas z-polytope."""
 
         C,N = reach_form.P.shape
@@ -83,7 +78,7 @@ class MILPExact(ProblemFormulation):
         yield ProblemResult(
             milp_result.status,witness,milp_result.value)
 
-    def solve_max(self, reach_form, threshold, labels=None):
+    def solve_max(self, reach_form, threshold, labels):
         """Runs MILPExact using the Farkas y-polytope."""
 
         C,N = reach_form.P.shape
