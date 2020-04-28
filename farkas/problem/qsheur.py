@@ -36,13 +36,13 @@ class QSHeur(ProblemFormulation):
                  iterations = 3,
                  initializertype = AllOnesInitializer,
                  updatertype = InverseResultUpdater,
-                 solver_name="cbc"):
+                 solver="cbc"):
         super().__init__()
         assert mode in ["min","max"]
 
         self.mode = mode
         self.iterations = iterations
-        self.solver = solver_name
+        self.solver = solver
         self.updatertype = updatertype
         self.initializertype = initializertype
 
