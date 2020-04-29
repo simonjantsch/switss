@@ -27,15 +27,16 @@ class DTMC(AbstractMDP):
         .. highlight:: python
         .. code-block:: python
 
-            def standard_state_map(stateidx, labels):
-                return { "style" : "filled",
-                         "color" : utils.color_from_hash(tuple(sorted(labels))),
-                         "label" : "State %d\\n%s" % (stateidx,",".join(labels)) }
+            def standard_state_map(stateidx):
+                labels = self.labels_by_state[stateidx]
+                return { "color" : color_from_hash(tuple(sorted(labels))),
+                        "label" : "State %d\n%s" % (stateidx,",".join(labels)),
+                        "style" : "filled" }
 
         .. highlight:: python
         .. code-block:: python
         
-            def standard_trans_map(sourceidx, destidx, sourcelabels, destlabels, p):
+            def standard_trans_map(sourceidx, destidx, p):
                 return { "color" : "black", 
                          "label" : str(round(p,10)) }
 
@@ -52,12 +53,13 @@ class DTMC(AbstractMDP):
         :rtype: graphviz.Digraph
         """ 
 
-        def standard_state_map(stateidx, labels):
+        def standard_state_map(stateidx):
+            labels = self.labels_by_state[stateidx]
             return { "color" : color_from_hash(tuple(sorted(labels))),
                      "label" : "State %d\n%s" % (stateidx,",".join(labels)),
                      "style" : "filled" }
 
-        def standard_trans_map(sourceidx, destidx, sourcelabels, destlabels, p):
+        def standard_trans_map(sourceidx, destidx, p):
             return { "color" : "black", 
                      "label" : str(round(p,10)) }
 
@@ -76,12 +78,12 @@ class DTMC(AbstractMDP):
                 for node in [source, dest]:
                     if node not in existing_nodes:
                         # print(self.labels[node])
-                        state_setting = state_map(node, self.labels_by_state[node])
+                        state_setting = state_map(node)
                         if state_setting is not None:
                             dg.node(str(node), **state_setting)
                         existing_nodes.add(node)
 
-                params = (source, dest, self.labels_by_state[source], self.labels_by_state[dest], p)
+                params = (source, dest, p)
                 trans_setting = trans_map(*params)
                 if trans_setting is not None:
                     dg.edge(str(source), str(dest), **trans_setting)

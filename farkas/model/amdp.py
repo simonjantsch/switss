@@ -62,7 +62,7 @@ class AbstractMDP(ABC):
         return self.__label_to_actions_invertible
 
     @property
-    def label_by_action(self):
+    def labels_by_action(self):
         """Returns a mapping from actions (given as state-action-pairs) to labels.
 
         :return: The mapping.
@@ -72,6 +72,11 @@ class AbstractMDP(ABC):
 
     @property
     def actions_by_state(self):
+        """Returns a mapping from states to sets of (available) actions.
+
+        :return: The mapping.
+        :rtype: Dict[int, Set[int]]
+        """        
         if self.__available_actions is None:
             self.__available_actions = InvertibleDict({})
             for idx in range(self.C):
@@ -81,7 +86,7 @@ class AbstractMDP(ABC):
 
     def reachable_mask(self, from_set, mode):
         """Computes an :math:`N`-dimensional vector which has a True-entry (False otherwise) for
-        every state index that is reachable from 'from_set'.
+        every state index that is reachable from 'from_set' in the given search mode (forward or backward).
         
         :param from_set: The set of states the search should start from.
         :type from_set: Set[int]

@@ -157,7 +157,7 @@ class ReachabilityForm:
             labels = configuration.labels_by_state[sys_stateidx]
             for l in labels:
                 label_to_states[".%s"%l].add(stateidx)
-            actionlabels = configuration.label_by_action[(sys_stateidx,sys_actionidx)]
+            actionlabels = configuration.labels_by_action[(sys_stateidx,sys_actionidx)]
             for l in actionlabels:
                 label_to_actions[".%s"%l].add((sys_stateidx,sys_actionidx))
         label_to_states["fail"].add(fail_state)
