@@ -92,8 +92,7 @@ class MILPExact(ProblemFormulation):
             var_groups = InvertibleDict({})
             for sap_idx in range(C):
                 (st,act) = reach_form.index_by_state_action.inv[sap_idx]
-                #TODO change when InvertibleDict interface changes
-                var_groups[st] = sap_idx
+                var_groups.add(st, sap_idx)
 
         milp_result = MILPExact.__min_nonzero_groups(fark_matr,
                                         fark_rhs,

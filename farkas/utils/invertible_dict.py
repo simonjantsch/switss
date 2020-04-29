@@ -18,30 +18,47 @@ class InvertibleDict:
 
     """    
     def __init__(self, d, is_default=False):
-        self.d = d.copy()
-        self.i = None
-        self.is_default = is_default
+        """
+        :param d: Original dictionary
+        :type d: Dict
+        :param is_default: If True, will return the empty set if an item is not in the dictionary, defaults to False
+        :type is_default: bool, optional
+        """
+        # validity checks
+        assert isinstance(d, dict), "d must be a dictionary but is of type %s" % type(d)
+        assert isinstance(is_default, bool), "is_default must be a bool but is of type %s" % type(is_default)
+        for k,v in d.items():
+            assert isinstance(v,set), "each value must be a set, but value at key=%s is of type %s" % (k,type(v))
+
+        self.__d = d.copy()
+        self.__i = None
+        self.__is_default = is_default
 
     def __getitem__(self, key):
-        if self.is_default and key not in self.d:
+        if self.__is_default and key not in self.__d:
             return set()
-        return self.d[key]
+        return self.__d[key]
 
-    def __setitem__(self,key,item):
-        if key not in self.d:
-            self.d[key] = set()
-        self.d[key].add(item)
+    @property
+    def is_default(self):
+        return self.__is_default
+
+    def add(self,key,item):
+        """Adds an item to a key-mapping."""
+        if key not in self.__d:
+            self.__d[key] = set()
+        self.__d[key].add(item)
         
-        if self.i is not None:
-            if item not in self.i:
-                self.i[item] = set()
-            self.i[item].add(key)
+        if self.__i is not None:
+            if item not in self.__i:
+                self.__i[item] = set()
+            self.__i[item].add(key)
 
-    def __contains__(self, item):
-        return item in self.d
+    def __contains__(self, key):
+        return key in self.__d
 
     def __repr__(self):
-        return self.d.__repr__()
+        return self.__d.__repr__()
 
     def keys(self):
         """The keys of the underlying dictionary.
@@ -49,7 +66,7 @@ class InvertibleDict:
         :return: Keys.
         :rtype: Iterable
         """        
-        return self.d.keys()
+        return self.__d.keys()
 
     def items(self):
         """The items of the underlying dictionary.
@@ -57,7 +74,7 @@ class InvertibleDict:
         :return: iterable of key-value pairs.
         :rtype: Iterable
         """        
-        return self.d.items()
+        return self.__d.items()
 
     @property
     def inv(self):
@@ -69,12 +86,13 @@ class InvertibleDict:
             \\text{inv}: V \mapsto 2^K,\quad \\text{inv}(v) = \{k \in K \mid v \in f(k) \}
 
         :return: The respective dictionary.
-        :rtype: defaultdict(set)
+        :rtype: InvertibleDict
         """        
-        if self.i is None:
+        if self.__i is None:
             i = defaultdict(set)
-            for key, vals in self.d.items():
+            for key, vals in self.__d.items():
                 for val in vals:
                     i[val].add(key)
-            self.i = InvertibleDict(dict(i), is_default=self.is_default)
-        return self.i
+            self.__i = InvertibleDict(dict(i), is_default=self.__is_default)
+            self.__i.__i = self
+        return self.__i

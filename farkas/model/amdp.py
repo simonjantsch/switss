@@ -76,7 +76,7 @@ class AbstractMDP(ABC):
             self.__available_actions = InvertibleDict({})
             for idx in range(self.C):
                 state,action = self.index_by_state_action.inv[idx]
-                self.__available_actions[state] = action
+                self.__available_actions.add(state, action)
         return self.__available_actions
 
     def reachable_mask(self, from_set, mode):

@@ -42,7 +42,7 @@ class ProblemFormulation:
             for l in labels:
                 available = reachability_form.system.states_by_label.keys()
                 assert l in available, "'%s' is not an existing label. Available are %s" % (l,available)
-                
+
         return self._solveiter(reachability_form, threshold, labels)
 
     @abstractmethod
@@ -170,6 +170,5 @@ class ProblemFormulation:
                     for l in st_labels:
                         # if g not in var_groups.keys():
                         #     var_groups[g] = set()
-                        # TODO change __set_item__ for InvertibleDict
-                        var_groups[l] = st_act_idx
+                        var_groups.add(l, st_act_idx)
         return var_groups

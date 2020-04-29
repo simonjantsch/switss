@@ -95,9 +95,6 @@ class ReachabilityForm:
         if debug:
             print("computed state-action mapping")
 
-        # make dictionary invertible -> this is useful since it allows mapping back from the reachability form to full form
-        to_reachability = InvertibleDict(to_reachability, is_default=False)
-        
         # compute reduced transition matrix (without non-reachable states)
         # compute probability of reaching the target state in one step 
         new_N = len(reachable)
