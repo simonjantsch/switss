@@ -31,7 +31,10 @@ class ReachabilityForm:
         forward_reachable = system.reachable_mask(set([initial]), "forward")
         # states which are reachable from the initial state AND are able to reach target states
         reachable_mask = backward_reachable & forward_reachable
-        
+        # TODO: use reachable_mask instead of reachable everywhere
+        # this is much better for performance since lookup of states is always O(1)
+        reachable = { idx for idx,x in enumerate(reachable_mask) if x }
+
         if debug:
             print("tested backward & forward reachability test")
 
@@ -42,21 +45,24 @@ class ReachabilityForm:
             return ts not in target_states or len(set(predecessors).difference(target_states)) != 0
 
         # remove target states that are only reachable from other target states
-        for idx in range(len(reachable_mask)):
-            reachable_mask[idx] = reachable_from_non_target_states(idx)
+        reachable = set(filter(reachable_from_non_target_states, reachable)) 
+        # for idx in range(len(reachable_mask)):
+        #     reachable_mask[idx] = reachable_from_non_target_states(idx)
         
         if debug:
             print("removed target states that are only reachable from other target states")
 
-        ctr = 0
-        reachable_mapping = {}
-        for stateidx,state_reachable in enumerate(reachable_mask):
-            if state_reachable:
-                reachable_mapping[stateidx] = ctr
-                ctr += 1 
+        reachable = list(reachable)
+
+        # ctr = 0
+        # reachable_mapping = {}
+        # for stateidx,state_reachable in enumerate(reachable_mask):
+        #     if state_reachable:
+        #         reachable_mapping[stateidx] = ctr
+        #         ctr += 1 
 
         # reduce states + new target and new fail state 
-        new_state_count = int(np.sum(reachable_mask)) + 2
+        new_state_count = len(reachable) + 2
         target_idx, fail_idx = new_state_count - 2, new_state_count - 1
         
         if debug:
@@ -71,9 +77,10 @@ class ReachabilityForm:
         for sapidx in range(system.C):
             stateidx, actionidx = system.index_by_state_action.inv[sapidx]
             newidx = None
-            if reachable_mask[stateidx]:
+            if stateidx in reachable:
                 # state is reachable
-                newidx = reachable_mapping[stateidx] # result is something in [0,...len(reachable)-1]
+                newidx = reachable.index(stateidx)
+                # newidx = reachable_mapping[stateidx] # result is something in [0,...len(reachable)-1]
                 to_reachability_sap[(stateidx,actionidx)] = (newidx,actionidx)
             elif targets_label in system.labels_by_state[stateidx]:
                 # state is not in reachable but a target state
@@ -93,8 +100,8 @@ class ReachabilityForm:
         
         # compute reduced transition matrix (without non-reachable states)
         # compute probability of reaching the target state in one step 
-        new_N = new_state_count-2
-        new_C = len(set([(s,a) for (s,a) in system.index_by_state_action.keys() if reachable_mask[s]]))
+        new_N = len(reachable)
+        new_C = len(set([(s,a) for (s,a) in system.index_by_state_action.keys() if s in reachable]))
         new_P = dok_matrix((new_C, new_N))
         if debug:
             print("shape of new_P %s" % (new_P.shape,))

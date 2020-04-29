@@ -112,7 +112,7 @@ class AbstractMDP(ABC):
         :yield: A state-action-pair (s,a)
         :rtype: Tuple[int, int, float]
         """       
-        col = self.__P_csc[:,fromidx]
+        col = self.__P_csc.getcol(fromidx)
         for idx in col.nonzero()[0]:
             s,a = self.index_by_state_action.inv[idx]
             yield s,a
@@ -128,7 +128,7 @@ class AbstractMDP(ABC):
         """        
         for a in self.actions_by_state[fromidx]:
             idx = self.index_by_state_action[(fromidx, a)]
-            row = self.__P_csr[idx,:]
+            row = self.__P_csr.getrow(idx)
             for d in row.nonzero()[1]:
                 yield d, a
 

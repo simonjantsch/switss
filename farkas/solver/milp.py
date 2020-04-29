@@ -50,6 +50,7 @@ class MILP:
         self.__pulpmodel = pulp.LpProblem("",objective)
         self.__variables = [] 
         self.__constraint_iter = 0
+        self.__set_objective_function = False
 
     def solve(self, solver="cbc"):
         """Solves this problem and returns the problem result.
@@ -79,6 +80,7 @@ class MILP:
                     -3:"undefined"}[self.__pulpmodel.status]
         result_vector = np.array([var.value() for var in self.__variables])
         value = self.__pulpmodel.objective.value()
+
         return SolverResult(status, result_vector, value)
 
     def _assert_expression(self, expression):
@@ -104,8 +106,13 @@ class MILP:
         :type expression: List[Tuple[int,float]]
         """        
         self._assert_expression(expression)
-        self.__pulpmodel += pulp.LpAffineExpression(self._expr_to_pulp(expression))
-
+        if not self.__set_objective_function:
+            self.__set_objective_function = True
+            self.__pulpmodel += pulp.LpAffineExpression(self._expr_to_pulp(expression))
+        else:
+            for var,coeff in expression:
+                self.__pulpmodel.objective[self.__variables[var]] = coeff
+        
     def add_constraint(self, lhs, sense, rhs):
         """Adds a constraint of the form
 
@@ -146,14 +153,10 @@ class MILP:
         for domain in domains:
             assert domain in ["integer", "real", "binary"]
 
-            cat = { "real" : pulp.LpContinuous, "integer" : pulp.LpInteger, "binary" : pulp.LpInteger }[domain]
+            cat = { "real" : pulp.LpContinuous, "integer" : pulp.LpInteger, "binary" : pulp.LpBinary }[domain]
             varidx = len(self.__variables)
             var = pulp.LpVariable("x%d" % varidx, cat=cat)
             self.__variables.append(var)
-
-            if domain == "binary":
-                self.add_constraint([(varidx, 1)], ">=", 0)
-                self.add_constraint([(varidx, 1)], "<=", 1)
 
             if len(domains) == 1:
                 return varidx
@@ -178,7 +181,7 @@ class MILP:
         :type A: :math:`M \\times N`-Matrix
         :param b: Vector for inequality conditions  (:math:`b`).
         :type b: :math:`M \\times 1`-Matrix
-        :param opt: Weights for individual variables in x (:math:`\sigma`).
+        :param opt: Weights for individual variables in x (:math:`\sigma`). If None, no objective function will be set.
         :type opt: :math:`N \\times 1`-Matrix
         :param domains: Array of strings, e.g. ["real", "integer", "integer", "binary", ...] which indicates the domain for each variable.
         :type domains: List[str]
@@ -190,8 +193,9 @@ class MILP:
         :rtype: solver.MILP
         """
 
-        A = cast_dok_matrix(A)
+        A = cast_dok_matrix(A).tocsr()
         b = cast_dok_matrix(b)
+
         opt = cast_dok_matrix(opt)
 
         model = MILP(objective=objective)
@@ -200,14 +204,15 @@ class MILP:
         # this adds the variables and the objective function (which is opt^T*x, i.e. sum_{i=1}^N opt[i]*x[i])
         model.add_variables(*[domains[idx] for idx in range(A.shape[1])])
         model.set_objective_function([(idx, opt[idx,0]) for idx in range(A.shape[1])])
-            # variables.append(("x%d" % varidx, vartype)) # lowBound=self.lowBound, upBound=self.upBound, 
         
+        # this takes quite a lot of time since accessing the rows is inefficient, even for csr-formats.
+        # maybe find a way to compute Ax <= b faster.
         # now: add linear constraints: Ax <= b.
         for constridx in range(A.shape[0]):
             # calculates A[constridx,:]^T * x
-            lhs, row = [],  A[constridx,:]
-            for (_,j), a in row.items():
-                lhs.append((j, a))
+            lhs, row = [], A.getrow(constridx)
+            for j in row.nonzero()[1]:
+                lhs.append((j, A[constridx,j]))
             # adds constraint: A[constridx,:]^T * x <= b[constridx]
             model.add_constraint(lhs, sense, b[constridx,0])
 

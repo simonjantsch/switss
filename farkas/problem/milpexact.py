@@ -1,4 +1,4 @@
-from . import ProblemFormulation, ProblemResult, Subsystem
+from . import ProblemFormulation, ProblemResult, Subsystem, AllOnesInitializer
 from farkas.solver import SolverResult
 from farkas.utils import InvertibleDict
 
@@ -59,7 +59,7 @@ class MILPExact(ProblemFormulation):
             var_groups = ProblemFormulation._var_groups_from_labels(
                 reach_form,labels,"min")
 
-        milp_result = min_nonzero_groups(fark_matr,
+        milp_result = MILPExact.__min_nonzero_groups(fark_matr,
                                           fark_rhs,
                                           var_groups,
                                           upper_bound=1,
@@ -95,7 +95,7 @@ class MILPExact(ProblemFormulation):
                 #TODO change when InvertibleDict interface changes
                 var_groups[st] = sap_idx
 
-        milp_result = min_nonzero_groups(fark_matr,
+        milp_result = MILPExact.__min_nonzero_groups(fark_matr,
                                         fark_rhs,
                                         var_groups,
                                         upper_bound=None,
@@ -106,25 +106,27 @@ class MILPExact(ProblemFormulation):
         yield ProblemResult(
             milp_result.status,witness,milp_result.value)
 
+    @staticmethod
+    def __min_nonzero_groups(matrix,
+                        rhs,
+                        var_groups,
+                        upper_bound = None,
+                        solver = "cbc"):
+        C,N = matrix.shape
 
-def min_nonzero_groups(matrix,
-                      rhs,
-                      var_groups,
-                      upper_bound = None,
-                      solver = "cbc"):
-    C,N = matrix.shape
+        min_nonzero_milp, indicator_var_to_vargroup_idx = ProblemFormulation._var_groups_program(
+            matrix, rhs, var_groups, upper_bound, indicator_type="binary")
 
-    min_nonzero_milp, indicator_var_to_vargroup_idx = ProblemFormulation._var_groups_program(
-        matrix, rhs, var_groups, upper_bound, indicator_type="binary")
+        objective = AllOnesInitializer(indicator_var_to_vargroup_idx).initialize()
+        min_nonzero_milp.set_objective_function(objective)
+        milp_result = min_nonzero_milp.solve(solver)
 
-    milp_result = min_nonzero_milp.solve(solver)
+        result_projected = ProblemFormulation._project_from_binary_indicators(
+            milp_result.result_vector,
+            N,
+            var_groups,
+            indicator_var_to_vargroup_idx)
 
-    result_projected = ProblemFormulation._project_from_binary_indicators(
-        milp_result.result_vector,
-        N,
-        var_groups,
-        indicator_var_to_vargroup_idx)
-
-    return SolverResult(milp_result.status,
-                        result_projected,
-                        milp_result.value)
+        return SolverResult(milp_result.status,
+                            result_projected,
+                            milp_result.value)

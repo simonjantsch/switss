@@ -94,7 +94,6 @@ class ProblemFormulation:
             var_groups_program = LP.from_coefficients(
                 matr,rhs,np.zeros(N),sense="<=",objective="min")
         indicator_to_group = {}
-        objective_expr = []
         for (group, var_indices) in var_groups.items():
             indicator_var = var_groups_program.add_variables(indicator_type)
             indicator_to_group[indicator_var] = var_indices
@@ -102,17 +101,13 @@ class ProblemFormulation:
                 if indicator_type != "binary":
                     var_groups_program.add_constraint([(indicator_var,1)],"<=",1)
                     var_groups_program.add_constraint([(indicator_var,1)],">=",0)
-                objective_expr.append((indicator_var,1))
-                var_groups_program.add_constraint(
-                    [(var_idx,1),(indicator_var,-upper_bound)],"<=",0)
+                var_groups_program.add_constraint([(var_idx,1),(indicator_var,-upper_bound)],"<=",0)
 
         indicator_to_group = InvertibleDict(indicator_to_group)
 
         for idx in range(N):
             var_groups_program.add_constraint([(idx,1)], ">=", 0)
             var_groups_program.add_constraint([(idx,1)], "<=", upper_bound)
-
-        var_groups_program.set_objective_function(objective_expr)
 
         return var_groups_program, indicator_to_group
 

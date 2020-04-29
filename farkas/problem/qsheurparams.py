@@ -1,5 +1,5 @@
 
-from abc import ABC, abstractmethod
+from abc import ABC, abstractmethod, abstractclassmethod
 import numpy as np
 
 class Initializer(ABC):
@@ -7,7 +7,7 @@ class Initializer(ABC):
     computes the initial objective function :math:`\mathbf{o}_0` of a QSHeur-problem.
     """
 
-    def __init__(self, reachability_form, mode, indicator_to_group):
+    def __init__(self, reachability_form, mode, indicator_to_group, **kwargs):
         """
         :param reachability_form: The reachability-form that should be minimized.
             Computation of objective function may or may not be dependent on the reachability-form.
@@ -44,7 +44,7 @@ class Updater(ABC):
     or may not be dependent on the last result vector :math:`QS(i) = (QS_{\mathbf{x}}(i)\ QS_{\sigma}(i))`.
     """    
 
-    def __init__(self, reachability_form, mode, indicator_to_group):
+    def __init__(self, reachability_form, mode, indicator_to_group, **kwargs):
         """
         :param reachability_form: The reachability-form that should be minimized.
             Computation of objective function may or may not be dependent on the reachability-form.
@@ -84,6 +84,8 @@ class AllOnesInitializer(Initializer):
         \mathbf{o}_0(v) = 1, \quad \\forall v \in \{ v_1, \dots v_m \} 
     
     """
+    def __init__(self, indicator_to_group, **kwargs):
+        super(AllOnesInitializer, self).__init__(None, "min", indicator_to_group)
 
     def initialize(self):
         return [(group,1) for group in self.groups]
@@ -103,24 +105,21 @@ class InverseResultUpdater(Updater):
 
     """    
     def update(self, last_result):
-        C = np.max([1/last_result[group] for group in self.groups if last_result[group] != 0]) + 1
+        C = np.max([1/last_result[group] for group in self.groups if last_result[group] != 0]) + 1e8
         objective = [(group, 1/last_result[group] if last_result[group] > 0 else C) for group in self.groups]
         return objective
 
 class InverseReachabilityInitializer(Initializer):
-    """Gives states the most weight that have a low probability of reaching the goal state.
-    Currently only works for min- and max-form if model is a DTMC.
+    """Gives groups the most weight that have a low probability of reaching the goal state.
 
     .. math::
 
-        \mathbf{o}_0^{(v)} = 1/(Pr_{v}(\diamond goal)+c), \quad \\forall v \in \{ v_1, \dots v_m \} 
-
-    where :math:`c` is positive but close to zero. 
+        \mathbf{o}_0^{(v)} = 1/Pr_{v}(\diamond goal), \quad \\forall v \in \{ v_1, \dots v_m \} 
+ 
     """    
-    def __init__(self, reachability_form, mode, indicator_to_group, solver="cbc", c=1e-12):
+    def __init__(self, reachability_form, mode, indicator_to_group, solver="cbc"):
         super(InverseReachabilityInitializer, self).__init__(reachability_form, mode, indicator_to_group)
         self.solver = solver
-        self.c = c
 
         self.Pr = None
         if self.mode == "min":
@@ -139,6 +138,40 @@ class InverseReachabilityInitializer(Initializer):
             variables = self.indicator_to_group[group]
             variablecount = len(variables)
             weighted_probability = sum([self.Pr[var] for var in variables])/variablecount
-            ret.append((group, 1/(weighted_probability)))
+            ret.append((group, 1/weighted_probability))
+
+        return ret
+
+class InverseFrequencyInitializer(Initializer):
+    """Gives groups the most weight that have a low expected frequency.
+
+    .. math::
+
+        \mathbf{o}_0^{(v)} = 1/\mathbb{E}[v], \quad \\forall v \in \{ v_1, \dots, v_m \}
+
+    """
+
+    def __init__(self, reachability_form, mode, indicator_to_group, solver="cbc"):
+        super(InverseFrequencyInitializer, self).__init__(reachability_form, mode, indicator_to_group)
+        self.solver = solver
+
+        self.E = None
+        if self.mode == "min":
+            # if mode is min, each variable in a group corresponds to a state
+            E_x = self.reachability_form.max_y_state(solver=self.solver)
+            self.E = E_x
+        else:
+            # if mode is max, each variable in a group corresponds to a state-action pair index
+            E_x_a = self.reachability_form.max_y_state_action(solver=self.solver)
+            self.E = E_x_a
+
+    
+    def initialize(self):
+        ret = []
+
+        for group in self.groups:
+            variables = self.indicator_to_group[group]
+            expected_val_sum = sum([self.E[var] for var in variables])
+            ret.append((group, 1/expected_val_sum))
 
         return ret

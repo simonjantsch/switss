@@ -53,8 +53,8 @@ class QSHeur(ProblemFormulation):
             "mode" : self.mode,
             "solver" : self.solver,
             "iterations" : self.iterations,
-            "initializertype" : self.initializertype,
-            "updatertype" : self.updatertype
+            "initializertype" : self.initializertype.__name__,
+            "updatertype" : self.updatertype.__name__
         }
 
     def _solveiter(self, reach_form, threshold,labels):
@@ -79,9 +79,9 @@ class QSHeur(ProblemFormulation):
 
         heur_lp, indicator_to_group = ProblemFormulation._var_groups_program(
             fark_matr,fark_rhs,var_groups,upper_bound=1,indicator_type="real")
-
-        intitializer = self.initializertype(reach_form, self.mode, indicator_to_group)
-        updater = self.updatertype(reach_form, self.mode, indicator_to_group)
+        
+        intitializer = self.initializertype(reachability_form=reach_form, mode=self.mode, indicator_to_group=indicator_to_group)
+        updater = self.updatertype(reachability_form=reach_form, mode=self.mode, indicator_to_group=indicator_to_group)
         current_objective = intitializer.initialize()
 
         # iteratively solves the corresponding LP, and computes the next
@@ -131,8 +131,8 @@ class QSHeur(ProblemFormulation):
         heur_lp, indicator_to_group = ProblemFormulation._var_groups_program(
             fark_matr,fark_rhs,var_groups,upper_bound=None,indicator_type="real")
 
-        intitializer = self.initializertype(reach_form, self.mode, indicator_to_group)
-        updater = self.updatertype(reach_form, self.mode, indicator_to_group)
+        intitializer = self.initializertype(reachability_form=reach_form, mode=self.mode, indicator_to_group=indicator_to_group)
+        updater = self.updatertype(reachability_form=reach_form, mode=self.mode, indicator_to_group=indicator_to_group)
         current_objective = intitializer.initialize()
 
         # iteratively solves the corresponding LP, and computes the
