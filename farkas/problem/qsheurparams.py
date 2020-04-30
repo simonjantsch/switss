@@ -125,10 +125,12 @@ class InverseReachabilityInitializer(Initializer):
         if self.mode == "min":
             # if mode is min, each variable in a group corresponds to a state
             Pr_x = self.reachability_form.max_z_state(solver=self.solver)
+            assert (Pr_x > 0).all()
             self.Pr = Pr_x
         else:
             # if mode is max, each variable in a group corresponds to a state-action pair index
             Pr_x_a = self.reachability_form.max_z_state_action(solver=self.solver)
+            assert (Pr_x_a > 0).all()
             self.Pr = Pr_x_a
 
     def initialize(self):
@@ -165,13 +167,13 @@ class InverseFrequencyInitializer(Initializer):
             E_x_a = self.reachability_form.max_y_state_action(solver=self.solver)
             self.E = E_x_a
 
-    
+
     def initialize(self):
         ret = []
 
         for group in self.groups:
             variables = self.indicator_to_group[group]
             expected_val_sum = sum([self.E[var] for var in variables])
-            ret.append((group, 1/expected_val_sum))
+            ret.append((group, 1/expected_val_sum if expected_val_sum > 0 else 1e8))
 
         return ret
