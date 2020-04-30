@@ -21,8 +21,14 @@ class AbstractMDP(ABC):
         self.C, self.N = self.P.shape
         # transform mapping into bidict if neccessary (applying bidict to bidict doesn't change anything)
         self.index_by_state_action = bidict(index_by_state_action)
-        self.__label_to_actions_invertible = InvertibleDict(label_to_actions, is_default=True)
-        self.__label_to_states_invertible = InvertibleDict(label_to_states, is_default=True)
+        if isinstance(label_to_actions,InvertibleDict):
+            self.__label_to_actions_invertible = label_to_actions
+        else:
+            self.__label_to_actions_invertible = InvertibleDict(label_to_actions, is_default=True)
+        if isinstance(label_to_states,InvertibleDict):
+            self.__label_to_states_invertible = label_to_states
+        else:
+            self.__label_to_states_invertible = InvertibleDict(label_to_states, is_default=True)
         self.__check_correctness()
         self.__available_actions = None
 
