@@ -1,5 +1,5 @@
 from farkas.utils import cast_dok_matrix
-from . import AbstractMDP
+from . import AbstractMDP,MDP
 from ..utils import InvertibleDict
 from ..solver.milp import LP
 
@@ -311,3 +311,14 @@ class ReachabilityForm:
 
         result = pr_max_z_lp.solve(solver=solver)
         return result.result_vector
+
+    def _check_mec_freeness(self,solver="cbc"):
+        new_label_to_states = self.system.states_by_label
+        for st in self.system.labels_by_state.keys():
+            if st in new_label_to_states["fail"]:
+                new_label_to_states.add("target",st)
+        target_or_fail_mdp = MDP(
+            self.system.P,self.system.index_by_state_action,{},new_label_to_states)
+        target_or_fail_rf = ReachabilityForm(target_or_fail_mdp,"init","target")
+        assert (target_or_fail_rf.pr_min() == 1).all()
+
