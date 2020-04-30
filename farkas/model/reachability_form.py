@@ -258,6 +258,11 @@ class ReachabilityForm:
         opt = np.zeros(N)
         opt[self.initial] = 1
         max_z_lp = LP.from_coefficients(matr,rhs,opt,sense="<=",objective="max")
+
+        for st_idx in range(N):
+            max_z_lp.add_constraint([(st_idx,1)],">=",0)
+            max_z_lp.add_constraint([(st_idx,1)],"<=",1)
+
         result = max_z_lp.solve(solver=solver)
         return result.result_vector
 
@@ -269,7 +274,11 @@ class ReachabilityForm:
         N,C = self.P.shape
 
         matr, rhs = self.fark_y_constraints(0)
-        max_y_lp = LP.from_coefficients(matr,rhs,self.to_target,sense="<=",objective="max")
+        max_y_lp = LP.from_coefficients(
+            matr,rhs,self.to_target,sense="<=",objective="max")
+
+        for sap_idx in range(C):
+            max_y_lp.add_constraint([(sap_idx,1)],">=",0)
 
         result = max_y_lp.solve(solver=solver)
         return result.result_vector
@@ -288,11 +297,17 @@ class ReachabilityForm:
         return self.max_z_state()
 
     def pr_max(self,solver="cbc"):
-        N,C = self.P.shape
+        C,N = self.P.shape
 
         matr, rhs = self.fark_z_constraints(0)
         opt = np.zeros(N)
         opt[self.initial] = 1
-        pr_max_z_lp = LP.from_coefficients(matr,rhs,opt,sense=">=",objective="min")
+        pr_max_z_lp = LP.from_coefficients(
+            matr,rhs,opt,sense=">=",objective="min")
+
+        for st_idx in range(N):
+            pr_max_z_lp.add_constraint([(st_idx,1)],">=",0)
+            pr_max_z_lp.add_constraint([(st_idx,1)],"<=",1)
+
         result = pr_max_z_lp.solve(solver=solver)
         return result.result_vector
