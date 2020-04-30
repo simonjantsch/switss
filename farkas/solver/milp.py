@@ -212,7 +212,7 @@ class MILP:
             # calculates A[constridx,:]^T * x
             lhs, row = [], A.getrow(constridx)
             for j in row.nonzero()[1]:
-                lhs.append((j, A[constridx,j]))
+                lhs.append((j, float(A[constridx,j])))
             # adds constraint: A[constridx,:]^T * x <= b[constridx]
             model.add_constraint(lhs, sense, b[constridx,0])
 
