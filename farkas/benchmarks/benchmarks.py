@@ -76,11 +76,16 @@ def run(reachability_form, method, from_thr=1e-3, to_thr=1, step=1e-3, debug=Fal
         print("-"*50)
         print("%s" % "\n".join(["%s=%s" % it for it in method.details.items()]))
         print("-"*50)
+
     for idx,thr in enumerate(thresholds):
         p = (idx+1)/len(thresholds)
         starttime = timer()
         times, statecounts = [], []
         for result in method.solveiter(reachability_form, thr):
+            if result.status != "optimal":
+                if debug:
+                    print("threshold %d infeasible. result status =%s" % thr,result.status)
+                return data
             time = timer() - starttime
             statecount = np.sum(result.subsystem.subsystem_mask)
             statecounts.append(statecount)
