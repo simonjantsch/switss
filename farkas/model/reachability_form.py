@@ -158,7 +158,7 @@ class ReachabilityForm:
             sys_stateidx, sys_actionidx = mapping.inv[(stateidx,actionidx)]
             labels = configuration.labels_by_state[sys_stateidx]
             for l in labels:
-                label_to_states[".%s"%l].add(stateidx)
+                label_to_states["%s"%l].add(stateidx)
             actionlabels = configuration.labels_by_action[(sys_stateidx,sys_actionidx)]
             for l in actionlabels:
                 label_to_actions[".%s"%l].add((sys_stateidx,sys_actionidx))

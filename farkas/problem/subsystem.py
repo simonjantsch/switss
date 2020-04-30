@@ -67,7 +67,7 @@ class Subsystem:
             if state_vector[i] == True:
                 new_to_old_states[new_N] = i
                 for l in old_label_by_states[i]:
-                    new_label_to_states.add(l[1:],new_N)
+                    new_label_to_states.add(l,new_N)
                 new_N += 1
 
         # Compute the new number of choices (= rows)
