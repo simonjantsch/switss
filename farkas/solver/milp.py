@@ -74,7 +74,8 @@ class MILP:
 
         self.__pulpmodel.solve()
 
-        status = {   1:"optimal", 
+        status = {   1:"optimal",
+                     0:"notsolved",
                     -1:"infeasible", 
                     -2:"unbounded", 
                     -3:"undefined"}[self.__pulpmodel.status]

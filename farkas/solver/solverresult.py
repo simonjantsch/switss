@@ -9,7 +9,7 @@ class SolverResult:
         :param result: Resulting variable assignments.
         :type result: List[float]
         """
-        assert status in ["optimal", "infeasible", "unbounded", "undefined"]
+        assert status in ["optimal", "infeasible", "unbounded", "undefined","notsolved"]
         self.status = status
         self.result_vector = result_vector
         self.value = value
