@@ -116,6 +116,7 @@ class QSHeur(ProblemFormulation):
             else:
                 # failed to optimize LP
                 yield ProblemResult(heur_result.status, None,None)
+                break
 
     def solve_max(self, reach_form, threshold, labels):
         """Runs the QSheuristic using the Farkas y-polytope of a given reachability form for a given threshold."""
@@ -159,3 +160,4 @@ class QSHeur(ProblemFormulation):
             else:
                 # failed to optimize LP
                 yield ProblemResult(heur_result.status, None,None)
+                break
