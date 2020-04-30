@@ -65,18 +65,22 @@ class MILPExact(ProblemFormulation):
                                           upper_bound=1,
                                           solver=self.solver)
 
-        # this creates a new C-dimensional vector which carries values for state-action pairs.
-        # every state-action pair is assigned the weight the state has.
-        # this "blowing-up" will make it easier for visualizing subsystems.
-        state_action_weights = np.zeros(C)
-        for idx in range(C):
-            state,_ = reach_form.index_by_state_action.inv[idx]
-            state_action_weights[idx] = milp_result.result_vector[state]
+        if milp_result.status != "optimal":
+            yield ProblemResult(milp_result.status,None,None)
 
-        witness = Subsystem(reach_form, state_action_weights)
+        else:
+            # this creates a new C-dimensional vector which carries values for state-action pairs.
+            # every state-action pair is assigned the weight the state has.
+            # this "blowing-up" will make it easier for visualizing subsystems.
+            state_action_weights = np.zeros(C)
+            for idx in range(C):
+                state,_ = reach_form.index_by_state_action.inv[idx]
+                state_action_weights[idx] = milp_result.result_vector[state]
 
-        yield ProblemResult(
-            milp_result.status,witness,milp_result.value)
+            witness = Subsystem(reach_form, state_action_weights)
+
+            yield ProblemResult(
+                milp_result.status,witness,milp_result.value)
 
     def solve_max(self, reach_form, threshold, labels):
         """Runs MILPExact using the Farkas y-polytope."""
@@ -100,10 +104,14 @@ class MILPExact(ProblemFormulation):
                                         upper_bound=None,
                                         solver=self.solver)
 
-        witness = Subsystem(reach_form, milp_result.result_vector)
+        if milp_result.status != "optimal":
+            yield ProblemResult(milp_result.status,None,None)
 
-        yield ProblemResult(
-            milp_result.status,witness,milp_result.value)
+        else:
+            witness = Subsystem(reach_form, milp_result.result_vector)
+
+            yield ProblemResult(
+                milp_result.status,witness,milp_result.value)
 
     @staticmethod
     def __min_nonzero_groups(matrix,
