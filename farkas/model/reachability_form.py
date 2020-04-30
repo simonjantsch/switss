@@ -165,18 +165,16 @@ class ReachabilityForm:
         label_to_states["fail"].add(fail_state)
         label_to_states[target_label].add(target_state)
 
-        not_to_fail = np.zeros(N)
+        not_to_fail = np.zeros(C)
         for (idx, dest), p in self.P.items():
-            sourceidx, _ = index_by_state_action_compl.inv[idx]
             if p > 0:
-                not_to_fail[sourceidx] += p
+                not_to_fail[idx] += p
                 P_compl[idx, dest] = p
 
         for idx, p_target in enumerate(self.to_target):
-            sourceidx, _ = index_by_state_action_compl.inv[idx]
             if p_target > 0:
                 P_compl[idx, target_state] = p_target
-            p_fail = 1 - (p_target + not_to_fail[sourceidx])
+            p_fail = 1 - (p_target + not_to_fail[idx])
             if p_fail > 0:
                 P_compl[idx, fail_state] = p_fail
 
