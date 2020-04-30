@@ -21,12 +21,14 @@ def example_dtmcs():
 
 def example_mdps():
     mdps = []
-    mdps.append(MDP.from_file("./examples/datasets/csma-2-2.lab",
-                              "./examples/datasets/csma-2-2.tra"))
+    mdps.append(toy_mdp1())
+    mdps.append(toy_mdp2())
+    mdps.append(MDP.from_prism_model("./examples/datasets/csma2_2.nm",
+                                     extra_labels={("target","s1=4&s2=4")}))
     mdps.append(
         MDP.from_prism_model("./examples/datasets/coin2.nm",
+                             prism_constants = {("K",2)},
                              extra_labels={("target","pc1=3 & pc2=3")}))
-    mdps.append(toy_mdp1())
     return mdps
 
 def toy_mdp1():
@@ -37,7 +39,7 @@ def toy_mdp1():
 
     P = [[0.3, 0.0, 0.7],
          [0.0, 1.0, 0.0],
-         [0.5, 0.5, 0.0],
+         [0.5, 0.3, 0.2],
          [0.8, 0.2, 0.0],
          [0.0, 0.0, 1.0]]
 
@@ -45,7 +47,29 @@ def toy_mdp1():
 
     return(MDP(P, index_by_state_action, actionlabels, labels))
 
+def toy_mdp2():
 
+    index_by_state_action = {(0,0) : 0, (0,1) : 1, (1,0) : 2, (2,0) : 3, (3,0) : 4, (4,0) : 5, (5,0) : 6, (6,0) : 7, (7,0) : 8}
+
+    P = [[0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+         [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+         [0.0, 0.0, 0.6, 0.0, 0.0, 0.0, 0.2, 0.2],
+         [0.0, 0.0, 0.0, 0.7, 0.0, 0.0, 0.0, 0.3],
+         [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+         [0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0, 0.5],
+         [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+         [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+         [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]]
+
+    label_to_states = {    "target" : {6},
+                           "fail" : {7},
+                           "init" : {0},
+                           "blue" : {1,2,3},
+                           "lightblue"  : {4},
+                           "brown" : {5}
+                      }
+
+    return MDP(P,index_by_state_action,dict([]),label_to_states)
 
 def toy_dtmc1():
     P = [[0.3, 0.7, 0.0, 0.0, 0.0, 0.0, 0.0],
