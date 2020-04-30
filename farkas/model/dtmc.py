@@ -53,8 +53,7 @@ class DTMC(AbstractMDP):
         :rtype: graphviz.Digraph
         """ 
 
-        def standard_state_map(stateidx):
-            labels = self.labels_by_state[stateidx]
+        def standard_state_map(stateidx,labels):
             return { "color" : color_from_hash(tuple(sorted(labels))),
                      "label" : "State %d\n%s" % (stateidx,",".join(labels)),
                      "style" : "filled" }
@@ -78,7 +77,8 @@ class DTMC(AbstractMDP):
                 for node in [source, dest]:
                     if node not in existing_nodes:
                         # print(self.labels[node])
-                        state_setting = state_map(node)
+                        state_setting = state_map(
+                            node, self.labels_by_state[node])
                         if state_setting is not None:
                             dg.node(str(node), **state_setting)
                         existing_nodes.add(node)
