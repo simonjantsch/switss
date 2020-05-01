@@ -72,7 +72,10 @@ class ProblemFormulation:
             upper_bound_LP.add_constraint([(idx,1)],">=",0)
 
         lp_result = upper_bound_LP.solve(solver=solver)
-        return lp_result.value
+
+        assert lp_result.status != "unbounded"
+
+        return lp_result.status,lp_result.value
 
     @staticmethod
     def _var_groups_program(matr,
@@ -85,7 +88,9 @@ class ProblemFormulation:
         C,N = matr.shape
 
         if upper_bound == None:
-            upper_bound = ProblemFormulation._compute_upper_bound(matr,rhs)
+            stat, upper_bound = ProblemFormulation._compute_upper_bound(matr,rhs)
+            if stat == "infeasible":
+                return None,None
 
         if indicator_type == "binary":
             var_groups_program = MILP.from_coefficients(
