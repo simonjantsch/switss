@@ -14,7 +14,7 @@ class ProblemFormulation:
     def __init__(self):
         pass
 
-    def solve(self, reachability_form, threshold, labels=None):
+    def solve(self, reachability_form, threshold, labels=None,timeout=None):
         """Finds a witnessing subsystem for a given reachability form
         such that the probability of reaching the target state is above
         a given threshold: 
@@ -34,19 +34,19 @@ class ProblemFormulation:
         :return: The resulting subsystem (minimal witness).
         :rtype: problem.Subsystem
         """
-        return deque(self.solveiter(reachability_form, threshold, labels=labels), maxlen=1).pop()
+        return deque(self.solveiter(reachability_form, threshold, labels=labels,timeout=timeout), maxlen=1).pop()
 
-    def solveiter(self, reachability_form, threshold, labels=None):
+    def solveiter(self, reachability_form, threshold, labels=None, timeout=None):
         assert (threshold >= 0) and (threshold <= 1)
         if labels is not None:
             for l in labels:
                 available = reachability_form.system.states_by_label.keys()
                 assert l in available, "'%s' is not an existing label. Available are %s" % (l,available)
 
-        return self._solveiter(reachability_form, threshold, labels)
+        return self._solveiter(reachability_form, threshold, labels, timeout=timeout)
 
     @abstractmethod
-    def _solveiter(self, reachability, threshold, labels):
+    def _solveiter(self, reachability, threshold, labels,timeout=None):
         pass
 
     def __repr__(self):
@@ -89,7 +89,7 @@ class ProblemFormulation:
 
         if upper_bound == None:
             stat, upper_bound = ProblemFormulation._compute_upper_bound(matr,rhs)
-            if stat == "infeasible":
+            if stat != "optimal":
                 return None,None
 
         if indicator_type == "binary":

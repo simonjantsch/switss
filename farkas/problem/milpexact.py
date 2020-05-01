@@ -38,15 +38,15 @@ class MILPExact(ProblemFormulation):
             "solver" : self.solver
         }
 
-    def _solveiter(self, reach_form, threshold, labels):
+    def _solveiter(self, reach_form, threshold, labels, timeout=None):
         """Runs MILPExact using the Farkas (y- or z-) polytope
         depending on the value in mode."""
         if self.mode == "min":
-            return self.solve_min(reach_form, threshold, labels)
+            return self.solve_min(reach_form, threshold, labels, timeout=timeout)
         else:
-            return self.solve_max(reach_form, threshold, labels)
+            return self.solve_max(reach_form, threshold, labels, timeout=timeout)
 
-    def solve_min(self, reach_form, threshold, labels):
+    def solve_min(self, reach_form, threshold, labels, timeout=None):
         """Runs MILPExact using the Farkas z-polytope."""
 
         C,N = reach_form.P.shape
@@ -60,10 +60,11 @@ class MILPExact(ProblemFormulation):
                 reach_form,labels,"min")
 
         milp_result = MILPExact.__min_nonzero_groups(fark_matr,
-                                          fark_rhs,
-                                          var_groups,
-                                          upper_bound=1,
-                                          solver=self.solver)
+                                                     fark_rhs,
+                                                     var_groups,
+                                                     upper_bound=1,
+                                                     solver=self.solver,
+                                                     timeout=timeout)
 
         if milp_result.status != "optimal":
             yield ProblemResult(milp_result.status,None,None)
@@ -80,9 +81,9 @@ class MILPExact(ProblemFormulation):
             witness = Subsystem(reach_form, state_action_weights)
 
             yield ProblemResult(
-                milp_result.status,witness,milp_result.value)
+                "success",witness,milp_result.value)
 
-    def solve_max(self, reach_form, threshold, labels):
+    def solve_max(self, reach_form, threshold, labels, timeout=None):
         """Runs MILPExact using the Farkas y-polytope."""
 
         C,N = reach_form.P.shape
@@ -99,10 +100,11 @@ class MILPExact(ProblemFormulation):
                 var_groups.add(st, sap_idx)
 
         milp_result = MILPExact.__min_nonzero_groups(fark_matr,
-                                        fark_rhs,
-                                        var_groups,
-                                        upper_bound=None,
-                                        solver=self.solver)
+                                                     fark_rhs,
+                                                     var_groups,
+                                                     upper_bound=None,
+                                                     solver=self.solver,
+                                                     timeout=timeout)
 
         if milp_result.status != "optimal":
             yield ProblemResult(milp_result.status,None,None)
@@ -111,22 +113,26 @@ class MILPExact(ProblemFormulation):
             witness = Subsystem(reach_form, milp_result.result_vector)
 
             yield ProblemResult(
-                milp_result.status,witness,milp_result.value)
+                "success",witness,milp_result.value)
 
     @staticmethod
     def __min_nonzero_groups(matrix,
-                        rhs,
-                        var_groups,
-                        upper_bound = None,
-                        solver = "cbc"):
+                             rhs,
+                             var_groups,
+                             upper_bound = None,
+                             solver = "cbc",
+                             timeout=None):
         C,N = matrix.shape
 
         min_nonzero_milp, indicator_var_to_vargroup_idx = ProblemFormulation._var_groups_program(
             matrix, rhs, var_groups, upper_bound, indicator_type="binary")
 
+        if min_nonzero_milp == None:
+            return SolverResult("infeasible",None,None)
+
         objective = AllOnesInitializer(indicator_var_to_vargroup_idx).initialize()
         min_nonzero_milp.set_objective_function(objective)
-        milp_result = min_nonzero_milp.solve(solver)
+        milp_result = min_nonzero_milp.solve(solver,timeout=timeout)
 
         result_projected = ProblemFormulation._project_from_binary_indicators(
             milp_result.result_vector,

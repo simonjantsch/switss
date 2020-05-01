@@ -52,7 +52,7 @@ class MILP:
         self.__constraint_iter = 0
         self.__set_objective_function = False
 
-    def solve(self, solver="cbc"):
+    def solve(self, solver="cbc",timeout=None):
         """Solves this problem and returns the problem result.
         
         :param solver: The solver that should be used. Currently supported are "cbc", "gurobi", "glpk" and "cplex", defaults to "cbc"
@@ -61,16 +61,25 @@ class MILP:
         :rtype: solver.SolverResult
         """        
         assert solver in ["gurobi","cbc","glpk","cplex"]
+        if timeout != None:
+            assert isinstance(timeout,int), "timeout must be specified in seconds as integer value"
 
         if solver == "gurobi":
-            self.__pulpmodel.setSolver(pulp.GUROBI_CMD(
-                options=[("epgap",0), ("MIPGapAbs",0), ("FeasibilityTol",1e-9), ("IntFeasTol",1e-9)]))
+            gurobi_options = [
+                ("MIPGap",0), ("MIPGapAbs",0), ("FeasibilityTol",1e-9),\
+                ("IntFeasTol",1e-9),("NumericFocus",3)]
+            if timeout != None:
+                gurobi_options.append(("TimeLimit",str(timeout)))
+            self.__pulpmodel.setSolver(pulp.GUROBI_CMD(options=gurobi_options))
         elif solver == "cbc":
-            self.__pulpmodel.setSolver(pulp.PULP_CBC_CMD(fracGap=1e-9))
+            cbc_options = ["--integerT","0"]
+            self.__pulpmodel.setSolver(
+                pulp.PULP_CBC_CMD(fracGap=1e-9,maxSeconds=timeout,options=cbc_options))
         elif solver == "glpk":
-            self.__pulpmodel.setSolver(pulp.GLPK_CMD())
+            glpk_options = ["--tmlim",str(timeout)] if timeout != None else []
+            self.__pulpmodel.setSolver(pulp.GLPK_CMD(options=glpk_options))
         elif solver == "cplex":
-            self.__pulpmodel.setSolver(pulp.CPLEX_PY())
+            self.__pulpmodel.setSolver(pulp.CPLEX_PY(timeLimit=timeout))
 
         self.__pulpmodel.solve()
 

@@ -57,15 +57,15 @@ class QSHeur(ProblemFormulation):
             "updatertype" : self.updatertype.__name__
         }
 
-    def _solveiter(self, reach_form, threshold,labels):
+    def _solveiter(self, reach_form, threshold,labels,timeout=None):
         """Runs the QSheuristic using the Farkas (y- or z-) polytope
         depending on the value in mode."""
         if self.mode == "min":
-            return self.solve_min(reach_form, threshold, labels)
+            return self.solve_min(reach_form, threshold, labels,timeout=timeout)
         else:
-            return self.solve_max(reach_form, threshold, labels)
+            return self.solve_max(reach_form, threshold, labels,timeout=timeout)
 
-    def solve_min(self, reach_form, threshold, labels):
+    def solve_min(self, reach_form, threshold, labels, timeout=None):
         """Runs the QSheuristic using the Farkas z-polytope of a given
         reachability form for a given threshold."""
         C,N = reach_form.P.shape
@@ -79,8 +79,12 @@ class QSHeur(ProblemFormulation):
 
         heur_lp, indicator_to_group = ProblemFormulation._var_groups_program(
             fark_matr,fark_rhs,var_groups,upper_bound=1,indicator_type="real")
-        
-        intitializer = self.initializertype(reachability_form=reach_form, mode=self.mode, indicator_to_group=indicator_to_group)
+
+        if heur_lp == None:
+            yield ProblemResult("infeasible",None,None)
+
+        intitializer = self.initializertype(
+            reachability_form=reach_form, mode=self.mode, indicator_to_group=indicator_to_group)
         updater = self.updatertype(reachability_form=reach_form, mode=self.mode, indicator_to_group=indicator_to_group)
         current_objective = intitializer.initialize()
 
@@ -91,7 +95,7 @@ class QSHeur(ProblemFormulation):
 
             heur_lp.set_objective_function(current_objective)
 
-            heur_result = heur_lp.solve(self.solver)
+            heur_result = heur_lp.solve(self.solver,timeout=timeout)
 
             if heur_result.status == "optimal":
                 state_weights = heur_result.result_vector[:N]
@@ -118,7 +122,7 @@ class QSHeur(ProblemFormulation):
                 yield ProblemResult(heur_result.status, None,None)
                 break
 
-    def solve_max(self, reach_form, threshold, labels):
+    def solve_max(self, reach_form, threshold, labels, timeout=None):
         """Runs the QSheuristic using the Farkas y-polytope of a given reachability form for a given threshold."""
         C,N = reach_form.P.shape
 
@@ -132,6 +136,9 @@ class QSHeur(ProblemFormulation):
         heur_lp, indicator_to_group = ProblemFormulation._var_groups_program(
             fark_matr,fark_rhs,var_groups,upper_bound=None,indicator_type="real")
 
+        if heur_lp == None:
+            yield ProblemResult("infeasible",None,None)
+
         intitializer = self.initializertype(reachability_form=reach_form, mode=self.mode, indicator_to_group=indicator_to_group)
         updater = self.updatertype(reachability_form=reach_form, mode=self.mode, indicator_to_group=indicator_to_group)
         current_objective = intitializer.initialize()
@@ -143,7 +150,7 @@ class QSHeur(ProblemFormulation):
         for i in range(0,self.iterations):
             heur_lp.set_objective_function(current_objective)
 
-            heur_result = heur_lp.solve(self.solver)
+            heur_result = heur_lp.solve(self.solver,timeout=timeout)
 
             if heur_result.status == "optimal":
                 # for the max-form, the resulting vector will be
