@@ -13,12 +13,15 @@
 from ..model import ReachabilityForm
 from ..problem import ProblemFormulation
 
-from timeit import default_timer as timer
+#from timeit import default_timer as timer
+import time as time
 import numpy as np
 import matplotlib.pyplot as plt
 from collections.abc import Iterable
+import json as json
+from pathlib import Path
 
-def run(reachability_form, method, from_thr=1e-3, to_thr=1, step=1e-3, debug=False):
+def run(reachability_form, method, from_thr=1e-3, to_thr=1, step=1e-3, debug=False, json_dir=None, timeout=None):
     """Runs a benchmark test of a method on a given reachability form. The benchmark consists
     of running the method on the reachability form for varying thresholds. Returns a dictionary which contains
     result of the specified test. `from_thr` and `to_thr` specify the smallest and greatest 
@@ -53,6 +56,8 @@ def run(reachability_form, method, from_thr=1e-3, to_thr=1, step=1e-3, debug=Fal
     :type step: float, optional
     :param debug: If True, additional output is printed to the console, defaults to False
     :type debug: bool, optional
+    :param json_dir: Resulting json files will be printed into the directory json_dir
+    :type json_dir: Path, optional
     :return: The generated data.
     :rtype: Dict or List
     """    
@@ -64,7 +69,7 @@ def run(reachability_form, method, from_thr=1e-3, to_thr=1, step=1e-3, debug=Fal
             if debug:
                 print("="*50)
                 print("running benchmark %s/%s" % (idx+1, len(method)))
-            data = run(reachability_form, m, from_thr, to_thr, step, debug)
+            data = run(reachability_form, m, from_thr, to_thr, step, debug,json_dir)
             ret.append(data)
         return ret
 
@@ -77,24 +82,43 @@ def run(reachability_form, method, from_thr=1e-3, to_thr=1, step=1e-3, debug=Fal
         print("%s" % "\n".join(["%s=%s" % it for it in method.details.items()]))
         print("-"*50)
 
+    def print_json(json_dir,data):
+        if json_dir != None:
+            json_dir = Path(json_dir)
+            d = method.details
+            json_file_name = "%s_%s_%s_%f.json" %\
+                (d["type"], d["mode"], d["solver"], thr)
+            json_path = json_dir / json_file_name
+            with open(json_path,"w") as json_file:
+                json.dump(data,json_file)
+
     for idx,thr in enumerate(thresholds):
         p = (idx+1)/len(thresholds)
-        starttime = timer()
-        times, statecounts = [], []
-        for result in method.solveiter(reachability_form, thr):
-            if result.status != "optimal":
+        starttime_wall = time.perf_counter()
+        starttime_proc = time.process_time()
+        wall_times, proc_times, statecounts = [], [], []
+        result_count = 0
+        for result in method.solveiter(reachability_form, thr,timeout=timeout):
+            if result.status != "success":
                 if debug:
-                    print("threshold %d infeasible. result status =%s" % thr,result.status)
+                    print("threshold %d infeasible or method timeout. result status =%s" % (thr,result.status))
+                print_json(json_dir,data)
                 return data
-            time = timer() - starttime
-            statecount = np.sum(result.subsystem.subsystem_mask)
-            statecounts.append(statecount)
-            times.append(time)
-            starttime = timer()
+            wall_time = time.perf_counter() - starttime_wall
+            proc_time = time.process_time() - starttime_proc
+            wall_times.append(wall_time)
+            proc_times.append(proc_time)
+            if result.status == "success":
+                statecount = np.sum(result.subsystem.subsystem_mask)
+                statecounts.append(statecount)
+            else:
+                statecounts.append(-1)
         if debug:
-            print("\tp={:.3f} threshold={:.3f} statecount={} time={:.3f}".format(p,thr,statecounts[-1], sum(times)) )
-        els = { "threshold" : thr, "statecounts" : statecounts, "times" : times }
+            print("\tp={:.3f} threshold={:.3f} statecount={} time={:.3f}".\
+                  format(p,thr,statecounts[-1], wall_times[-1]) )
+        els = { "threshold" : thr, "statecounts" : statecounts, "wall_times" : wall_times, "proc_times" : proc_times }
         data["run"].append(els)
+    print_json(json_dir,data)
     return data
 
 def render(run, mode="laststates-thr", ax=None, title=None):
@@ -113,7 +137,7 @@ def render(run, mode="laststates-thr", ax=None, title=None):
     :return: The axis-object that is created or specified in the method-call.
     :rtype: matplotlib.axes.Axes
     """    
-    assert mode in ["time-thr", "states-thr", "laststates-thr"]
+    assert mode in ["proc_time-thr","wall_time-thr", "states-thr", "laststates-thr"]
     if ax is None:
         ax = plt.subplot()
     
@@ -122,7 +146,7 @@ def render(run, mode="laststates-thr", ax=None, title=None):
         maxstatecount = max([max(el["statecounts"]) for el in run["run"]])
         normalize = maxstatecount > 10000
         ax.set_ylabel("states (x1000)" if normalize else "states")
-        markers = ["o", "x", ".", "v", "x", "^", "d", "s", "*", "h"]
+        markers = ["o", "x", ".", "v", "+", "^", "d", "s", "*", "h"]
         for idx in range(resultcount):
             if mode == "laststates-thr" and idx != resultcount-1:
                 continue
@@ -133,9 +157,10 @@ def render(run, mode="laststates-thr", ax=None, title=None):
             if normalize:
                 sta = [el/1000 for el in sta]
             ax.plot(thr, sta, linestyle="dashed", marker=marker, label=label)
-    elif mode == "time-thr":
+    elif mode == "wall_time-thr" or mode == "proc_time-thr":
+        times  = { "wall_time-thr" : "wall_times", "proc_time_thr" : "proc_times"}[mode]
         ax.set_ylabel("time [s]")
-        tim = [sum(el["times"]) for el in run["run"]]
+        tim = [el[times][-1] for el in run["run"]]
         thr = [el["threshold"] for el in run["run"]]
         label = r"%s" % run["method"]["type"]
         ax.plot(thr, tim, linestyle="dashed", marker="x",  label=label)
