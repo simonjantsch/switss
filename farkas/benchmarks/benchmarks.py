@@ -69,7 +69,7 @@ def run(reachability_form, method, from_thr=1e-3, to_thr=1, step=1e-3, debug=Fal
             if debug:
                 print("="*50)
                 print("running benchmark %s/%s" % (idx+1, len(method)))
-            data = run(reachability_form, m, from_thr, to_thr, step, debug,json_dir)
+            data = run(reachability_form, m, from_thr, to_thr, step, debug,json_dir,timeout=timeout)
             ret.append(data)
         return ret
 
