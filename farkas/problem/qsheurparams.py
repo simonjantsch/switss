@@ -105,7 +105,7 @@ class InverseResultUpdater(Updater):
 
     """    
     def update(self, last_result):
-        C = np.max([1/last_result[group] for group in self.groups if last_result[group] != 0]) + 1e8
+        C = np.max([0] + [1/last_result[group] for group in self.groups if last_result[group] != 0]) + 1e8
         objective = [(group, 1/last_result[group] if last_result[group] > 0 else C) for group in self.groups]
         return objective
 
