@@ -82,6 +82,7 @@ class QSHeur(ProblemFormulation):
 
         if heur_lp == None:
             yield ProblemResult("infeasible",None,None)
+            return
 
         intitializer = self.initializertype(
             reachability_form=reach_form, mode=self.mode, indicator_to_group=indicator_to_group)
@@ -138,6 +139,7 @@ class QSHeur(ProblemFormulation):
 
         if heur_lp == None:
             yield ProblemResult("infeasible",None,None)
+            return
 
         intitializer = self.initializertype(reachability_form=reach_form, mode=self.mode, indicator_to_group=indicator_to_group)
         updater = self.updatertype(reachability_form=reach_form, mode=self.mode, indicator_to_group=indicator_to_group)
