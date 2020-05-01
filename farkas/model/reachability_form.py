@@ -315,9 +315,9 @@ class ReachabilityForm:
         new_label_to_states = self.system.states_by_label
         for st in self.system.labels_by_state.keys():
             if st in new_label_to_states["fail"]:
-                new_label_to_states.add("target",st)
+                new_label_to_states.add(self.target_label,st)
         target_or_fail_mdp = MDP(
             self.system.P,self.system.index_by_state_action,{},new_label_to_states)
-        target_or_fail_rf = ReachabilityForm(target_or_fail_mdp,"init","target")
+        target_or_fail_rf = ReachabilityForm(target_or_fail_mdp,"init",self.target_label)
         assert (target_or_fail_rf.pr_min() == 1).all()
 
