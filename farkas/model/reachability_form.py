@@ -255,9 +255,9 @@ class ReachabilityForm:
     def max_z_state(self,solver="cbc"):
         C,N = self.P.shape
         matr, rhs = self.fark_z_constraints(0)
-        opt = np.zeros(N)
-        opt[self.initial] = 1
-        max_z_lp = LP.from_coefficients(matr,rhs,opt,sense="<=",objective="max")
+        opt = np.ones(N)
+        max_z_lp = LP.from_coefficients(
+            matr,rhs,opt,sense="<=",objective="max")
 
         for st_idx in range(N):
             max_z_lp.add_constraint([(st_idx,1)],">=",0)
@@ -300,8 +300,7 @@ class ReachabilityForm:
         C,N = self.P.shape
 
         matr, rhs = self.fark_z_constraints(0)
-        opt = np.zeros(N)
-        opt[self.initial] = 1
+        opt = np.ones(N)
         pr_max_z_lp = LP.from_coefficients(
             matr,rhs,opt,sense=">=",objective="min")
 
