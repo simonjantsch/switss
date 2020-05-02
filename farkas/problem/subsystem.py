@@ -39,6 +39,7 @@ class Subsystem:
 
         self.__reachability_form = ReachabilityForm(
             self.model,initial_label,target_label)
+        return self.__reachability_form
 
     @property
     def supersys_reachability_form(self):
@@ -118,6 +119,7 @@ class Subsystem:
         else:
             model = MDP(new_P,new_index_by_state_action,{},new_label_to_states)
 
+        self.__model = model
         return model
 
     def digraph(self):
@@ -156,7 +158,7 @@ class Subsystem:
             in_subsystem = not fail_or_target and self.subsystem_mask[sourceidx]
             color, label = "black", str(action)
             if in_subsystem:
-                index = self.reachability_form.index_by_state_action[(sourceidx, action)]
+                index = self.supersys_reachability_form.index_by_state_action[(sourceidx, action)]
                 weight = self.__state_action_weights[index]
                 # coloring works, but is disabled for now.
                 # color = "gray%d" % int(weight*100)
