@@ -62,8 +62,7 @@ class MDP(AbstractMDP):
         :rtype: graphviz.Digraph
         """ 
 
-        def standard_state_map(stateidx):
-            labels = self.labels_by_state[stateidx]
+        def standard_state_map(stateidx,labels):
             return { "style" : "filled",
                      "color" : color_from_hash(tuple(sorted(labels))),
                      "label" : "State %d\n%s" % (stateidx,",".join(labels)) }
@@ -72,8 +71,7 @@ class MDP(AbstractMDP):
             return { "color" : "black", 
                      "label" : str(round(p,10)) }
 
-        def standard_action_map(sourceidx, action):
-            labels = self.labels_by_action[(sourceidx,action)]
+        def standard_action_map(sourceidx, action, labels):
             return { "node" : { "label" :  "%s\n%s" % (action, "".join(labels)),
                                 "color" : "black", 
                                 "shape" : "rectangle" }, 
@@ -98,14 +96,15 @@ class MDP(AbstractMDP):
                 for node in [source, dest]:
                     if node not in existing_nodes:
                         # print(self.labels[node])
-                        state_setting = state_map(node)
+                        state_setting = state_map(
+                            node, self.labels_by_state[node])
                         if state_setting is not None:
                             dg.node(str(node), **state_setting)
                             existing_nodes.add(node)
 
                 params_trans = (source, action, dest, p)
                 trans_setting = trans_map(*params_trans)
-                params_action = (source, action)
+                params_action = (source, action, self.labels_by_state[source])
                 action_setting = action_map(*params_action)
                 action_node_name = "%s-%s" % (source,action)
 
