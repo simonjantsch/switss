@@ -85,9 +85,7 @@ def run(reachability_form, method, from_thr=1e-3, to_thr=1, step=1e-3, debug=Fal
     def print_json(json_dir,data):
         if json_dir != None:
             json_dir = Path(json_dir)
-            d = method.details
-            json_file_name = "%s_%s_%s.json" %\
-                (d["type"], d["mode"], d["solver"])
+            json_file_name = str(method) + ".json"
             json_path = json_dir / json_file_name
             with open(json_path,"w") as json_file:
                 json.dump(data,json_file)
