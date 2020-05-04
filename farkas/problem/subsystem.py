@@ -114,10 +114,13 @@ class Subsystem:
 
         new_initial = new_to_old_states.inv[reach_form.initial]
 
-        if new_C == new_N:
-            model = DTMC(new_P,new_label_to_states)
-        else:
-            model = MDP(new_P,new_index_by_state_action,{},new_label_to_states)
+        # model type is same as supersystems model type.
+        # if model type is DTMC, additional parameters are ignored.
+        modeltype = type(self.supersys_reachability_form.system)
+        model = modeltype(P=new_P, 
+            index_to_state_action=new_index_by_state_action, 
+            label_to_actions={}, 
+            label_to_states=new_label_to_states)
 
         self.__model = model
         return model
