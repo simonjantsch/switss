@@ -12,7 +12,26 @@ from ..utils import InvertibleDict, cast_dok_matrix
 
 
 class AbstractMDP(ABC):
+    """Abstract superclass for Markov Decision Processes (MDPs) and Discrete Time Markov Chains (DTMCs)
+    that supports labeling for states and actions, getting successors/predecessors, computing 
+    reachability sets, rendering of MDPs/DTMCs as graphviz digraphs, loading from .pm-files and 
+    loading/storing from/to .lab,.tra files. 
+    """    
     def __init__(self, P, index_by_state_action, label_to_actions, label_to_states):
+        """Instantiates an AbstractMDP from a transition matrix, a bidirectional
+        mapping from state-action pairs to corresponding transition matrix entries and labelings for states and actions.
+
+        :param P: :math:`C \\times N` transition matrix. :math:`C` indicates the number of state-action pairs and :math:`N` the number of states.
+        :type P: Either 2d-list, numpy.matrix or scipy.sparse.spmatrix
+        :param index_by_state_action: Mapping from state-action pairs to transition matrix entries: :math:`S \\times \\text{Act} \\to \{1,\dots,C\}`.
+        :type index_by_state_action: Dict[Tuple[int,int],int]
+        :param label_to_actions: Mapping from labels to sets of state-action pairs: 
+            :math:`\\text{str} \\to \mathcal{P}(S \\times \\text{Act})` where :math:`\mathcal{P}` denotes the power set.
+        :type label_to_actions: Dict[str,Set[Tuple[int,int]]]
+        :param label_to_states: Mapping from labels to sets of states:
+            :math:`\\text{str} \\to \mathcal{P}(S)` where :math:`\mathcal{P}` denotes the power set.
+        :type label_to_states: Dict[str,Set[int]]
+        """        
         # transform P into dok_matrix if neccessary
         self.P = cast_dok_matrix(P)
         # for fast column & row slicing
@@ -33,6 +52,13 @@ class AbstractMDP(ABC):
         self.__available_actions = None
 
     def __check_correctness(self):
+        """Validates correctness of a this model by checking
+
+        * :math:`\sum_j P_{(i,j)} = 1 \quad \\forall i \in \{ 1,2,\dots,C \}`
+        
+        * :math:`0 \leq P_{(i,j)} \leq 1 \quad \\forall (i,j) \in \{1,\dots,C\} \\times \{1,\dots,N\}`
+        
+        """
         # make sure all rows of P sum to one
         for idx,s in enumerate(self.P.sum(axis=1)):  
             assert np.round(s,9) == 1, "Sum of row %d of P is %f but should be 1." % (idx, s)
@@ -98,8 +124,8 @@ class AbstractMDP(ABC):
         :type from_set: Set[int]
         :param mode: Either 'forward' or 'backward'. Defines the direction of search.
         :type mode: str
-        :return: The set of states that are reachable.
-        :rtype: Vector[bool]
+        :return: Resulting vector.
+        :rtype: np.ndarray[bool]
         """        
         assert mode in ["forward", "backward"], "Mode must be either 'forward' or 'backward' but is %s." % mode
         reachable = np.zeros(self.N, dtype=np.bool)
@@ -121,7 +147,7 @@ class AbstractMDP(ABC):
         :param fromidx: The given state.
         :type fromidx: int
         :yield: A state-action-pair (s,a)
-        :rtype: Tuple[int, int, float]
+        :rtype: Tuple[int, int]
         """       
         col = self.__P_csc.getcol(fromidx)
         for idx in col.nonzero()[0]:
@@ -151,8 +177,8 @@ class AbstractMDP(ABC):
         :type label_file_path: str
         :param tra_file_path: Path of .tra-file.
         :type tra_file_path: str
-        :return: Instance of this model.
-        :rtype: [This Model]
+        :return: Instance of given class.
+        :rtype: cls
         """        
         # identify all states
         states_by_label, _, _ = parse_label_file(label_file_path)
@@ -196,7 +222,9 @@ class AbstractMDP(ABC):
         pass
 
     @abstractmethod
-    def digraph(self, state_map = None, trans_map = None, action_map = None):
+    def digraph(self, **kwargs):
+        """Renders this instance as a graphviz.Digraph object.
+        """        
         pass
 
     @abstractclassmethod

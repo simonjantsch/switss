@@ -30,7 +30,7 @@ class DTMC(AbstractMDP):
             def standard_state_map(stateidx):
                 labels = self.labels_by_state[stateidx]
                 return { "color" : color_from_hash(tuple(sorted(labels))),
-                        "label" : "State %d\n%s" % (stateidx,",".join(labels)),
+                        "label" : "State %d\\n%s" % (stateidx,",".join(labels)),
                         "style" : "filled" }
 
         .. highlight:: python

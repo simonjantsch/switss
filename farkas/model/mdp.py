@@ -12,40 +12,36 @@ class MDP(AbstractMDP):
         super().__init__(P, index_by_state_action, label_to_actions, label_to_states)
 
     def digraph(self, state_map = None, trans_map = None, action_map = None):      
-        """Creates a graphviz.Digraph object from this instance. When a digraph object is created, 
+        """
+        Creates a graphviz.Digraph object from this instance. When a digraph object is created, 
         new nodes are added for states and actions plus additional transitions which are edges between actions and nodes. 
         `state_map`, `trans_map` and `action_map` are functions that, on some input, compute keyword arguments for
         the digraph instance. If any one of these is None, the default mapping will be used.
         
         For example, these functions below are used as default parameters if no `state_map`, `trans_map` or `action_map` is specified.
         
-        .. highlight:: python
         .. code-block:: python
 
-            def standard_state_map(stateidx):
-                labels = self.labels_by_state[stateidx]
+            def standard_state_map(stateidx,labels):
                 return { "style" : "filled",
                         "color" : color_from_hash(tuple(sorted(labels))),
-                        "label" : "State %d\n%s" % (stateidx,",".join(labels)) }
+                        "label" : "State %d\\n%s" % (stateidx,",".join(labels)) }
 
-        .. highlight:: python
         .. code-block:: python
 
-                def standard_trans_map(sourceidx, action, destidx, p):
-                    return { "color" : "black", 
-                            "label" : str(round(p,10)) }
+            def standard_trans_map(sourceidx, action, destidx, p):
+                return { "color" : "black", 
+                        "label" : str(round(p,10)) }
 
-        .. highlight:: python
         .. code-block:: python
 
-                def standard_action_map(sourceidx, action):
-                    labels = self.labels_by_action[(sourceidx,action)]
-                    return { "node" : { "label" :  "%s\n%s" % (action, "".join(labels)),
-                                        "color" : "black", 
-                                        "shape" : "rectangle" }, 
-                            "edge" : { "color" : "black",
-                                        "dir" : "none" } }
-                                    
+            def standard_action_map(sourceidx, action, labels):
+                return { "node" : { "label" :  "%s\\n%s" % (action, "".join(labels)),
+                                    "color" : "black", 
+                                    "shape" : "rectangle" }, 
+                        "edge" : { "color" : "black",
+                                    "dir" : "none" } }
+
         For further information on graphviz attributes, see https://www.graphviz.org/doc/info/attrs.html. 
 
 
