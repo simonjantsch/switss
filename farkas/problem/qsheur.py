@@ -81,7 +81,7 @@ class QSHeur(ProblemFormulation):
             fark_matr,fark_rhs,var_groups,upper_bound=1,indicator_type="real")
 
         if heur_lp == None:
-            yield ProblemResult("infeasible",None,None)
+            yield ProblemResult("infeasible",None,None,None)
             return
 
         intitializer = self.initializertype(
@@ -115,12 +115,12 @@ class QSHeur(ProblemFormulation):
 
                 indicator_weights = heur_result.result_vector[N:]
                 no_nonzero_groups = len([i for i in indicator_weights if i > 0])
-                yield ProblemResult("success", witness, no_nonzero_groups)
+                yield ProblemResult("success", witness, no_nonzero_groups,state_weights)
 
                 current_objective = updater.update(heur_result.result_vector)
             else:
                 # failed to optimize LP
-                yield ProblemResult(heur_result.status, None,None)
+                yield ProblemResult(heur_result.status, None,None,None)
                 break
 
     def solve_max(self, reach_form, threshold, labels, timeout=None):
@@ -138,7 +138,7 @@ class QSHeur(ProblemFormulation):
             fark_matr,fark_rhs,var_groups,upper_bound=None,indicator_type="real")
 
         if heur_lp == None:
-            yield ProblemResult("infeasible",None,None)
+            yield ProblemResult("infeasible",None,None,None)
             return
 
         intitializer = self.initializertype(reachability_form=reach_form, mode=self.mode, indicator_to_group=indicator_to_group)
@@ -163,10 +163,10 @@ class QSHeur(ProblemFormulation):
                 indicator_weights = heur_result.result_vector[C:]
                 no_nonzero_groups = len([i for i in indicator_weights if i > 0])
 
-                yield ProblemResult("success", witness, no_nonzero_groups)
+                yield ProblemResult("success", witness, no_nonzero_groups,state_action_weights)
 
                 current_objective = updater.update(heur_result.result_vector)
             else:
                 # failed to optimize LP
-                yield ProblemResult(heur_result.status, None,None)
+                yield ProblemResult(heur_result.status, None,None,None)
                 break
