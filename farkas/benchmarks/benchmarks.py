@@ -119,7 +119,7 @@ def run(reachability_form, method, from_thr=1e-3, to_thr=1, step=1e-3, debug=Fal
     print_json(json_dir,data)
     return data
 
-def render(run, mode="laststates-thr", ax=None, title=None):
+def render(run, mode="laststates-thr", ax=None, title=None, normalize=True):
     """Renders a benchmark run via matplotlib. `mode` specifies the type of the
     resulting plot, i.e. statecount vs. threshold ('states-thr', plots all intermediate results), only
     the last resulting statecount vs. threshold ('laststates-thr', plots only the last result) or time
@@ -142,7 +142,7 @@ def render(run, mode="laststates-thr", ax=None, title=None):
     resultcount = len(run["run"][0]["statecounts"])
     if mode in ["states-thr", "laststates-thr"]:
         maxstatecount = max([max(el["statecounts"]) for el in run["run"]])
-        normalize = maxstatecount > 10000
+        normalize = (maxstatecount > 10000) and normalize
         ax.set_ylabel("states (x1000)" if normalize else "states")
         markers = ["o", "x", ".", "v", "+", "^", "d", "s", "*", "h"]
         for idx in range(resultcount):
