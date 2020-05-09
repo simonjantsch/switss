@@ -1,4 +1,4 @@
-from farkas.model import MDP,DTMC,ReachabilityForm
+from switss.model import MDP,DTMC,ReachabilityForm
 
 def example_dtmcs():
     dtmcs = []

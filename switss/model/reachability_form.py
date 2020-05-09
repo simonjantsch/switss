@@ -1,6 +1,5 @@
-from farkas.utils import cast_dok_matrix
 from . import AbstractMDP,MDP
-from ..utils import InvertibleDict
+from ..utils import InvertibleDict, cast_dok_matrix
 from ..solver.milp import LP
 
 from collections import defaultdict

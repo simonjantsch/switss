@@ -1,8 +1,8 @@
-from farkas.model import MDP, ReachabilityForm
-from farkas.problem.milpexact import MILPExact
-from farkas.problem.qsheur import QSHeur
-from farkas.certification import generate_farkas_certificate,check_farkas_certificate
-import farkas.problem.qsheurparams as qsparam
+from switss.model import MDP, ReachabilityForm
+from switss.problem.milpexact import MILPExact
+from switss.problem.qsheur import QSHeur
+from switss.certification import generate_farkas_certificate,check_farkas_certificate
+import switss.problem.qsheurparams as qsparam
 from .example_models import example_mdps, toy_mdp2
 import tempfile
 

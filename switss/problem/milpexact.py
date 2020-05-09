@@ -1,6 +1,6 @@
 from . import ProblemFormulation, ProblemResult, Subsystem, AllOnesInitializer
-from farkas.solver import SolverResult
-from farkas.utils import InvertibleDict
+from switss.solver import SolverResult
+from switss.utils import InvertibleDict
 
 from bidict import bidict
 import numpy as np

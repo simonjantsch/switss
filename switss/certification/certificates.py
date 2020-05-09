@@ -1,4 +1,4 @@
-from farkas.solver import LP
+from switss.solver import LP
 import numpy as np
 
 def generate_farkas_certificate(reach_form, mode, sense, threshold,solver="cbc"):

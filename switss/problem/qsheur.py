@@ -1,7 +1,7 @@
 from . import ProblemFormulation, ProblemResult, Subsystem
 from . import AllOnesInitializer, InverseResultUpdater
-from farkas.utils import InvertibleDict
-from farkas.solver import LP
+from switss.utils import InvertibleDict
+from switss.solver import LP
 import numpy as np
 
 class QSHeur(ProblemFormulation):
