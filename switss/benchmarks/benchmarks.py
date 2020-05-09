@@ -1,15 +1,3 @@
-# TODO
-# function for running benchmarks
-# display results
-# save results as .csv 
-# Features: timing
-
-# display modes:
-#   #states vs. threshold
-#   time vs. threshold
-#   milpexact vs qsheur (?)
-#   groups ???
-
 from ..model import ReachabilityForm
 from ..problem import ProblemFormulation
 
@@ -95,7 +83,6 @@ def run(reachability_form, method, from_thr=1e-3, to_thr=1, step=1e-3, debug=Fal
         starttime_wall = time.perf_counter()
         starttime_proc = time.process_time()
         wall_times, proc_times, statecounts = [], [], []
-        result_count = 0
         for result in method.solveiter(reachability_form, thr,timeout=timeout):
             if result.status != "success":
                 if debug:
@@ -156,7 +143,7 @@ def render(run, mode="laststates-thr", ax=None, title=None, normalize=True):
                 sta = [el/1000 for el in sta]
             ax.plot(thr, sta, linestyle="dashed", marker=marker, label=label)
     elif mode == "wall_time-thr" or mode == "proc_time-thr":
-        times  = { "wall_time-thr" : "wall_times", "proc_time_thr" : "proc_times"}[mode]
+        times  = { "wall_time-thr" : "wall_times", "proc_time-thr" : "proc_times"}[mode]
         ax.set_ylabel("time [s]")
         tim = [el[times][-1] for el in run["run"]]
         thr = [el["threshold"] for el in run["run"]]

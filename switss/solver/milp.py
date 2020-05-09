@@ -45,7 +45,7 @@ class MILP:
         :param objective: Whether the problem should minimize or maximize ("min" or "max"), defaults to "min"
         :type objective: str, optional
         """        
-        assert objective in ["min", "max"]
+        assert objective in ["min", "max"], "objective must be either 'min' or 'max'"
         objective = { "min" : pulp.LpMinimize, "max" : pulp.LpMaximize }[objective]
         self.__pulpmodel = pulp.LpProblem("",objective)
         self.__variables = [] 
@@ -60,7 +60,7 @@ class MILP:
         :return: Result.
         :rtype: solver.SolverResult
         """        
-        assert solver in ["gurobi","cbc","glpk","cplex"]
+        assert solver in ["gurobi","cbc","glpk","cplex"], "solver must be in ['gurobi','cbc','glpk','cplex']"
         if timeout != None:
             assert isinstance(timeout,int), "timeout must be specified in seconds as integer value"
 
@@ -96,7 +96,7 @@ class MILP:
     def _assert_expression(self, expression):
         for idx,(var,coeff) in enumerate(expression):
             assert var >= 0 and var < len(self.__variables), "Variable %s does not exist (@index=%d)." % (var, idx)
-            assert isinstance(coeff, (float,int)), "Coefficient coeff=%s is not a number (@index=%d)." % (coeff, idx)
+            assert coeff == float(coeff), "Coefficient coeff=%s is not a number (@index=%d)." % (coeff, idx)
 
     def _expr_to_pulp(self, expression):
         for var, coeff in expression:
@@ -141,7 +141,7 @@ class MILP:
         :type rhs: float
         """        
         assert sense in ["<=", "=", ">="]
-        assert isinstance(rhs, (float,int)), "Right hand side is not a number: rhs=%s" % rhs 
+        assert rhs == float(rhs), "Right hand side is not a number: rhs=%s" % rhs 
         self._assert_expression(lhs)
 
         lhs = pulp.LpAffineExpression(self._expr_to_pulp(lhs))
