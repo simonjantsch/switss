@@ -1,4 +1,4 @@
-.. Farkas documentation master file, created by
+.. switss documentation master file, created by
    sphinx-quickstart on Mon Mar 16 15:04:57 2020.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
@@ -19,42 +19,42 @@ Modules
 
 Models
 ------
-.. automodule:: farkas.model
+.. automodule:: switss.model
    :imported-members:
    :members:
    :undoc-members:
 
 Prism
 ------
-.. automodule:: farkas.prism
+.. automodule:: switss.prism
    :imported-members:
    :members:
    :undoc-members:
 
 Utils
 ------
-.. automodule:: farkas.utils
+.. automodule:: switss.utils
    :imported-members:
    :members:
    :undoc-members:
 
 Solver
 -------
-.. automodule:: farkas.solver
+.. automodule:: switss.solver
    :imported-members:
    :members:
    :undoc-members:
 
 Problem
 -------
-.. automodule:: farkas.problem
+.. automodule:: switss.problem
    :imported-members:
    :members:
    :undoc-members:
 
 Certification
 -------------
-.. automodule:: farkas.certification
+.. automodule:: switss.certification
    :imported-members:
    :members:
    :undoc-members:

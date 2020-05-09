@@ -17,7 +17,7 @@ sys.path.insert(0, '..')
 
 # -- Project information -----------------------------------------------------
 
-project = 'SWISS'
+project = 'SWITSS'
 copyright = '2020, Jantsch, S; Harder, H; Funke F'
 author = 'Jantsch, S; Harder, H; Funke F'
 
