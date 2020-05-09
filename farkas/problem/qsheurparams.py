@@ -105,8 +105,8 @@ class InverseResultUpdater(Updater):
 
     """    
     def update(self, last_result):
-        C = np.max([0] + [1/last_result[group] for group in self.groups if last_result[group] != 0]) + 1e8
-        objective = [(group, 1/last_result[group] if last_result[group] > 0 else C) for group in self.groups]
+        C = np.min([np.max([0,1e8] + [1/last_result[group] for group in self.groups if last_result[group] != 0]),1e9])
+        objective = [(group, np.min([1/last_result[group],C]) if last_result[group] > 0 else C) for group in self.groups]
         return objective
 
 class InverseReachabilityInitializer(Initializer):

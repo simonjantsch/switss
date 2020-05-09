@@ -67,7 +67,7 @@ class MILPExact(ProblemFormulation):
                                                      timeout=timeout)
 
         if milp_result.status != "optimal":
-            yield ProblemResult(milp_result.status,None,None)
+            yield ProblemResult(milp_result.status,None,None,None)
 
         else:
             # this creates a new C-dimensional vector which carries values for state-action pairs.
@@ -81,7 +81,7 @@ class MILPExact(ProblemFormulation):
             witness = Subsystem(reach_form, state_action_weights)
 
             yield ProblemResult(
-                "success",witness,milp_result.value)
+                "success",witness,milp_result.value,milp_result.result_vector)
 
     def solve_max(self, reach_form, threshold, labels, timeout=None):
         """Runs MILPExact using the Farkas y-polytope."""
@@ -107,13 +107,13 @@ class MILPExact(ProblemFormulation):
                                                      timeout=timeout)
 
         if milp_result.status != "optimal":
-            yield ProblemResult(milp_result.status,None,None)
+            yield ProblemResult(milp_result.status,None,None,None)
 
         else:
             witness = Subsystem(reach_form, milp_result.result_vector)
 
             yield ProblemResult(
-                "success",witness,milp_result.value)
+                "success",witness,milp_result.value,milp_result.result_vector)
 
     @staticmethod
     def __min_nonzero_groups(matrix,
