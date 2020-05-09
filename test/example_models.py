@@ -4,7 +4,7 @@ def example_dtmcs():
     dtmcs = []
     dtmcs.append(
         DTMC.from_prism_model("./examples/datasets/crowds.pm",
-                              prism_constants={("CrowdSize",2),("TotalRuns",3)},
+                              prism_constants={("CrowdSize",2),("TotalRuns",8)},
                               extra_labels={("target","observe0>1")}))
     dtmcs.append(toy_dtmc1())
     dtmcs.append(toy_dtmc2())

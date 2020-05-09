@@ -5,9 +5,12 @@ from farkas.certification import generate_farkas_certificate,check_farkas_certif
 import farkas.problem.qsheurparams as qsparam
 from .example_models import example_dtmcs, toy_dtmc2
 import tempfile
+import itertools
 
 dtmcs = example_dtmcs()
-solvers = ["cbc","gurobi","cplex","glpk"]
+lp_solvers = ["cbc","gurobi","cplex","glpk"]
+solvers = lp_solvers
+milp_solvers = ["cbc","gurobi","cplex"]
 
 def test_read_write():
     for dtmc in dtmcs:
@@ -25,13 +28,13 @@ def test_create_reach_form():
 def test_minimal_witnesses():
     for dtmc in dtmcs:
         reach_form = ReachabilityForm(dtmc,"init","target")
-        instances = [ MILPExact(mode,solver) for (mode,solver) in zip(["min","max"],solvers) ]
+        instances = [ MILPExact(mode,solver) for (mode,solver) in zip(["min","max"],milp_solvers) ]
         for threshold in [0.1, 0.2, 0.3, 0.4, 0.5, 0.66, 0.7, 0.88, 0.9, 0.999, 1,0.9999999999]:
             print(dtmc)
             print(threshold)
             results = []
             for instance in instances:
-                results.append(instance.solve(reach_form,threshold))
+                results.append(instance.solve(reach_form,threshold,timeout=20))
 
             # either the status of all results is optimal, or of none of them
             positive_results = [result for result in results if result.status == "optimal"]
@@ -44,12 +47,12 @@ def test_minimal_witnesses():
 def test_label_based_exact_min():
     ex_dtmc = toy_dtmc2()
     reach_form = ReachabilityForm(ex_dtmc,"init","target")
-    instances = [ MILPExact(mode,solver) for (mode,solver) in zip(["min","max"],solvers) ]
+    instances = [ MILPExact(mode,solver) for (mode,solver) in zip(["min","max"],milp_solvers) ]
     for threshold in [0.0001, 0.1, 0.2, 0.3, 0.4, 0.5, 0.66, 0.7, 0.88, 0.9, 0.999, 1,0.9999999999]:
         results = []
         for instance in instances:
             results.append(instance.solve(
-                reach_form,threshold,labels=["group1","group3"]))
+                reach_form,threshold,labels=["group1","group3"],timeout=20))
         # either the status of all results is optimal, or of none of them
         positive_results = [result for result in results if result.status == "optimal"]
         assert len(positive_results) == len(results) or len(positive_results) == 0
@@ -119,7 +122,7 @@ def test_heuristics():
 
     for dtmc in dtmcs:
         reach_form = ReachabilityForm(dtmc,"init","target")
-        instances = [ QSHeur(mode,iterations=7,initializertype=init,solver=solver)\
+        instances = [ QSHeur(mode,iterations=3,initializertype=init,solver=solver)\
                       for (mode,solver,init) in zip(["min","max"],solvers,initializers) ]
         for threshold in [0.1, 0.2, 0.3, 0.4, 0.5, 0.66, 0.7, 0.88, 0.9, 0.999, 1,0.9999999999]:
             print(dtmc)
