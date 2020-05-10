@@ -13,13 +13,15 @@ class ReachabilityForm:
     the probability to move to the target state in one step for each state. 
     The target state is not included in the transition matrix. """
     
-    def __init__(self, system, initial_label, target_label, debug=False):
+    def __init__(self, system, initial_label, target_label, new_target_label="target", new_fail_label="fail", debug=False):
         assert isinstance(system, AbstractMDP)
 
+        assert new_target_label not in system.states_by_label.keys(), "Label '%s' for target state already exists in system %s" % (new_target_label, system)
+        assert new_fail_label not in system.states_by_label.keys(), "Label '%s' for fail state already exists in system %s" % (new_fail_label, system)
         assert len(system.states_by_label[target_label]) > 0, "There needs to be at least one target state."
         target_states = system.states_by_label[target_label]
         initial_state_count = len(system.states_by_label[initial_label])
-        assert initial_state_count == 1, "There were %d initial states given. Must be 1." % initial_state_count
+        assert initial_state_count == 1, "There are %d states with label '%s'. Must be 1." % (initial_state_count, initial_label)
         initial = list(system.states_by_label[initial_label])[0]
         
         if debug:
@@ -45,20 +47,11 @@ class ReachabilityForm:
 
         # remove target states that are only reachable from other target states
         reachable = set(filter(reachable_from_non_target_states, reachable)) 
-        # for idx in range(len(reachable_mask)):
-        #     reachable_mask[idx] = reachable_from_non_target_states(idx)
         
         if debug:
             print("removed target states that are only reachable from other target states")
 
         reachable = list(reachable)
-
-        # ctr = 0
-        # reachable_mapping = {}
-        # for stateidx,state_reachable in enumerate(reachable_mask):
-        #     if state_reachable:
-        #         reachable_mapping[stateidx] = ctr
-        #         ctr += 1 
 
         # reduce states + new target and new fail state 
         new_state_count = len(reachable) + 2
@@ -131,15 +124,17 @@ class ReachabilityForm:
         self.initial = to_reachability[initial]
         self.initial_label = initial_label
         self.target_label = target_label
+        self.new_target_label = new_target_label
+        self.new_fail_label = new_fail_label
         self.to_target = to_target
         self.index_by_state_action = new_index_by_state_action
-        self.__system = self.__initialize_system(to_reachability_sap, system, target_label)
+        self.__system = self.__initialize_system(to_reachability_sap, system, new_target_label, new_fail_label)
 
     @property
     def system(self):
         return self.__system
 
-    def __initialize_system(self, mapping, configuration, target_label):
+    def __initialize_system(self, mapping, configuration, target_label, fail_label):
         C,N = self.P.shape
         P_compl = dok_matrix((C+2, N+2))
         target_state, fail_state = N, N+1
@@ -157,11 +152,11 @@ class ReachabilityForm:
             sys_stateidx, sys_actionidx = mapping.inv[(stateidx,actionidx)]
             labels = configuration.labels_by_state[sys_stateidx]
             for l in labels:
-                label_to_states["%s"%l].add(stateidx)
+                label_to_states[l].add(stateidx)
             actionlabels = configuration.labels_by_action[(sys_stateidx,sys_actionidx)]
             for l in actionlabels:
-                label_to_actions[".%s"%l].add((sys_stateidx,sys_actionidx))
-        label_to_states["fail"].add(fail_state)
+                label_to_actions[l].add((sys_stateidx,sys_actionidx))
+        label_to_states[fail_label].add(fail_state)
         label_to_states[target_label].add(target_state)
 
         not_to_fail = np.zeros(C)

@@ -34,11 +34,19 @@ class Subsystem:
     def reachability_form(self):
         if self.__reachability_form != None:
             return self.__reachability_form
+        
         initial_label = self.supersys_reachability_form.initial_label
         target_label = self.supersys_reachability_form.target_label
+        new_target_label = self.supersys_reachability_form.new_target_label
+        new_fail_label = self.supersys_reachability_form.new_fail_label
 
         self.__reachability_form = ReachabilityForm(
-            self.model,initial_label,target_label)
+            self.model,
+            initial_label,
+            target_label,
+            new_target_label=new_target_label,
+            new_fail_label=new_fail_label)
+
         return self.__reachability_form
 
     @property
