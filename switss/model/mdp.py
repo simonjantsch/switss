@@ -100,7 +100,7 @@ class MDP(AbstractMDP):
 
                 params_trans = (source, action, dest, p)
                 trans_setting = trans_map(*params_trans)
-                params_action = (source, action, self.labels_by_state[source])
+                params_action = (source, action, self.labels_by_action[(source,action)])
                 action_setting = action_map(*params_action)
                 action_node_name = "%s-%s" % (source,action)
 

@@ -7,65 +7,46 @@ from ..model import DTMC, MDP, ReachabilityForm
 from ..utils import color_from_hash, InvertibleDict
 
 class Subsystem:
-    def __init__(self, reachability_form, state_action_weights):
-        assert state_action_weights.shape[0] == reachability_form.P.shape[0], (
-            "result shape must be the amount of state-action pairs (%d!=%d)." % (state_action_weights.shape[0], reachability_form.P.shape[0]))
+    def __init__(self, supersystem, state_action_weights):
+        assert isinstance(supersystem, ReachabilityForm)
+        assert state_action_weights.shape[0] == supersystem.P.shape[0], (
+            "result shape must be the amount of state-action pairs (%d!=%d)." % (state_action_weights.shape[0], supersystem.P.shape[0]))
         assert ((0 <= state_action_weights) + (state_action_weights <= 1)).all(), "result has faulty values."
-        self.__supersys_reachability_form = reachability_form
+        self.__supersys = supersystem
         self.__state_action_weights = state_action_weights
         self.__subsystem_mask = None
-        self.__model = None
-        self.__reachability_form = None
+        self.__subsys = None
 
     @property
     def subsystem_mask(self):
         if self.__subsystem_mask is None:
-            C,N = self.__supersys_reachability_form.P.shape
+            C,N = self.__supersys.P.shape
             self.__subsystem_mask = np.zeros(N)
             for index in range(C):
                 if self.__state_action_weights[index] > 0:
-                    (st,_) = self.__supersys_reachability_form.\
-                        index_by_state_action.inv[index]
+                    (st,_) = self.__supersys.index_by_state_action.inv[index]
                     self.__subsystem_mask[st] = True
 
         return self.__subsystem_mask
 
     @property
-    def reachability_form(self):
-        if self.__reachability_form != None:
-            return self.__reachability_form
-        
-        initial_label = self.supersys_reachability_form.initial_label
-        target_label = self.supersys_reachability_form.target_label
-        new_target_label = self.supersys_reachability_form.new_target_label
-        new_fail_label = self.supersys_reachability_form.new_fail_label
-
-        self.__reachability_form = ReachabilityForm(
-            self.model,
-            initial_label,
-            target_label,
-            new_target_label=new_target_label,
-            new_fail_label=new_fail_label)
-
-        return self.__reachability_form
+    def supersys(self):
+        return self.__supersys
 
     @property
-    def supersys_reachability_form(self):
-        return self.__supersys_reachability_form
-
-    @property
-    def model(self):
-        if self.__model != None:
-            return self.__model
+    def subsys(self):
+        if self.__subsys != None:
+            return self.__subsys
 
         state_vector = self.subsystem_mask
-        reach_form = self.supersys_reachability_form
+        reach_form = self.supersys
         P = reach_form.P
         C,N = P.shape
 
         new_to_old_states = bidict()
         new_index_by_state_action = bidict()
         new_label_to_states = InvertibleDict({},is_default=True)
+        new_label_to_actions = InvertibleDict({},is_default=True)
         new_N = 0
         new_C = 0
 
@@ -83,21 +64,18 @@ class Subsystem:
         for rowidx in range(0,C):
             (source,action) = reach_form.index_by_state_action.inv[rowidx]
             if state_vector[source] == True:
+                actionlabel = reach_form.system.labels_by_action[(source,action)]
                 new_source = new_to_old_states.inv[source]
                 new_index_by_state_action[(new_source,action)] = new_C
+                new_label_to_actions.add((new_source,action), actionlabel)
                 new_C += 1
 
-        target_state, fail_state = new_N, new_N+1
-        new_index_by_state_action[(target_state,0)] = new_C
-        new_index_by_state_action[(fail_state,0)] = new_C+1
-
-        new_P = dok_matrix((new_C+2,new_N+2))
-        new_P[new_C, target_state] = 1
-        new_P[new_C+1, fail_state] = 1
-
-        target_label = self.supersys_reachability_form.target_label
-        new_label_to_states.add("target",target_state)
-        new_label_to_states.add("fail",fail_state)
+        fail_state = new_N
+        new_index_by_state_action[(fail_state,0)] = new_C
+        # dimension of new_C+1 is used for a new fail state
+        # the single target state is removed
+        new_P = dok_matrix((new_C+1,new_N+1))
+        new_P[new_C, fail_state] = 1
 
         not_to_fail = np.zeros(new_C)
 
@@ -111,26 +89,32 @@ class Subsystem:
                 new_P[new_row_idx,new_target] = prob
                 not_to_fail[new_row_idx] += prob
 
-        # populate probabilities to goal and fail
+        # populate probabilities to fail
+        # maps every target state with probability 1 to itself.
         for rowidx, p_target in enumerate(reach_form.to_target):
             (source,action) = reach_form.index_by_state_action.inv[rowidx]
             if state_vector[source] == True:
                 new_source = new_to_old_states.inv[source]
                 new_row_idx = new_index_by_state_action[(new_source,action)]
-                new_P[new_row_idx, target_state] = p_target
+                if reach_form.target_label in old_label_by_states[source]:
+                    new_P[new_row_idx, new_source] = 1
                 new_P[new_row_idx, fail_state] = 1 - (p_target + not_to_fail[new_row_idx])
-
-        new_initial = new_to_old_states.inv[reach_form.initial]
 
         # model type is same as supersystems model type.
         # if model type is DTMC, additional parameters are ignored.
-        modeltype = type(self.supersys_reachability_form.system)
+        modeltype = type(self.supersys.system)
         model = modeltype(P=new_P, 
             index_to_state_action=new_index_by_state_action, 
-            label_to_actions={}, 
+            label_to_actions=new_label_to_actions, 
             label_to_states=new_label_to_states)
 
-        self.__model = model
+        # then create a RF from this model. This introduces a new target state.
+        # TODO: this is not a very nice solution
+        model = ReachabilityForm(model, self.supersys.initial_label,
+            self.supersys.target_label, self.supersys.new_target_label,
+            self.supersys.new_fail_label)
+
+        self.__subsys = model
         return model
 
     def digraph(self):
@@ -154,7 +138,7 @@ class Subsystem:
 
             # only label state with weight if it is a markov chain
             # otherwise the actions are labeled
-            if isinstance(self.reachability_form.system, DTMC) and in_subsystem:
+            if isinstance(self.subsys.system, DTMC) and in_subsystem:
                 weight = self.__state_action_weights[stateidx]
                 # coloring works, but is disabled for now.
                 # color = "gray%d" % int(100-weight*100)
@@ -169,7 +153,7 @@ class Subsystem:
             in_subsystem = not fail_or_target and self.subsystem_mask[sourceidx]
             color, label = "black", str(action)
             if in_subsystem:
-                index = self.supersys_reachability_form.index_by_state_action[(sourceidx, action)]
+                index = self.supersys.index_by_state_action[(sourceidx, action)]
                 weight = self.__state_action_weights[index]
                 # coloring works, but is disabled for now.
                 # color = "gray%d" % int(weight*100)
@@ -182,10 +166,10 @@ class Subsystem:
                      "edge" : { "color" : color,  
                                 "dir" : "none" } }
 
-        graph = self.supersys_reachability_form.system.digraph(
+        graph = self.supersys.system.digraph(
             state_map=state_map, action_map=action_map)
         return graph
 
     def __repr__(self):
-        return "Subsystem(supersys_reachability_form=%s, states=%s)" % (
-            self.supersys_reachability_form, int(self.subsystem_mask.sum()))
+        return "Subsystem(supersys=%s, states=%s)" % (
+            self.supersys, int(self.subsystem_mask.sum()))

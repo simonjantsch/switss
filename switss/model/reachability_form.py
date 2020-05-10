@@ -13,7 +13,7 @@ class ReachabilityForm:
     the probability to move to the target state in one step for each state. 
     The target state is not included in the transition matrix. """
     
-    def __init__(self, system, initial_label, target_label, new_target_label="target", new_fail_label="fail", debug=False):
+    def __init__(self, system, initial_label, target_label, new_target_label="rf_target", new_fail_label="rf_fail", debug=False):
         assert isinstance(system, AbstractMDP)
 
         assert new_target_label not in system.states_by_label.keys(), "Label '%s' for target state already exists in system %s" % (new_target_label, system)
