@@ -51,8 +51,8 @@ class InvertibleDict:
         
         if self.__i is not None:
             if item not in self.__i:
-                self.__i[item] = set()
-            self.__i[item].add(key)
+                self.__i.__d[item] = set()
+            self.__i.__d[item].add(key)
 
     def __contains__(self, key):
         return key in self.__d
