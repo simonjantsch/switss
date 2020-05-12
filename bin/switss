@@ -1,0 +1,185 @@
+#!/usr/bin/env python3
+
+import argparse
+from switss.model import MDP, DTMC, ReachabilityForm
+from switss.problem import *
+from switss.certification import check_farkas_certificate, generate_farkas_certificate
+import json
+import copy
+import numpy as np
+# from switss.benchmarks import render, run
+
+parser = argparse.ArgumentParser()
+parser.add_argument("command", choices=["rf","info","minimize","certify","subsystem","render"])
+parser.add_argument("modeltype", choices=["mdp","dtmc"])
+parser.add_argument("modelpath")
+parser.add_argument("-i", "--initial-label", default="init")
+parser.add_argument("-t", "--target-label", default="target")
+parser.add_argument("-trf", "--target-label-rf", default="rf_target")
+parser.add_argument("-frf", "--fail-label-rf", default="rf_fail")
+parser.add_argument("-o","--output")
+parser.add_argument("-c","--certificate")
+parser.add_argument("-m","--method", default=[], nargs="+")
+parser.add_argument("-s","--solve", default=[], nargs="+")
+parser.add_argument("-si","--solve-iter", default=[], nargs="+")
+parser.add_argument("-sl","--subsys-label", default="subsystem")
+parser.add_argument("-vi","--view", action="store_true")
+args = parser.parse_args()
+
+def vprint(*els, **kwargs):
+    # global args
+    # if args.verbose:
+    print(*els, **kwargs)
+
+def params_to_dict(params):
+    return dict([ param.split("=") for param in params ])
+
+def gen_rf(model):
+    vprint("generating reachability form",end=" - ")
+    rf = ReachabilityForm(
+        model, 
+        args.initial_label, 
+        args.target_label_rf, 
+        args.fail_label_rf)
+    vprint(rf.system)
+    return rf
+
+vprint("loading model", end=" - ")
+mtype = {"mdp":MDP, "dtmc":DTMC}[args.modeltype]
+model = mtype.from_file(args.modelpath + ".lab", args.modelpath + ".tra")
+vprint(model)
+
+if args.command == "rf":
+    output = args.output if args.output is not None else args.modelpath + "-rf"
+    vprint("reducing system", end=" - ")
+    rf,_,state_action_mapping = ReachabilityForm.reduce(
+        model, 
+        args.initial_label, 
+        args.target_label, 
+        args.target_label_rf,
+        args.fail_label_rf)
+    vprint(rf.system)
+
+    vprint("storing reachability form @ %s" % output,end=" - ")
+    mapping = {
+     "states" :    [k[0] for k in state_action_mapping.keys()],
+     "actions" :   [k[1] for k in state_action_mapping.keys()],
+     "rfstates" :  [v[0] for v in state_action_mapping.values()],
+     "rfactions" : [v[1] for v in state_action_mapping.values()] }
+    with open(output + ".mapping.json","w") as fp:
+        json.dump(mapping, fp)
+        fp.close()
+    # save reachability forms system
+    rf.system.save(output)
+    vprint("done.")
+
+if args.command == "minimize":
+    assert len(args.method) > 0, "Method not specified"
+    assert len(args.solve) > 0 or len(args.solve_iter) > 0, "Neither --solve (-s) nor --solve-iter (-si) specified."
+
+    rf = gen_rf(model)    
+    
+    methodtype = { "QSHeur":QSHeur, "MILPExact":MILPExact }[args.method[0]]
+    methodparams = params_to_dict(args.method[1:])
+    for k in methodparams:
+        if k == "iterations":
+            methodparams[k] = int(methodparams[k])
+        elif k == "initializertype":
+            methodparams[k] = {C.__name__ : C for C in [
+                AllOnesInitializer, 
+                InverseFrequencyInitializer, 
+                InverseReachabilityInitializer
+            ]}[methodparams[k]]
+        elif k == "updatertype":
+            methodparams[k] = {C.__name__ : C for C in [
+                InverseResultUpdater
+            ]}[methodparams[k]]
+    method = methodtype(**methodparams)
+    vprint("method is %s" % method)
+
+    solveparams = { **params_to_dict(args.solve), **params_to_dict(args.solve_iter) }
+    for k in solveparams:
+        if k == "threshold":
+            solveparams[k] = float(solveparams[k])
+        elif k == "labels":
+            solveparams[k] = list(solveparams[k])
+        elif k == "timeout":
+            solveparams[k] = int(solveparams[k])
+
+    vprint("solving with parameters %s" % ", ".join(["%s=%s" % it for it in solveparams.items()]))
+
+    info = { "method" : method.details, "instances" : [] }
+    def process_result(idx,result):
+        vprint("solved instance %s with %s remaining states" % (idx,sum(result.subsystem.subsystem_mask)), end=" - ")
+        check = check_farkas_certificate(rf, methodparams["mode"], ">=", solveparams["threshold"], result.farkas_cert)
+        vprint("certificate %s" % {True:"OK", False:"FAIL"}[check])
+        instance = { "iteration" : idx,
+                     "threshold" : solveparams["threshold"],
+                     "result" : {"states" : [], "actions" : [], "certificate" : []} } 
+        for rowidx in range(rf.P.shape[0]):
+            state,action = rf.index_by_state_action.inv[rowidx]
+            certval = result.farkas_cert[rowidx]
+            instance["result"]["states"].append(state)
+            instance["result"]["actions"].append(action)
+            instance["result"]["certificate"].append(certval)
+        info["instances"].append(instance)
+
+    if len(args.solve_iter) > 0:
+        for idx, result in enumerate(method.solveiter(rf, **solveparams)):
+            process_result(idx, result)            
+    elif len(args.solve) > 0:
+        process_result(0, method.solve(rf, **solveparams))
+        
+    output = args.output if args.output is not None else args.modelpath + "-minimized.results.json" 
+    vprint("storing results @ %s" % output, end=" - ")
+    with open(output,"w") as fp:
+        json.dump(info,fp)
+    vprint("done.")
+
+def unpack_results(rf):
+    assert args.certificate is not None, "Results not specified."
+    vprint("loading results",end=" - ")
+    with open(args.certificate) as fr:
+        info = json.load(fr)
+    vprint("done.")
+    for instance in info["instances"]:
+        r = instance["result"]
+        C,N = rf.P.shape
+        certificate = np.zeros(N) if info["method"]["mode"] == "min" else np.zeros(C) 
+        for s,a,cert in zip(r["states"], r["actions"], r["certificate"]):
+            idx = rf.index_by_state_action[(s,a)]
+            if info["method"]["mode"] == "min":
+                certificate[s] = cert
+            elif info["method"]["mode"] == "max":
+                certificate[idx] = cert
+        yield info["method"], instance["iteration"], instance["threshold"], certificate
+
+if args.command == "certify":
+    rf = gen_rf(model)
+    for minfo, iteration, threshold, certificate in unpack_results(rf): 
+        vprint("checking certificate %s @ threshold=%s" % (iteration, threshold), end=" - ")
+        check = check_farkas_certificate(rf, minfo["mode"], ">=", threshold, certificate)
+        vprint({True:"OK", False:"FAIL"}[check])
+
+if args.command == "subsystem":
+    assert args.subsys_label not in model.states_by_label.keys(), "Label collision. %s already exists in model." % args.subsys_label
+    rf = gen_rf(model)
+    for idx, (minfo, iteration, threshold, certificate) in enumerate(unpack_results(rf)): 
+        output = args.output if args.output is not None else args.modelpath + "-minimized-subsys"
+        output = "%s-%s" % (output, idx)
+        vprint("generating subsystem %s" % output,end=" - ")
+        ss = Subsystem(rf, certificate)
+        sys = copy.deepcopy(rf.system)
+        for s,inss in enumerate(ss.subsystem_mask):
+            if inss:
+                sys.labels_by_state.add(s, args.subsys_label)
+        sys.save(output)
+        vprint("done.")
+
+if args.command == "render":
+    output = args.output if args.output is not None else args.modelpath + "-render"
+    graph = model.digraph()
+    graph.format = "svg"
+    vprint("rendering @ %s.svg" % output,end=" - ")
+    graph.render(output,view=args.view,cleanup=True)
+    vprint("done.")
