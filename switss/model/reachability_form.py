@@ -251,7 +251,7 @@ class ReachabilityForm:
         C,N = self.P.shape
         I = self._reach_form_id_matrix()
 
-        rhs = self.to_target.copy()
+        rhs = self.to_target.A1.copy()
         rhs.resize(C+1)
         rhs[C] = -threshold
 
