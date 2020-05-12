@@ -116,7 +116,7 @@ class AbstractMDP(ABC):
                 self.__available_actions.add(state, action)
         return self.__available_actions
 
-    def reachable_mask(self, from_set, mode):
+    def reachable_mask(self, from_set, mode, blacklist=set()):
         """Computes an :math:`N`-dimensional vector which has a True-entry (False otherwise) for
         every state index that is reachable from 'from_set' in the given search mode (forward or backward).
         
@@ -134,8 +134,9 @@ class AbstractMDP(ABC):
         while True:
             fromidx = active.pop()
             reachable[fromidx] = True
-            succ = { sap[0] for sap in neighbour_iter(fromidx) if reachable[sap[0]] == False }
-            active.update(succ)
+            if fromidx not in blacklist:
+                succ = { sap[0] for sap in neighbour_iter(fromidx) if reachable[sap[0]] == False }
+                active.update(succ)
             if len(active) == 0:
                 break
         return reachable
