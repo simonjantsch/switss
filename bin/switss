@@ -9,23 +9,6 @@ import copy
 import numpy as np
 # from switss.benchmarks import render, run
 
-parser = argparse.ArgumentParser()
-parser.add_argument("command", choices=["rf","info","minimize","certify","subsystem","render"])
-parser.add_argument("modeltype", choices=["mdp","dtmc"])
-parser.add_argument("modelpath")
-parser.add_argument("-i", "--initial-label", default="init")
-parser.add_argument("-t", "--target-label", default="target")
-parser.add_argument("-trf", "--target-label-rf", default="rf_target")
-parser.add_argument("-frf", "--fail-label-rf", default="rf_fail")
-parser.add_argument("-o","--output")
-parser.add_argument("-c","--certificate")
-parser.add_argument("-m","--method", default=[], nargs="+")
-parser.add_argument("-s","--solve", default=[], nargs="+")
-parser.add_argument("-si","--solve-iter", default=[], nargs="+")
-parser.add_argument("-sl","--subsys-label", default="subsystem")
-parser.add_argument("-vi","--view", action="store_true")
-args = parser.parse_args()
-
 def vprint(*els, **kwargs):
     # global args
     # if args.verbose:
@@ -34,7 +17,7 @@ def vprint(*els, **kwargs):
 def params_to_dict(params):
     return dict([ param.split("=") for param in params ])
 
-def gen_rf(model):
+def gen_rf(model, args):
     vprint("generating reachability form",end=" - ")
     rf = ReachabilityForm(
         model, 
@@ -44,12 +27,15 @@ def gen_rf(model):
     vprint(rf.system)
     return rf
 
-vprint("loading model", end=" - ")
-mtype = {"mdp":MDP, "dtmc":DTMC}[args.modeltype]
-model = mtype.from_file(args.modelpath + ".lab", args.modelpath + ".tra")
-vprint(model)
+def load_model(args):
+    vprint("loading model", end=" - ")
+    mtype = {"mdp":MDP, "dtmc":DTMC}[args.modeltype]
+    model = mtype.from_file(args.modelpath + ".lab", args.modelpath + ".tra")
+    vprint(model)
+    return model
 
-if args.command == "rf":
+def rfargs(args):
+    model = load_model(args)
     output = args.output if args.output is not None else args.modelpath + "-rf"
     vprint("reducing system", end=" - ")
     rf,_,state_action_mapping = ReachabilityForm.reduce(
@@ -73,11 +59,12 @@ if args.command == "rf":
     rf.system.save(output)
     vprint("done.")
 
-if args.command == "minimize":
+def minargs(args):
+    model = load_model(args)
     assert len(args.method) > 0, "Method not specified"
     assert len(args.solve) > 0 or len(args.solve_iter) > 0, "Neither --solve (-s) nor --solve-iter (-si) specified."
 
-    rf = gen_rf(model)    
+    rf = gen_rf(model, args)    
     
     methodtype = { "QSHeur":QSHeur, "MILPExact":MILPExact }[args.method[0]]
     methodparams = params_to_dict(args.method[1:])
@@ -102,7 +89,7 @@ if args.command == "minimize":
         if k == "threshold":
             solveparams[k] = float(solveparams[k])
         elif k == "labels":
-            solveparams[k] = list(solveparams[k])
+            solveparams[k] = solveparams[k].split(",")
         elif k == "timeout":
             solveparams[k] = int(solveparams[k])
 
@@ -130,16 +117,16 @@ if args.command == "minimize":
     elif len(args.solve) > 0:
         process_result(0, method.solve(rf, **solveparams))
         
-    output = args.output if args.output is not None else args.modelpath + "-minimized.results.json" 
+    output = args.certificate if args.certificate is not None else args.modelpath + ".certificates.json" 
     vprint("storing results @ %s" % output, end=" - ")
     with open(output,"w") as fp:
         json.dump(info,fp)
     vprint("done.")
 
-def unpack_results(rf):
-    assert args.certificate is not None, "Results not specified."
+def unpack_results(rf,certificatepath):
+    assert certificatepath is not None, "Certificate(s) not specified."
     vprint("loading results",end=" - ")
-    with open(args.certificate) as fr:
+    with open(certificatepath) as fr:
         info = json.load(fr)
     vprint("done.")
     for instance in info["instances"]:
@@ -154,19 +141,21 @@ def unpack_results(rf):
                 certificate[idx] = cert
         yield info["method"], instance["iteration"], instance["threshold"], certificate
 
-if args.command == "certify":
-    rf = gen_rf(model)
-    for minfo, iteration, threshold, certificate in unpack_results(rf): 
+def certargs(args):
+    model = load_model(args)
+    rf = gen_rf(model, args)
+    for minfo, iteration, threshold, certificate in unpack_results(rf, args.certificate): 
         vprint("checking certificate %s @ threshold=%s" % (iteration, threshold), end=" - ")
         check = check_farkas_certificate(rf, minfo["mode"], ">=", threshold, certificate)
         vprint({True:"OK", False:"FAIL"}[check])
 
-if args.command == "subsystem":
+def subsysargs(args):
+    model = load_model(args)
     assert args.subsys_label not in model.states_by_label.keys(), "Label collision. %s already exists in model." % args.subsys_label
-    rf = gen_rf(model)
-    for idx, (minfo, iteration, threshold, certificate) in enumerate(unpack_results(rf)): 
+    rf = gen_rf(model, args)
+    for minfo, iteration, threshold, certificate in unpack_results(rf, args.certificate): 
         output = args.output if args.output is not None else args.modelpath + "-minimized-subsys"
-        output = "%s-%s" % (output, idx)
+        output = "%s-%s" % (output, iteration)
         vprint("generating subsystem %s" % output,end=" - ")
         ss = Subsystem(rf, certificate)
         sys = copy.deepcopy(rf.system)
@@ -176,10 +165,109 @@ if args.command == "subsystem":
         sys.save(output)
         vprint("done.")
 
-if args.command == "render":
+def renderargs(args):
+    model = load_model(args)
     output = args.output if args.output is not None else args.modelpath + "-render"
     graph = model.digraph()
     graph.format = "svg"
     vprint("rendering @ %s.svg" % output,end=" - ")
     graph.render(output,view=args.view,cleanup=True)
     vprint("done.")
+
+parser = argparse.ArgumentParser(description='''
+Small WITnessing SubSystems
+===========================
+''', usage='''
+    
+    switss rf {mdp,dtmc} modelpath [-i <STRING>]? [-t <STRING>]? [-trf <STRING>]? [-frf <STRING>]? [-o <STRING>]?
+    switss info {mdp,dtmc} modelpath
+    switss minimize {mdp,dtmc} modelpath [-i <STRING>]? [-trf <STRING>]? [-frf <STRING>]? [-o <STRING>]? -m {QSHeur,MILPExact} <METHODPARAMS> {-si,-s} <SOLVEPARAMS> [-c <STRING>]?
+    switss certify {mdp,dtmc} modelpath [-i <STRING>]? [-trf <STRING>]? [-frf <STRING>]? [-o <STRING>]? -c <STRING>
+    switss subsystem {mdp,dtmc} modelpath [-i <STRING>]? [-trf <STRING>]? [-frf <STRING>]? [-o <STRING>]? -c <STRING> [-sl <STRING>]? [-o <STRING>]?
+    switss render {mdp,dtmc} modelpath [-o <STRING>]? [-vi]?  
+
+where
+    
+    METHODPARAMS:       mode={min,max} 
+                        [iterations=<INTEGER>]?
+                        [initializertype={AllOnesInitializer,InverseFrequencyInitializer,InverseReachabilityInitializer}]?
+                        [updatertype={InverseResultUpdater}]?
+                        [solver={cbc,gurobi,glpk,cplex}]?
+    SOLVEPARAMS:        threshold=<FLOAT> [timeout=<INTEGER>]? [labels=<STRING>[,<STRING>]*]?
+
+''', formatter_class=argparse.RawDescriptionHelpFormatter)
+
+subparsers = parser.add_subparsers(help="swiss action catalogue")
+
+parser_rf = subparsers.add_parser("rf",
+    description='''Transform a Discrete Time Markov Chain (DTMC) or Markov Decision Process (MDP) into a reachability form (RF).''',
+    usage="\n\n    switss rf {mdp,dtmc} modelpath [-i <STRING>]? [-t <STRING>]? [-trf <STRING>]? [-frf <STRING>]? [-o <STRING>]?", 
+    help="create a reachability form from a model")
+
+parser_info = subparsers.add_parser("info",
+    usage="\n\n    switss info {mdp,dtmc} modelpath",
+    help="display model information")
+
+parser_minimize = subparsers.add_parser("minimize",
+    usage='''
+    
+    switss minimize {mdp,dtmc} modelpath [-i <STRING>]? [-trf <STRING>]? [-frf <STRING>]? [-o <STRING>]? -m {QSHeur,MILPExact} <METHODPARAMS> {-si,-s} <SOLVEPARAMS> [-c <STRING>]?
+    
+where
+
+    METHODPARAMS:       mode={min,max} 
+                        [iterations=<INTEGER>]?
+                        [initializertype={AllOnesInitializer,InverseFrequencyInitializer,InverseReachabilityInitializer}]?
+                        [updatertype={InverseResultUpdater}]?
+                        [solver={cbc,gurobi,glpk,cplex}]?
+    SOLVEPARAMS:        threshold=<FLOAT> [timeout=<INTEGER>]? [labels=<STRING>[,<STRING>]*]?
+    ''',
+    help="minimize amount of states")
+
+parser_certify = subparsers.add_parser("certify",
+    usage="\n\n    switss certify {mdp,dtmc} modelpath [-i <STRING>]? [-trf <STRING>]? [-frf <STRING>]? [-o <STRING>]? -c <STRING> [solver={cbc,gurobi,glpk,cplex}]?",
+    help="check whether certificates fulfill farkas conditions")
+parser_certify.set_defaults(func=certargs)
+
+parser_subsystem = subparsers.add_parser("subsystem", 
+    usage="\n\n    switss subsystem {mdp,dtmc} modelpath [-i <STRING>]? [-trf <STRING>]? [-frf <STRING>]? [-o <STRING>]? -c <STRING> [-sl <STRING>]? [-o <STRING>]?",
+    help="generate subsystem(s) from certificate(s)")
+parser_subsystem.set_defaults(func=subsysargs)
+
+parser_render = subparsers.add_parser("render", 
+    usage="\n\n    switss render {mdp,dtmc} modelpath [-o <STRING>]? [-vi]?",
+    help="render .svg-image of a system")
+parser_render.set_defaults(func=renderargs)
+
+for p in [parser_rf, parser_info, parser_minimize, parser_certify, parser_subsystem, parser_render]:
+    p.add_argument("modeltype", choices=["mdp","dtmc"], help="type of model, i.e. Discrete Time Markov Chain or Markov Decision Process")
+    p.add_argument("modelpath", help="path to model. requires a modelpath.tra and modelpath.lab file")
+
+for p in [parser_rf, parser_minimize, parser_certify, parser_subsystem ]:
+    p.add_argument("-i", "--initial-label", default="init", help="initial state label")
+    p.add_argument("-trf", "--target-label-rf", default="rf_target", help="label of target state in reachability form")
+    p.add_argument("-frf", "--fail-label-rf", default="rf_fail", help="label of fail state in reachability form")
+
+parser_rf.add_argument("-t", "--target-label", default="target", help="target states label")
+parser_rf.add_argument("-o","--output", help="output file storing mapping from system to reachability form")
+parser_rf.set_defaults(func=rfargs)
+
+parser_minimize.add_argument("-c","--certificate", help="output .json-file storing certificate(s)")
+parser_minimize.add_argument("-m","--method", default=[], nargs="+", help="specification of solver method")
+parser_minimize.add_argument("-s","--solve", default=[], nargs="+", 
+    help="specification of solver parameters. creates a certificate only for the last instance")
+parser_minimize.add_argument("-si","--solve-iter", default=[], nargs="+", 
+    help="specification of solver parameters. creates certificates for all instances")
+parser_minimize.set_defaults(func=minargs)
+
+parser_certify.add_argument("-c","--certificate", help=".json-file containing certificate(s)")
+
+parser_subsystem.add_argument("-c","--certificate", help=".json-file containing certificate(s)")
+parser_subsystem.add_argument("-o", "--output", help="output .json-file for storing subsystems")
+parser_subsystem.add_argument("-sl","--subsys-label", default="subsystem", help="new label for states in subsystem")
+
+parser_render.add_argument("-o", "--output", help="output file for storing .svg rendering of model")
+parser_render.add_argument("-vi","--view", action="store_true", help="if given, opens up a window containing rendering of system")
+
+args = parser.parse_args()
+args.func(args)
