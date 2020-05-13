@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
 import argparse
+import textwrap
 from switss.model import MDP, DTMC, ReachabilityForm
 from switss.problem import *
 from switss.certification import check_farkas_certificate, generate_farkas_certificate
 import json
 import copy
 import numpy as np
-# from switss.benchmarks import render, run
 
 def vprint(*els, **kwargs):
     # global args
@@ -154,7 +154,7 @@ def subsysargs(args):
     assert args.subsys_label not in model.states_by_label.keys(), "Label collision. %s already exists in model." % args.subsys_label
     rf = gen_rf(model, args)
     for minfo, iteration, threshold, certificate in unpack_results(rf, args.certificate): 
-        output = args.output if args.output is not None else args.modelpath + "-minimized-subsys"
+        output = args.output if args.output is not None else args.modelpath + "-subsys"
         output = "%s-%s" % (output, iteration)
         vprint("generating subsystem %s" % output,end=" - ")
         ss = Subsystem(rf, certificate)
@@ -175,96 +175,151 @@ def renderargs(args):
     vprint("done.")
 
 parser = argparse.ArgumentParser(description='''
-Small WITnessing SubSystems
+SWITSS
 ===========================
-''', usage='''
-    
-    switss rf {mdp,dtmc} modelpath [-i <STRING>]? [-t <STRING>]? [-trf <STRING>]? [-frf <STRING>]? [-o <STRING>]?
-    switss info {mdp,dtmc} modelpath
-    switss minimize {mdp,dtmc} modelpath [-i <STRING>]? [-trf <STRING>]? [-frf <STRING>]? [-o <STRING>]? -m {QSHeur,MILPExact} <METHODPARAMS> {-si,-s} <SOLVEPARAMS> [-c <STRING>]?
-    switss certify {mdp,dtmc} modelpath [-i <STRING>]? [-trf <STRING>]? [-frf <STRING>]? [-o <STRING>]? -c <STRING>
-    switss subsystem {mdp,dtmc} modelpath [-i <STRING>]? [-trf <STRING>]? [-frf <STRING>]? [-o <STRING>]? -c <STRING> [-sl <STRING>]? [-o <STRING>]?
-    switss render {mdp,dtmc} modelpath [-o <STRING>]? [-vi]?  
+A tool for the computation of Small WITnessing SubSystems in Markov Decision Processes (MDPs) and Discrete Time Markov Chains (DTMCs).
+SWITSS implements exact and heuristic methods for computing small witnessing subsystems by reducing the problem to (mixed integer) linear 
+programming. Returned subsystems can automatically be rendered graphically and are accompanied with a certificate which proves that the 
+subsystem is indeed a witness.
 
-where
+SWITSS works in line with the PRISM Model Checker (https://www.prismmodelchecker.org/) and its formats, such as .tra and .lab files.
+In order to use SWITSS, it is necessary to specify a command (see below), a model type (like MDP or DTMC) and a path to a model. 
+
+Work based on
+ [FJB19] Funke, F; Jantsch, S; Baier, C: Farkas certificates and minimal witnessing subsystems for probabilistic reachability 
+ constraints. (https://arxiv.org/abs/1910.10636)
+
+switss rf {mdp,dtmc} modelpath [-i <STRING>]? [-t <STRING>]? [-trf <STRING>]? [-frf <STRING>]? [-o <STRING>]?
+
+    Transform a DTMC/MDP into a reachability form (RF). A RF is a special DTMC/MDP with N states and C state-action pairs (C=N for 
+    DTMCs) that has the following properties:
     
-    METHODPARAMS:       mode={min,max} 
+    (1) exactly one fail, target and initial state,
+    (2) fail and target have only one action that maps only to themselves,
+    (3) if indexing starts at 0, fail (target) is at column N-1 (N-2) and its action at row C-1 (C-2) of the (CxN) transition matrix,
+    (4) every state is reachable from the initial state and
+    (5) every state reaches the target state.
+
+    The transformation does a forward search starting at the initial state (-i label of initial state, default is "init"), then a 
+    backwards search starting from the targets states (-t label of target states, default is "target") and then removes all states 
+    that happen to be not reachable in at least one of these searches. Transitions that lead to removed states are mapped to a 
+    dedicated new "fail"-state (-frf label of new fail state, default is "rf_fail"). All old target states are remapped to a dedicated 
+    new "target"-state (-trf label of new target state, default is "rf_target"). SWITSS then stores a .tra and .lab file for the
+    generated model and a .mapping.json-file that contains mappings from system state-actions to the reachability forms state-actions 
+    at a given output path (-o path to model in RF, default is ${modelpath}-rf).
+
+switss info {mdp,dtmc} modelpath
+
+    Displays model informations.
+
+switss minimize {mdp,dtmc} modelpath [-i <STRING>]? [-trf <STRING>]? [-frf <STRING>]? -m <METHODPARAMS> {-si,-s} <SOLVEPARAMS> [-c <STRING>]?
+
+    METHODPARAMS:       {QSHeur,MILPExact} mode={min,max} 
                         [iterations=<INTEGER>]?
                         [initializertype={AllOnesInitializer,InverseFrequencyInitializer,InverseReachabilityInitializer}]?
                         [updatertype={InverseResultUpdater}]?
                         [solver={cbc,gurobi,glpk,cplex}]?
-    SOLVEPARAMS:        threshold=<FLOAT> [timeout=<INTEGER>]? [labels=<STRING>[,<STRING>]*]?
+    SOLVEPARAMS:        threshold=<FLOAT> [timeout=<INTEGER>]? [labels=<STRING>[,<STRING>]*]? 
+
+    Takes a model in reachability form (RF) (-i specifies initial state, default is "init"; -trf specifies target state, default is
+    "rf_target"; -frf specifies fail state, default is "rf_fail") and searches for minimal witnessing subsystems for a given threshold
+    and a given mode, which can either be "min" or "max" (see [FJB19] for references). Supported methods for finding minimal witnesses 
+    are QSHeur and MILPExact:
+
+    QSHeur:     ${iterations} specifies number of repeated applications of the heuristic, default is 3.
+                ${initializertype} specifies the initial weighting vector for the objective function, default is AllOnesInitializer.
+                ${updatertype} specifies the update method, supported is currently only InverseResultUpdater.
+                ${solver} specifies the used solver, default is cbc.
+
+    MILPExact:  ${solver} specifies the used solver, default is cbc.
+
+    Searching for subsystems now can be done in an iterative (-si) or singular (-s) fashion. If a method finds multiple subsystems 
+    along the way, for example QSHeur with iterations>1, the first option will store all preliminary results, while the last one will
+    only store the final result. Options for the solver include:
+    
+    ${threshold} the minimal required probability of reaching the target state from the initial state (required),
+    ${timeout} a timeout in seconds for the solver (as for now, cbc doesn't really work with a given timeout),
+    ${labels} is a list of labels. If given, the methods will not minimize the amount of states directly, but rather
+        the amount of labels in the system (that are in ${labels}).
+    
+    Results are then stored in a .json file (-c, default is ${modelpath}.certificates.json) containing method info and farkas certificates
+    for each subsystem.
+
+switss certify {mdp,dtmc} modelpath [-i <STRING>]? [-trf <STRING>]? [-frf <STRING>]? -c <STRING> 
+
+    Takes a model in reachability form (RF) (-i specifies initial state, default is "init"; -trf specifies target state, default is
+    "rf_target"; -frf specifies fail state, default is "rf_fail") and a certificates file (-c) and then checks whether each of the given
+    certificates yields a valid subsystem. 
+
+switss subsystem {mdp,dtmc} modelpath [-i <STRING>]? [-trf <STRING>]? [-frf <STRING>]? -c <STRING> [-sl <STRING>]? [-o <STRING>]?
+
+    Takes a model in reachability form (RF) (-i specifies initial state, default is "init"; -trf specifies target state, default is
+    "rf_target"; -frf specifies fail state, default is "rf_fail") and a certificates file (-c) and then generates all corresponding subsystems
+    as .tra and .lab-files as specified by the output (-o, default ${modelpath}-subsys). The generated files contain all states that are also 
+    in the complete system, but also adds a dedicated label (-sl) to all states that are part of the subsystem.
+
+switss render {mdp,dtmc} modelpath [-o <STRING>]? [-vi]?
+
+    Takes a model and generates a .svg image from it that is then stored at the given output path (-o, without ".svg"-ending).
+    If the -vi option is given, a window will open that contains the rendered result.
 
 ''', formatter_class=argparse.RawDescriptionHelpFormatter)
 
 subparsers = parser.add_subparsers(help="swiss action catalogue")
 
-parser_rf = subparsers.add_parser("rf",
-    description='''Transform a Discrete Time Markov Chain (DTMC) or Markov Decision Process (MDP) into a reachability form (RF).''',
-    usage="\n\n    switss rf {mdp,dtmc} modelpath [-i <STRING>]? [-t <STRING>]? [-trf <STRING>]? [-frf <STRING>]? [-o <STRING>]?", 
-    help="create a reachability form from a model")
+parser_rf = subparsers.add_parser("rf", help="create a reachability form from a model")
+parser_info = subparsers.add_parser("info", help="display model information")
+parser_minimize = subparsers.add_parser("minimize", help="minimize amount of states")
+parser_certify = subparsers.add_parser("certify", help="check whether certificates fulfill farkas conditions")
+parser_subsystem = subparsers.add_parser("subsystem", help="generate subsystem(s) from certificate(s)")
+parser_render = subparsers.add_parser("render", help="render .svg-image of a system")
 
-parser_info = subparsers.add_parser("info",
-    usage="\n\n    switss info {mdp,dtmc} modelpath",
-    help="display model information")
-
-parser_minimize = subparsers.add_parser("minimize",
-    usage='''
-    
-    switss minimize {mdp,dtmc} modelpath [-i <STRING>]? [-trf <STRING>]? [-frf <STRING>]? [-o <STRING>]? -m {QSHeur,MILPExact} <METHODPARAMS> {-si,-s} <SOLVEPARAMS> [-c <STRING>]?
-    
-where
-
-    METHODPARAMS:       mode={min,max} 
-                        [iterations=<INTEGER>]?
-                        [initializertype={AllOnesInitializer,InverseFrequencyInitializer,InverseReachabilityInitializer}]?
-                        [updatertype={InverseResultUpdater}]?
-                        [solver={cbc,gurobi,glpk,cplex}]?
-    SOLVEPARAMS:        threshold=<FLOAT> [timeout=<INTEGER>]? [labels=<STRING>[,<STRING>]*]?
-    ''',
-    help="minimize amount of states")
-
-parser_certify = subparsers.add_parser("certify",
-    usage="\n\n    switss certify {mdp,dtmc} modelpath [-i <STRING>]? [-trf <STRING>]? [-frf <STRING>]? [-o <STRING>]? -c <STRING> [solver={cbc,gurobi,glpk,cplex}]?",
-    help="check whether certificates fulfill farkas conditions")
 parser_certify.set_defaults(func=certargs)
-
-parser_subsystem = subparsers.add_parser("subsystem", 
-    usage="\n\n    switss subsystem {mdp,dtmc} modelpath [-i <STRING>]? [-trf <STRING>]? [-frf <STRING>]? [-o <STRING>]? -c <STRING> [-sl <STRING>]? [-o <STRING>]?",
-    help="generate subsystem(s) from certificate(s)")
 parser_subsystem.set_defaults(func=subsysargs)
-
-parser_render = subparsers.add_parser("render", 
-    usage="\n\n    switss render {mdp,dtmc} modelpath [-o <STRING>]? [-vi]?",
-    help="render .svg-image of a system")
 parser_render.set_defaults(func=renderargs)
+parser_rf.set_defaults(func=rfargs)
+parser_minimize.set_defaults(func=minargs)
+
 
 for p in [parser_rf, parser_info, parser_minimize, parser_certify, parser_subsystem, parser_render]:
-    p.add_argument("modeltype", choices=["mdp","dtmc"], help="type of model, i.e. Discrete Time Markov Chain or Markov Decision Process")
+    p.add_argument("modeltype", choices=["mdp","dtmc"], help="type of model")
     p.add_argument("modelpath", help="path to model. requires a modelpath.tra and modelpath.lab file")
 
 for p in [parser_rf, parser_minimize, parser_certify, parser_subsystem ]:
-    p.add_argument("-i", "--initial-label", default="init", help="initial state label")
+    p.add_argument("-i", "--initial-label", default="init", help="label of initial state")
     p.add_argument("-trf", "--target-label-rf", default="rf_target", help="label of target state in reachability form")
     p.add_argument("-frf", "--fail-label-rf", default="rf_fail", help="label of fail state in reachability form")
 
 parser_rf.add_argument("-t", "--target-label", default="target", help="target states label")
 parser_rf.add_argument("-o","--output", help="output file storing mapping from system to reachability form")
-parser_rf.set_defaults(func=rfargs)
 
-parser_minimize.add_argument("-c","--certificate", help="output .json-file storing certificate(s)")
-parser_minimize.add_argument("-m","--method", default=[], nargs="+", help="specification of solver method")
-parser_minimize.add_argument("-s","--solve", default=[], nargs="+", 
+parser_minimize.add_argument(
+    "-c", "--certificate", 
+    help="output .json-file storing certificate(s)")
+parser_minimize.add_argument(
+    "-m", "--method", 
+    default=[], nargs="+", 
+    help="specification of solver method")
+parser_minimize.add_argument(
+    "-s", "--solve", 
+    default=[], nargs="+", 
     help="specification of solver parameters. creates a certificate only for the last instance")
 parser_minimize.add_argument("-si","--solve-iter", default=[], nargs="+", 
     help="specification of solver parameters. creates certificates for all instances")
-parser_minimize.set_defaults(func=minargs)
 
-parser_certify.add_argument("-c","--certificate", help=".json-file containing certificate(s)")
+parser_certify.add_argument(
+    "-c","--certificate", 
+    help=".json-file containing certificate(s)")
 
-parser_subsystem.add_argument("-c","--certificate", help=".json-file containing certificate(s)")
-parser_subsystem.add_argument("-o", "--output", help="output .json-file for storing subsystems")
-parser_subsystem.add_argument("-sl","--subsys-label", default="subsystem", help="new label for states in subsystem")
+parser_subsystem.add_argument(
+    "-c","--certificate", 
+    help=".json-file containing certificate(s)")
+parser_subsystem.add_argument(
+    "-o", "--output", 
+    help="output .json-file for storing subsystems")
+parser_subsystem.add_argument(
+    "-sl","--subsys-label", 
+    default="subsystem", help="new label for states in subsystem")
 
 parser_render.add_argument("-o", "--output", help="output file for storing .svg rendering of model")
 parser_render.add_argument("-vi","--view", action="store_true", help="if given, opens up a window containing rendering of system")
