@@ -106,7 +106,7 @@ def run(reachability_form, method, from_thr=1e-3, to_thr=1, step=1e-3, debug=Fal
     print_json(json_dir,data)
     return data
 
-def render(run, mode="laststates-thr", ax=None, title=None, normalize=True):
+def render(run, mode="laststates-thr", ax=None, title=None, normalize=True,sol_range=None):
     """Renders a benchmark run via matplotlib. `mode` specifies the type of the
     resulting plot, i.e. statecount vs. threshold ('states-thr', plots all intermediate results), only
     the last resulting statecount vs. threshold ('laststates-thr', plots only the last result) or time
@@ -119,6 +119,10 @@ def render(run, mode="laststates-thr", ax=None, title=None, normalize=True):
     :type ax: matplotlib.axes.Axes, optional
     :param title: Title of plot. If None, the method-description will be used, defaults to None
     :type title: str, optional
+    :param normalize: allows to turn off normalization (to x/1000 on the y axis), defaults to "True"
+    :type normalize: Bool
+    :param sol_range: allows to control which of the solutions are plotted per threshold. If None, all available solutions will be plotted.
+    :type sol_range: List, optional
     :return: The axis-object that is created or specified in the method-call.
     :rtype: matplotlib.axes.Axes
     """    
@@ -132,7 +136,9 @@ def render(run, mode="laststates-thr", ax=None, title=None, normalize=True):
         normalize = (maxstatecount > 10000) and normalize
         ax.set_ylabel("states (x1000)" if normalize else "states")
         markers = ["o", "x", ".", "v", "+", "^", "d", "s", "*", "h"]
-        for idx in range(resultcount):
+        if sol_range == None:
+            sol_range = range(resultcount)
+        for idx in sol_range:
             if mode == "laststates-thr" and idx != resultcount-1:
                 continue
             marker = markers[idx % len(markers)]
