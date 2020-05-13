@@ -54,6 +54,17 @@ class InvertibleDict:
                 self.__i.__d[item] = set()
             self.__i.__d[item].add(key)
 
+    def remove(self,key,item):
+        """Removes an item from a key-mapping"""
+        assert key in self.__d, "Key %s not in dictionary" % key
+        assert item in self.__d[key], "Item not at dict[%s]" % key
+
+        self.__d[key].remove(item)
+
+        if self.__i is not None:
+            self.__i.__d[item].remove(key)
+
+
     def __contains__(self, key):
         return key in self.__d
 
