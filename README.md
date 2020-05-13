@@ -26,19 +26,14 @@ xdg-open build/html/index.html
 ## Solvers
 By installing `PuLP`, the CBC-solver is automatically installed alongside of it. In order to use the Gurobi solver, 
 `PuLP` needs to be configured (cf. [here](https://coin-or.github.io/pulp/guides/how_to_configure_solvers.html)) 
-by adding the following lines to the .bash_profile:
+by adding the following lines to `~/.bashrc`:
 
     export GUROBI_HOME="[gurobi install path]/linux64"
     export PATH="${PATH}:${GUROBI_HOME}/bin"
     export LD_LIBRARY_PATH="${GUROBI_HOME}/lib"
-
-and when Windows is used, call
-
-    set GUROBI_HOME=[gurobi install path]/linux64
-    set PATH=%PATH%;%GUROBI_HOME%/bin
-    set LD_LIBRARY_PATH=%LD_LIBRARY_PATH%;%GUROBI_HOME%/lib
-
-via command line or graphical user interface.
+    
+## Tests
+Call `pytest` in the root directory of this repository in order to run all tests. In `test/test_dtmc.py` and `test/test_mdp.py` variables `lp_solver` and `milp_solvers` specify lists of used solvers. If one of these solver happens to be not installed on your system, you can just delete it from the lists.
 
 ## SWITSS Command Line Tool
 SWITSS comes with a handy command line tool that makes it possible to find minimal witnessing subsystems without having to open up
