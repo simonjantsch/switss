@@ -356,13 +356,62 @@ class ReachabilityForm:
         result = pr_max_z_lp.solve(solver=solver)
         return result.result_vector
 
-    def _check_mec_freeness(self,solver="cbc"):
-        new_label_to_states = self.system.states_by_label
-        for st in self.system.labels_by_state.keys():
-            if st in new_label_to_states["fail"]:
-                new_label_to_states.add(self.target_label,st)
-        target_or_fail_mdp = MDP(
-            self.system.P,self.system.index_by_state_action,{},new_label_to_states)
-        target_or_fail_rf = ReachabilityForm(target_or_fail_mdp,"init",self.target_label)
-        assert (target_or_fail_rf.pr_min() == 1).all()
+    def _check_mec_freeness(self):
+
+        # indices of old fail and target state
+        target_state, target_action = self.system.N-2, self.system.C-2
+        fail_state, fail_action = self.system.N-1, self.system.C-1
+
+        if len(set(self.system.predecessors(fail_state))) == 1:
+            # if that happens, then fail state has no predecessors but itself.
+            # in that case, the fail state has no impact on the other states.
+            assert (self.pr_min() == 1).all()
+            return
+
+        import copy
+        new_label_to_states = copy.deepcopy(self.system.states_by_label)
+        new_index_by_state_action = copy.deepcopy(self.system.index_by_state_action)
+
+        # create a new transition matrix with 2 new entries for a new target and fail state
+        P = dok_matrix((self.system.C+2,self.system.N+2))
+        P[:self.system.C,:self.system.N] = self.system.P
+
+        # indices of new target and new fail state according to RF
+        new_target_state, new_target_action = self.system.N, self.system.C
+        new_fail_state, new_fail_action = self.system.N+1, self.system.C+1
+        # index state-action pairs
+        new_index_by_state_action[(new_target_state,0)] = new_target_action
+        new_index_by_state_action[(new_fail_state,0)] = new_fail_action
+        
+        # map new target and new fail state only to themselves
+        P[new_target_action,new_target_state] = 1
+        P[new_fail_action,new_fail_state] = 1
+
+        # remap old fail & target state to new target state
+        P[target_action,target_state] = 0
+        P[target_action,new_target_state] = 1
+        P[fail_action,fail_state] = 0
+        P[fail_action,new_target_state] = 1
+        
+        # remove fail and target label from old target and fail state
+        new_label_to_states.remove(self.target_label, target_state)
+        new_label_to_states.remove(self.fail_label, fail_state)
+        # add fail and target label to new target and new fail state
+        new_label_to_states.add(self.target_label, new_target_state)
+        new_label_to_states.add(self.fail_label, new_fail_state)
+
+        # new system should already be in RF, so calling .reduce is not necessary
+        target_or_fail_system = type(self.system)(
+            P=P, 
+            index_by_state_action=new_index_by_state_action,
+            label_to_actions={},
+            label_to_states=new_label_to_states)
+        
+        target_or_fail_rf = ReachabilityForm(
+            target_or_fail_system,
+            self.initial_label,
+            self.target_label,
+            self.fail_label)
+
+        assert (target_or_fail_rf.pr_min() == 1).all(), target_or_fail_rf.pr_min()
 
