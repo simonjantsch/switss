@@ -140,7 +140,7 @@ class InverseReachabilityInitializer(Initializer):
             variables = self.indicator_to_group[group]
             variablecount = len(variables)
             weighted_probability = sum([self.Pr[var] for var in variables])/variablecount
-            ret.append((group, 1/weighted_probability))
+            ret.append((group, np.min([1e9,1/weighted_probability])))
 
         return ret
 
@@ -174,6 +174,6 @@ class InverseFrequencyInitializer(Initializer):
         for group in self.groups:
             variables = self.indicator_to_group[group]
             expected_val_sum = sum([self.E[var] for var in variables])
-            ret.append((group, 1/expected_val_sum if expected_val_sum > 0 else 1e8))
+            ret.append((group, np.min([1e9,1/expected_val_sum]) if expected_val_sum > 0 else 1e8))
 
         return ret
