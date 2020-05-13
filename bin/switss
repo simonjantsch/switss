@@ -166,6 +166,9 @@ def subsysargs(args):
         sys.save(output)
         vprint("done.")
 
+def infoargs(args):
+    model = load_model(args)
+
 def renderargs(args):
     model = load_model(args)
     output = args.output if args.output is not None else args.modelpath + "-render"
@@ -290,7 +293,7 @@ parser_subsystem.set_defaults(func=subsysargs)
 parser_render.set_defaults(func=renderargs)
 parser_rf.set_defaults(func=rfargs)
 parser_minimize.set_defaults(func=minargs)
-
+parser_info.set_defaults(func=infoargs)
 
 for p in [parser_rf, parser_info, parser_minimize, parser_certify, parser_subsystem, parser_render]:
     p.add_argument("modeltype", choices=["mdp","dtmc"], help="type of model")
