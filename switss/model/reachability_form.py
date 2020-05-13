@@ -313,7 +313,7 @@ class ReachabilityForm:
 
     def max_z_state_action(self,solver="cbc"):
         max_z_vec = self.max_z_state(solver=solver)
-        return (self.P.dot(max_z_vec) + self.to_target)
+        return self.P.dot(max_z_vec) + self.to_target.A1
 
     def max_y_state_action(self,solver="cbc"):
         N,C = self.P.shape
