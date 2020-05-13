@@ -79,7 +79,7 @@ Generate subsystem based on certificate:
 
 Render generated subsystem:
 
-    switss render dtmc examples/datasets/groups-example-rf-subsys-0 -vi
+    switss render dtmc examples/datasets/groups-example-rf-subsys-0 -vi -col rf_target,rf_fail,subsystem
 
 Minimize again, but this time based on labels & with another method:
 
