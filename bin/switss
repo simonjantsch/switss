@@ -98,7 +98,7 @@ def minargs(args):
     info = { "method" : method.details, "instances" : [] }
     def process_result(idx,result):
         vprint("solved instance %s with %s remaining states" % (idx,sum(result.subsystem.subsystem_mask)), end=" - ")
-        check = check_farkas_certificate(rf, methodparams["mode"], ">=", solveparams["threshold"], result.farkas_cert)
+        check = check_farkas_certificate(rf, methodparams["mode"], ">=", solveparams["threshold"], result.farkas_cert, tol=args.tolerance)
         vprint("certificate %s" % {True:"OK", False:"FAIL"}[check])
         instance = { "iteration" : idx,
                      "threshold" : solveparams["threshold"],
@@ -146,7 +146,7 @@ def certargs(args):
     rf = gen_rf(model, args)
     for minfo, iteration, threshold, certificate in unpack_results(rf, args.certificate): 
         vprint("checking certificate %s @ threshold=%s" % (iteration, threshold), end=" - ")
-        check = check_farkas_certificate(rf, minfo["mode"], ">=", threshold, certificate)
+        check = check_farkas_certificate(rf, minfo["mode"], ">=", threshold, certificate, tol=args.tolerance)
         vprint({True:"OK", False:"FAIL"}[check])
 
 def subsysargs(args):
@@ -212,7 +212,7 @@ switss info {mdp,dtmc} modelpath
 
     Displays model informations.
 
-switss minimize {mdp,dtmc} modelpath [-i <STRING>]? [-trf <STRING>]? [-frf <STRING>]? -m <METHODPARAMS> {-si,-s} <SOLVEPARAMS> [-c <STRING>]?
+switss minimize {mdp,dtmc} modelpath [-i <STRING>]? [-trf <STRING>]? [-frf <STRING>]? -m <METHODPARAMS> {-si,-s} <SOLVEPARAMS> [-c <STRING>]? [-tol <FLOAT>]?
 
     METHODPARAMS:       {QSHeur,MILPExact} mode={min,max} 
                         [iterations=<INTEGER>]?
@@ -243,13 +243,15 @@ switss minimize {mdp,dtmc} modelpath [-i <STRING>]? [-trf <STRING>]? [-frf <STRI
         the amount of labels in the system (that are in ${labels}).
     
     Results are then stored in a .json file (-c, default is ${modelpath}.certificates.json) containing method info and farkas certificates
-    for each subsystem.
+    for each subsystem. Since some solvers operate with too low precision, it is possible to specify a tolerance
+    for checking the validity of certificates (-tol, default is 1e-5).
 
-switss certify {mdp,dtmc} modelpath [-i <STRING>]? [-trf <STRING>]? [-frf <STRING>]? -c <STRING> 
+switss certify {mdp,dtmc} modelpath [-i <STRING>]? [-trf <STRING>]? [-frf <STRING>]? -c <STRING> [-tol <FLOAT>]? 
 
     Takes a model in reachability form (RF) (-i specifies initial state, default is "init"; -trf specifies target state, default is
     "rf_target"; -frf specifies fail state, default is "rf_fail") and a certificates file (-c) and then checks whether each of the given
-    certificates yields a valid subsystem. 
+    certificates yields a valid subsystem. Since some solvers operate with too low precision, it is possible to specify a tolerance
+    for checking the validity of certificates (-tol, default is 1e-5).
 
 switss subsystem {mdp,dtmc} modelpath [-i <STRING>]? [-trf <STRING>]? [-frf <STRING>]? -c <STRING> [-sl <STRING>]? [-o <STRING>]?
 
@@ -306,10 +308,12 @@ parser_minimize.add_argument(
     help="specification of solver parameters. creates a certificate only for the last instance")
 parser_minimize.add_argument("-si","--solve-iter", default=[], nargs="+", 
     help="specification of solver parameters. creates certificates for all instances")
+parser_minimize.add_argument("-tol", "--tolerance", default=1e-5, type=float, help="allowed certificate deviation")
 
 parser_certify.add_argument(
     "-c","--certificate", 
     help=".json-file containing certificate(s)")
+parser_certify.add_argument("-tol", "--tolerance", default=1e-5, type=float, help="allowed certificate deviation")
 
 parser_subsystem.add_argument(
     "-c","--certificate", 
