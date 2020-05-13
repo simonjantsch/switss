@@ -1,6 +1,5 @@
 from switss.model import DTMC, ReachabilityForm
-from switss.problem.milpexact import MILPExact
-from switss.problem.qsheur import QSHeur
+from switss.problem import MILPExact, QSHeur
 from switss.certification import generate_farkas_certificate,check_farkas_certificate
 import switss.problem.qsheurparams as qsparam
 from .example_models import example_dtmcs, toy_dtmc2
@@ -23,11 +22,11 @@ def test_read_write():
 def test_create_reach_form():
     for dtmc in dtmcs:
         print(dtmc)
-        reach_form = ReachabilityForm(dtmc,"init","target")
+        reach_form ,_,_ = ReachabilityForm.reduce(dtmc,"init","target")
 
 def test_minimal_witnesses():
     for dtmc in dtmcs:
-        reach_form = ReachabilityForm(dtmc,"init","target")
+        reach_form ,_,_ = ReachabilityForm.reduce(dtmc,"init","target")
         instances = [ MILPExact(mode,solver) for (mode,solver) in zip(["min","max"],milp_solvers) ]
         for threshold in [0.1, 0.2, 0.3, 0.4, 0.5, 0.66, 0.7, 0.88, 0.9, 0.999, 1,0.9999999999]:
             print(dtmc)
@@ -46,7 +45,7 @@ def test_minimal_witnesses():
 
 def test_label_based_exact_min():
     ex_dtmc = toy_dtmc2()
-    reach_form = ReachabilityForm(ex_dtmc,"init","target")
+    reach_form ,_,_ = ReachabilityForm.reduce(ex_dtmc,"init","target")
     instances = [ MILPExact(mode,solver) for (mode,solver) in zip(["min","max"],milp_solvers) ]
     for threshold in [0.0001, 0.1, 0.2, 0.3, 0.4, 0.5, 0.66, 0.7, 0.88, 0.9, 0.999, 1,0.9999999999]:
         results = []
@@ -63,7 +62,7 @@ def test_label_based_exact_min():
 
 def test_certificates():
     for dtmc in dtmcs:
-        reach_form = ReachabilityForm(dtmc,"init","target")
+        reach_form ,_,_ = ReachabilityForm.reduce(dtmc,"init","target")
         for sense in ["<","<=",">",">="]:
             for threshold in [0.1, 0.2, 0.3, 0.4, 0.5, 0.66, 0.7, 0.88, 0.9, 0.999, 1,0.9999999999]:
                 fark_cert_min = generate_farkas_certificate(
@@ -82,7 +81,7 @@ def test_certificates():
 
 def test_prmin_prmax():
     for dtmc in dtmcs:
-        reach_form = ReachabilityForm(dtmc,"init","target")
+        reach_form ,_,_ = ReachabilityForm.reduce(dtmc,"init","target")
         for solver in solvers:
             m_z_st = reach_form.max_z_state(solver=solver)
             m_z_st_act = reach_form.max_z_state_action(solver=solver)
@@ -121,7 +120,7 @@ def test_heuristics():
                     qsparam.InverseFrequencyInitializer]
 
     for dtmc in dtmcs:
-        reach_form = ReachabilityForm(dtmc,"init","target")
+        reach_form ,_,_ = ReachabilityForm.reduce(dtmc,"init","target")
         instances = [ QSHeur(mode,iterations=3,initializertype=init,solver=solver)\
                       for (mode,solver,init) in zip(["min","max"],solvers,initializers) ]
         for threshold in [0.1, 0.2, 0.3, 0.4, 0.5, 0.66, 0.7, 0.88, 0.9, 0.999, 1,0.9999999999]:

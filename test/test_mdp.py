@@ -1,6 +1,5 @@
 from switss.model import MDP, ReachabilityForm
-from switss.problem.milpexact import MILPExact
-from switss.problem.qsheur import QSHeur
+from switss.problem import MILPExact, QSHeur
 from switss.certification import generate_farkas_certificate,check_farkas_certificate
 import switss.problem.qsheurparams as qsparam
 from .example_models import example_mdps, toy_mdp2
@@ -21,27 +20,27 @@ def test_read_write():
 def test_create_reach_form():
     for mdp in mdps:
         print(mdp)
-        reach_form = ReachabilityForm(mdp,"init","target")
+        reach_form ,_,_ = ReachabilityForm.reduce(mdp,"init","target")
 
 def test_mec_free():
     for mdp in mdps:
-        rf = ReachabilityForm(mdp,"init","target")
+        rf ,_,_ = ReachabilityForm.reduce(mdp,"init","target")
         rf._check_mec_freeness()
 
-        # rf = ReachabilityForm(mdp,"init","target")
+        # rf ,_,_ = ReachabilityForm.reduce(mdp,"init","target")
         # new_label_to_states = rf.system.states_by_label
         # for st in rf.system.labels_by_state.keys():
         #     if st in new_label_to_states["fail"]:
         #         new_label_to_states.add("target",st)
         # target_or_fail_mdp = MDP(
         #     rf.system.P,rf.system.index_by_state_action,{},new_label_to_states)
-        # target_or_fail_rf = ReachabilityForm(target_or_fail_mdp,"init","target")
+        # target_or_fail_rf ,_,_ = ReachabilityForm.reduce(target_or_fail_mdp,"init","target")
         # assert (target_or_fail_rf.pr_min() == 1).all()
 
 def test_minimal_witnesses():
     # only test the first 2 examples, as the others are too large
     for mdp in mdps[:1]:
-        reach_form = ReachabilityForm(mdp,"init","target")
+        reach_form ,_,_ = ReachabilityForm.reduce(mdp,"init","target")
         min_instances = [ MILPExact("min",solver) for solver in milp_solvers ]
         max_instances = [ MILPExact("max",solver) for solver in milp_solvers ]
         for threshold in [0.1, 0.2, 0.3, 0.4, 0.5, 0.66, 0.7, 0.88, 0.9, 0.999, 1,0.9999999999]:
@@ -74,7 +73,7 @@ def test_minimal_witnesses():
 
 def test_label_based_exact_min():
     ex_mdp = toy_mdp2()
-    reach_form = ReachabilityForm(ex_mdp,"init","target")
+    reach_form ,_,_ = ReachabilityForm.reduce(ex_mdp,"init","target")
     min_instances = [ MILPExact("min",solver) for solver in milp_solvers ]
     max_instances = [ MILPExact("max",solver) for solver in milp_solvers ]
     for threshold in [0.0001, 0.1, 0.2, 0.3, 0.4, 0.5, 0.66, 0.7, 0.88, 0.9, 0.999, 1,0.9999999999]:
@@ -102,7 +101,7 @@ def test_label_based_exact_min():
 
 def test_certificates():
     for mdp in mdps:
-        reach_form = ReachabilityForm(mdp,"init","target")
+        reach_form ,_,_ = ReachabilityForm.reduce(mdp,"init","target")
         for sense in ["<","<=",">",">="]:
             for threshold in [0.1, 0.2, 0.3, 0.4, 0.5, 0.66, 0.7, 0.88, 0.9, 0.999, 1]:
                 print(mdp)
@@ -134,7 +133,7 @@ def test_certificates():
 
 def test_prmin_prmax():
     for mdp in mdps:
-        reach_form = ReachabilityForm(mdp,"init","target")
+        reach_form ,_,_ = ReachabilityForm.reduce(mdp,"init","target")
         for solver in lp_solvers:
             m_z_st = reach_form.max_z_state(solver=solver)
             m_z_st_act = reach_form.max_z_state_action(solver=solver)
@@ -172,7 +171,7 @@ def test_heuristics():
                     qsparam.InverseFrequencyInitializer]
 
     for mdp in mdps:
-        reach_form = ReachabilityForm(mdp,"init","target")
+        reach_form ,_,_ = ReachabilityForm.reduce(mdp,"init","target")
         min_instances = [ QSHeur("min",iterations=3,initializertype=init,solver=solver)\
                           for (solver,init) in zip(lp_solvers,initializers) ]
         max_instances = [ QSHeur("max",iterations=3,initializertype=init,solver=solver)\
