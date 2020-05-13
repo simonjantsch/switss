@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 
 import argparse
-import textwrap
-from switss.model import MDP, DTMC, ReachabilityForm
-from switss.problem import *
-from switss.certification import check_farkas_certificate, generate_farkas_certificate
 import json
 import copy
 import numpy as np
+
+from switss.utils import color_from_hash 
+from switss.model import MDP, DTMC, ReachabilityForm
+from switss.problem import *
+from switss.certification import check_farkas_certificate, generate_farkas_certificate
 
 def vprint(*els, **kwargs):
     # global args
@@ -168,7 +169,14 @@ def subsysargs(args):
 def renderargs(args):
     model = load_model(args)
     output = args.output if args.output is not None else args.modelpath + "-render"
-    graph = model.digraph()
+    colorlabels = set() if args.coloring is None else set(args.coloring.split(",")) 
+    def state_map(stateidx, statelabels):
+        labels = colorlabels.intersection(statelabels)
+        return { "color" : color_from_hash(tuple(sorted(labels))),  
+                "label" : "State %d\n%s" % (stateidx,",".join(statelabels)),  
+                "style" : "filled" }
+
+    graph = model.digraph() if args.coloring is None else model.digraph(state_map=state_map)
     graph.format = "svg"
     vprint("rendering @ %s.svg" % output,end=" - ")
     graph.render(output,view=args.view,cleanup=True)
@@ -260,10 +268,11 @@ switss subsystem {mdp,dtmc} modelpath [-i <STRING>]? [-trf <STRING>]? [-frf <STR
     as .tra and .lab-files as specified by the output (-o, default ${modelpath}-subsys). The generated files contain all states that are also 
     in the complete system, but also adds a dedicated label (-sl) to all states that are part of the subsystem.
 
-switss render {mdp,dtmc} modelpath [-o <STRING>]? [-vi]?
+switss render {mdp,dtmc} modelpath [-o <STRING>]? [-vi]? [-col <STRING>[,<STRING>]*]?
 
     Takes a model and generates a .svg image from it that is then stored at the given output path (-o, without ".svg"-ending).
-    If the -vi option is given, a window will open that contains the rendered result.
+    If the -vi option is given, a window will open that contains the rendered result. It is also possible to define a coloring only dependent
+    on some specified labels (-col label1,label2,...). If not given, SWITSS will try to give every label-combination a separate coloring.  
 
 ''', formatter_class=argparse.RawDescriptionHelpFormatter)
 
@@ -327,6 +336,6 @@ parser_subsystem.add_argument(
 
 parser_render.add_argument("-o", "--output", help="output file for storing .svg rendering of model")
 parser_render.add_argument("-vi","--view", action="store_true", help="if given, opens up a window containing rendering of system")
-
+parser_render.add_argument("-col","--coloring", help="list of labels that define the colors")
 args = parser.parse_args()
 args.func(args)
