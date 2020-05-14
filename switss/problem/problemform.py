@@ -157,7 +157,7 @@ class ProblemFormulation:
         """              
         assert mode in ["min","max"]
 
-        C,N = reach_form.P.shape
+        C,N = reach_form.system.P.shape
 
         sys_st_by_label = reach_form.system.states_by_label
         min_labels = InvertibleDict({ l : sys_st_by_label[l] for l in labels})
@@ -166,14 +166,12 @@ class ProblemFormulation:
             return min_labels
         else:
             var_groups = InvertibleDict({})
-            # the max-form has indices in the range from 1 to C which correspond to state-action pairs.
+            # the max-form has indices in the range from 0 to C-2 which correspond to state-action pairs.
             # the goal is now to assign all labels of a state s to all state-actions pairs (s,*).
-            for st_act_idx in range(C):
-                (st,act) = reach_form.index_by_state_action.inv[st_act_idx]
+            for st_act_idx in range(C-2):
+                (st,act) = reach_form.system.index_by_state_action.inv[st_act_idx]
                 if st in min_labels.inv.keys():
                     st_labels = min_labels.inv[st]
                     for l in st_labels:
-                        # if g not in var_groups.keys():
-                        #     var_groups[g] = set()
                         var_groups.add(l, st_act_idx)
         return var_groups

@@ -16,17 +16,19 @@ class ReachabilityForm:
         if not ignore_consistency_checks:
             ReachabilityForm.assert_consistency(system, initial_label, target_label, fail_label)
         
-        self.to_target = system.P.getcol(system.N-2).todense()[:system.C-2]
-        self.P = system.P[:system.C-2, :system.N-2]
+        self.__P = system.P[:system.C-2, :system.N-2]
         self.__system = system
         self.initial = next(iter(system.states_by_label[initial_label]))
         self.target_label = target_label
         self.fail_label = fail_label
         self.initial_label = initial_label
-        self.index_by_state_action = system.index_by_state_action.copy()
-        del self.index_by_state_action.inv[system.C-2]
-        del self.index_by_state_action.inv[system.C-1]
-
+        self.__index_by_state_action = system.index_by_state_action.copy()
+        del self.__index_by_state_action.inv[system.C-2]
+        del self.__index_by_state_action.inv[system.C-1]
+        
+        self.A = self._reach_form_id_matrix() - self.__P
+        self.to_target = system.P.getcol(system.N-2).todense()[:system.C-2]
+        
     @staticmethod
     def assert_consistency(system, initial_label, target_label="rf_target", fail_label="rf_fail"):
         assert isinstance(system, AbstractMDP)
@@ -233,7 +235,7 @@ class ReachabilityForm:
                     label_to_actions=label_to_actions)
 
     def __repr__(self):
-        return "ReachabilityForm(C=%s, N=%s, initial=%s, system=%s)" % (self.P.shape[0], self.P.shape[1], self.initial, self.system)
+        return "ReachabilityForm(initial=%s, target=%s, fail=%s, system=%s)" % (self.initial_label, self.target_label, self.fail_label, self.system)
 
     def fark_z_constraints(self, threshold):
         """ Returns matrix and rhs of the Farkas z-constraints:
@@ -248,8 +250,7 @@ class ReachabilityForm:
         :type threshold: Float
         :return: :math:`C+1 \\times N`-matrix :math:`M`, and :math:`N`-vector :math:`rhs` such that :math:`M \mathbf{z} \leq rhs` yields the Farkas z-constraints
         """
-        C,N = self.P.shape
-        I = self._reach_form_id_matrix()
+        C,N = self.__P.shape
 
         rhs = self.to_target.A1.copy()
         rhs.resize(C+1)
@@ -258,7 +259,7 @@ class ReachabilityForm:
         delta = np.zeros(N)
         delta[self.initial] = 1
 
-        fark_z_matr = vstack(((I-self.P),-delta))
+        fark_z_matr = vstack((self.A,-delta))
         return fark_z_matr, rhs
 
     def fark_y_constraints(self, threshold):
@@ -274,8 +275,7 @@ class ReachabilityForm:
         :type threshold: Float
         :return: :math:`N+1 \\times C`-matrix :math:`M`, and :math:`C`-vector :math:`rhs` such that :math:`M \mathbf{y} \leq rhs` yields the Farkas y-constraints
         """
-        C,N = self.P.shape
-        I = self._reach_form_id_matrix()
+        C,N = self.__P.shape
 
         b = cast_dok_matrix(self.to_target)
 
@@ -283,22 +283,22 @@ class ReachabilityForm:
         rhs[self.initial] = 1
         rhs[N] = -threshold
 
-        fark_y_matr = hstack(((I-self.P),-b)).T
+        fark_y_matr = hstack((self.A,-b)).T
         return fark_y_matr, rhs
 
     def _reach_form_id_matrix(self):
         """Computes the matrix :math:`I` for a given reachability form that for every row (st,act) has an entry 1 at the column corresponding to st."""
-        C,N = self.P.shape
+        C,N = self.__P.shape
         I = dok_matrix((C,N))
 
         for i in range(0,C):
-            (state, _) = self.index_by_state_action.inv[i]
+            (state, _) = self.__index_by_state_action.inv[i]
             I[i,state] = 1
 
         return I
 
     def max_z_state(self,solver="cbc"):
-        C,N = self.P.shape
+        C,N = self.__P.shape
         matr, rhs = self.fark_z_constraints(0)
         opt = np.ones(N)
         max_z_lp = LP.from_coefficients(
@@ -313,10 +313,10 @@ class ReachabilityForm:
 
     def max_z_state_action(self,solver="cbc"):
         max_z_vec = self.max_z_state(solver=solver)
-        return self.P.dot(max_z_vec) + self.to_target.A1
+        return self.__P.dot(max_z_vec) + self.to_target.A1
 
     def max_y_state_action(self,solver="cbc"):
-        N,C = self.P.shape
+        N,C = self.__P.shape
 
         matr, rhs = self.fark_y_constraints(0)
         max_y_lp = LP.from_coefficients(
@@ -329,12 +329,12 @@ class ReachabilityForm:
         return result.result_vector
 
     def max_y_state(self,solver="cbc"):
-        C,N = self.P.shape
+        C,N = self.__P.shape
         max_y_vec = self.max_y_state_action(solver=solver)
         max_y_states = np.zeros(N)
         max_y_states[self.initial] = 1
         for sap_idx in range(C):
-            (st,act) = self.index_by_state_action.inv[sap_idx]
+            (st,act) = self.__index_by_state_action.inv[sap_idx]
             max_y_states[st] = max_y_states[st] + max_y_vec[sap_idx]
         return max_y_states
 
@@ -342,7 +342,7 @@ class ReachabilityForm:
         return self.max_z_state()
 
     def pr_max(self,solver="cbc"):
-        C,N = self.P.shape
+        C,N = self.__P.shape
 
         matr, rhs = self.fark_z_constraints(0)
         opt = np.ones(N)

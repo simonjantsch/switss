@@ -11,10 +11,10 @@ class Subsystem:
     def __init__(self, supersystem, certificate, certform, ignore_consistency_checks=False):
         assert isinstance(supersystem, ReachabilityForm)
         assert certform in ["min","max"]
-        D,C,N = certificate.shape[0], supersystem.P.shape[0], supersystem.P.shape[1]
+        D,C,N = certificate.shape[0], supersystem.system.P.shape[0], supersystem.system.P.shape[1]
         # can be read as "certform == max ==> D == C"
-        assert certform != "max" or D == C, "certificate shape must be the amount of state-action pairs (%d!=%d)." % (D, C)
-        assert certform != "min" or D == N, "certificate shape must be the amount of states (%d!=%d)." % (D, N) 
+        assert certform != "max" or D == C-2, "certificate shape must be the amount of state-action pairs - 2 (%d!=%d)." % (D, C-2)
+        assert certform != "min" or D == N-2, "certificate shape must be the amount of states - 2 (%d!=%d)." % (D, N-2) 
         # assert ((0 <= certificate) + (certificate <= 1)).all(), "result has faulty values."
         
         self.__supersys = supersystem
@@ -35,12 +35,12 @@ class Subsystem:
     @property
     def subsystem_mask(self):
         if self.__subsystem_mask is None:
-            C,N = self.__supersys.P.shape
-            self.__subsystem_mask = np.zeros(N)
+            C,N = self.__supersys.system.P.shape
+            self.__subsystem_mask = np.zeros(N-2)
             if self.__certform == "max":
-                for index in range(C):
+                for index in range(C-2):
                     if self.certificate[index] > 0:
-                        (st,_) = self.__supersys.index_by_state_action.inv[index]
+                        (st,_) = self.__supersys.system.index_by_state_action.inv[index]
                         self.__subsystem_mask[st] = True
             else:
                 self.__subsystem_mask = self.certificate > 0
@@ -58,7 +58,7 @@ class Subsystem:
 
         state_vector = self.subsystem_mask
         reach_form = self.supersys
-        P = reach_form.P
+        P = reach_form.system.P
         C,N = P.shape
 
         new_to_old_states = bidict()
@@ -71,7 +71,7 @@ class Subsystem:
         old_label_by_states = reach_form.system.labels_by_state
 
         # Map the new states to new indices and compute a map to the old states
-        for i in range(0,N):
+        for i in range(N-2):
             if state_vector[i] == True:
                 new_to_old_states[new_N] = i
                 for l in old_label_by_states[i]:
@@ -79,8 +79,8 @@ class Subsystem:
                 new_N += 1
 
         # Compute the new number of choices (= rows)
-        for rowidx in range(0,C):
-            (source,action) = reach_form.index_by_state_action.inv[rowidx]
+        for rowidx in range(C-2):
+            (source,action) = reach_form.system.index_by_state_action.inv[rowidx]
             if state_vector[source] == True:
                 actionlabels = reach_form.system.labels_by_action[(source,action)]
                 new_source = new_to_old_states.inv[source]
@@ -103,7 +103,11 @@ class Subsystem:
 
         # Populate the new transition matrix
         for (rowidx,target), prob in P.items():
-            (source,action) = reach_form.index_by_state_action.inv[rowidx]
+            (source,action) = reach_form.system.index_by_state_action.inv[rowidx]
+            if target >= N-2 or source >= N-2:
+                # P also contains target & fail state - but state_vector only has N-2 entries
+                continue
+
             if state_vector[source] == True and state_vector[target] == True:
                 new_source = new_to_old_states.inv[source]
                 new_target = new_to_old_states.inv[target]
@@ -114,7 +118,7 @@ class Subsystem:
         # populate probabilities to fail
         # maps every target state with probability 1 to itself.
         for rowidx, p_target in enumerate(reach_form.to_target):
-            (source,action) = reach_form.index_by_state_action.inv[rowidx]
+            (source,action) = reach_form.system.index_by_state_action.inv[rowidx]
             if state_vector[source] == True:
                 new_source = new_to_old_states.inv[source]
                 new_row_idx = new_index_by_state_action[(new_source,action)]

@@ -68,12 +68,12 @@ class QSHeur(ProblemFormulation):
     def solve_min(self, reach_form, threshold, labels, timeout=None):
         """Runs the QSheuristic using the Farkas z-polytope of a given
         reachability form for a given threshold."""
-        C,N = reach_form.P.shape
+        C,N = reach_form.system.P.shape
 
         fark_matr,fark_rhs = reach_form.fark_z_constraints(threshold)
 
         if labels is None:
-            var_groups = InvertibleDict({ i : set([i]) for i in range(N)})
+            var_groups = InvertibleDict({ i : set([i]) for i in range(N-2)})
         else:
             var_groups = ProblemFormulation._var_groups_from_labels(reach_form, labels, "min")
 
@@ -99,10 +99,10 @@ class QSHeur(ProblemFormulation):
             heur_result = heur_lp.solve(self.solver,timeout=timeout)
 
             if heur_result.status == "optimal":
-                certificate = heur_result.result_vector[:N]
+                certificate = heur_result.result_vector[:N-2]
                 witness = Subsystem(reach_form, certificate, "min")
 
-                indicator_weights = heur_result.result_vector[N:]
+                indicator_weights = heur_result.result_vector[N-2:]
                 no_nonzero_groups = len([i for i in indicator_weights if i > 0])
                 yield ProblemResult("success", witness, no_nonzero_groups, certificate)
 
@@ -114,12 +114,12 @@ class QSHeur(ProblemFormulation):
 
     def solve_max(self, reach_form, threshold, labels, timeout=None):
         """Runs the QSheuristic using the Farkas y-polytope of a given reachability form for a given threshold."""
-        C,N = reach_form.P.shape
+        C,N = reach_form.system.P.shape
 
         fark_matr,fark_rhs = reach_form.fark_y_constraints(threshold)
 
         if labels is None:
-            var_groups = InvertibleDict({ i : set([i]) for i in range(C)})
+            var_groups = InvertibleDict({ i : set([i]) for i in range(C-2)})
         else:
             var_groups = ProblemFormulation._var_groups_from_labels(reach_form,labels,"max")
 
@@ -145,11 +145,11 @@ class QSHeur(ProblemFormulation):
 
             if heur_result.status == "optimal":
                 # for the max-form, the resulting vector will be
-                # C-dimensional, carrying values for state-action pairs.
-                certificate = heur_result.result_vector[:C]
+                # (C-2)-dimensional, carrying values for state-action pairs.
+                certificate = heur_result.result_vector[:C-2]
                 witness = Subsystem(reach_form, certificate, "max")
 
-                indicator_weights = heur_result.result_vector[C:]
+                indicator_weights = heur_result.result_vector[C-2:]
                 no_nonzero_groups = len([i for i in indicator_weights if i > 0])
 
                 yield ProblemResult("success", witness, no_nonzero_groups, certificate)

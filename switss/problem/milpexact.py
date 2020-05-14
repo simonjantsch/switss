@@ -48,12 +48,12 @@ class MILPExact(ProblemFormulation):
     def solve_min(self, reach_form, threshold, labels, timeout=None):
         """Runs MILPExact using the Farkas z-polytope."""
 
-        C,N = reach_form.P.shape
+        C,N = reach_form.system.P.shape
 
         fark_matr,fark_rhs = reach_form.fark_z_constraints(threshold)
 
         if labels == None:
-            var_groups = InvertibleDict({i : set([i]) for i in range(N) })
+            var_groups = InvertibleDict({i : set([i]) for i in range(N-2) })
         else:
             var_groups = ProblemFormulation._var_groups_from_labels(
                 reach_form,labels,"min")
@@ -76,7 +76,7 @@ class MILPExact(ProblemFormulation):
     def solve_max(self, reach_form, threshold, labels, timeout=None):
         """Runs MILPExact using the Farkas y-polytope."""
 
-        C,N = reach_form.P.shape
+        C,N = reach_form.system.P.shape
 
         fark_matr,fark_rhs = reach_form.fark_y_constraints(threshold)
 
@@ -85,8 +85,8 @@ class MILPExact(ProblemFormulation):
                 reach_form, labels, mode="max")
         else:
             var_groups = InvertibleDict({})
-            for sap_idx in range(C):
-                (st,act) = reach_form.index_by_state_action.inv[sap_idx]
+            for sap_idx in range(C-2):
+                (st,act) = reach_form.system.index_by_state_action.inv[sap_idx]
                 var_groups.add(st, sap_idx)
 
         milp_result = MILPExact.__min_nonzero_groups(fark_matr,
