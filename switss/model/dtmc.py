@@ -7,8 +7,14 @@ from ..utils import color_from_hash, cast_dok_matrix
 from ..prism import prism
 
 class DTMC(AbstractMDP):
-    def __init__(self, P, label_to_states, **kwargs):
-        # transform P into dok_matrix if neccessary
+    def __init__(self, P, label_to_states={}, **kwargs):
+        """Instantiates a DTMC from a transition matrix and labelings for states.
+
+        :param P: :math:`N \\times N` transition matrix.
+        :type P: Either 2d-list, numpy.matrix, numpy.array or scipy.sparse.spmatrix
+        :param label_to_states: Mapping from labels to sets of states.
+        :type label_to_states: Dict[str,Set[int]]
+        """# transform P into dok_matrix if neccessary
         P =  cast_dok_matrix(P)  
         assert P.shape[0] == P.shape[1], "P must be a (NxN)-matrix but has shape %s" % P.shape
         index_by_state_action = bidict()
@@ -17,21 +23,21 @@ class DTMC(AbstractMDP):
         super().__init__(P, index_by_state_action, {}, label_to_states)
 
     def digraph(self, state_map = None, trans_map = None, action_map = None):
-        """Creates a graphviz.Digraph object from this instance. When a digraph object is created, 
-        new nodes are added for states plus additional transitions which are edges between nodes. 
+        """Creates a `graphviz.Digraph` object from this instance. When a digraph object is created, 
+        new nodes are added for states plus additional edges for transitions between states. 
         `state_map` and `trans_map` are functions that, on some input, compute keyword arguments for
-        the digraph instance. If any one of these is None, the default mapping will be used.
+        the digraph instance. If any one of these is None, the default mapping will be used. `action_map`
+        is ignored.
         
         For example, these functions below are used as default parameters if no `state_map` or `trans_map` is specified.
         
         .. highlight:: python
         .. code-block:: python
 
-            def standard_state_map(stateidx):
-                labels = self.labels_by_state[stateidx]
+            def standard_state_map(stateidx,labels):
                 return { "color" : color_from_hash(tuple(sorted(labels))),
-                        "label" : "State %d\\n%s" % (stateidx,",".join(labels)),
-                        "style" : "filled" }
+                         "label" : "State %d\\n%s" % (stateidx,",".join(labels)),
+                         "style" : "filled" }
 
         .. highlight:: python
         .. code-block:: python
@@ -40,15 +46,13 @@ class DTMC(AbstractMDP):
                 return { "color" : "black", 
                          "label" : str(round(p,10)) }
 
-        For further information on graphviz attributes, see https://www.graphviz.org/doc/info/attrs.html. 
+        where `color_from_hash` is imported from `switss.utils`. For further information on graphviz attributes, 
+        see https://www.graphviz.org/doc/info/attrs.html. 
 
-
-        :param state_map: A function that computes parameters for state-nodes, defaults to None. If the function returns None,
-            no node for this state will be drawn.
+        :param state_map: A function that computes parameters for state-nodes, defaults to None.
         :type state_map: (stateidx : int, labels : Set[str]) -> Dict[str,str], optional
         :param trans_map: A function that computes parameters for edges between actions and nodes, defaults to None. 
-            If the function returns None, no edge between the given action and destination will be drawn.
-        :type trans_map: (sourceidx : int, destidx : int, sourcelabels : Set[str], destlabels : Set[str], p : float) -> Dict[str,str], optional
+        :type trans_map: (sourceidx : int, destidx : int, p : float) -> Dict[str,str], optional
         :return: The digraph instance.
         :rtype: graphviz.Digraph
         """ 
@@ -71,22 +75,16 @@ class DTMC(AbstractMDP):
         existing_nodes = set({})
 
         for (source, dest), p in self.P.items():
-
             # transition from source to dest w/ probability p
-            if p > 0:
-                for node in [source, dest]:
-                    if node not in existing_nodes:
-                        # print(self.labels[node])
-                        state_setting = state_map(
-                            node, self.labels_by_state[node])
-                        if state_setting is not None:
-                            dg.node(str(node), **state_setting)
-                        existing_nodes.add(node)
+            for node in [source, dest]:
+                if node not in existing_nodes:
+                    state_setting = state_map(node, self.labels_by_state[node])
+                    dg.node(str(node), **state_setting)
+                    existing_nodes.add(node)
 
-                params = (source, dest, p)
-                trans_setting = trans_map(*params)
-                if trans_setting is not None:
-                    dg.edge(str(source), str(dest), **trans_setting)
+            params = (source, dest, p)
+            trans_setting = trans_map(*params)
+            dg.edge(str(source), str(dest), **trans_setting)
 
         return dg
 

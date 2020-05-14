@@ -17,19 +17,17 @@ class AbstractMDP(ABC):
     reachability sets, rendering of MDPs/DTMCs as graphviz digraphs, loading from .pm-files and 
     loading/storing from/to .lab,.tra files. 
     """    
-    def __init__(self, P, index_by_state_action, label_to_actions, label_to_states):
+    def __init__(self, P, index_by_state_action, label_to_actions={}, label_to_states={}):
         """Instantiates an AbstractMDP from a transition matrix, a bidirectional
         mapping from state-action pairs to corresponding transition matrix entries and labelings for states and actions.
 
-        :param P: :math:`C \\times N` transition matrix. :math:`C` indicates the number of state-action pairs and :math:`N` the number of states.
-        :type P: Either 2d-list, numpy.matrix or scipy.sparse.spmatrix
-        :param index_by_state_action: Mapping from state-action pairs to transition matrix entries: :math:`S \\times \\text{Act} \\to \{1,\dots,C\}`.
+        :param P: :math:`C \\times N` transition matrix. 
+        :type P: Either 2d-list, numpy.matrix, numpy.array or scipy.sparse.spmatrix
+        :param index_by_state_action: A bijection of state-action pairs :math:`(s,a) \in \mathcal{M}` to indices :math:`i=0,\dots,C-1` and vice versa.
         :type index_by_state_action: Dict[Tuple[int,int],int]
-        :param label_to_actions: Mapping from labels to sets of state-action pairs: 
-            :math:`\\text{str} \\to \mathcal{P}(S \\times \\text{Act})` where :math:`\mathcal{P}` denotes the power set.
+        :param label_to_actions: Mapping from labels to sets of state-action pairs.
         :type label_to_actions: Dict[str,Set[Tuple[int,int]]]
-        :param label_to_states: Mapping from labels to sets of states:
-            :math:`\\text{str} \\to \mathcal{P}(S)` where :math:`\mathcal{P}` denotes the power set.
+        :param label_to_states: Mapping from labels to sets of states.
         :type label_to_states: Dict[str,Set[int]]
         """        
         # transform P into dok_matrix if neccessary
@@ -124,6 +122,8 @@ class AbstractMDP(ABC):
         :type from_set: Set[int]
         :param mode: Either 'forward' or 'backward'. Defines the direction of search.
         :type mode: str
+        :param blacklist: Set of states that should block any further search.
+        :type blacklist: Set[int]
         :return: Resulting vector.
         :rtype: np.ndarray[bool]
         """        
@@ -148,7 +148,7 @@ class AbstractMDP(ABC):
         :param fromidx: The given state.
         :type fromidx: int
         :yield: A state-action-pair (s,a)
-        :rtype: Tuple[int, int]
+        :rtype: Iterator[Tuple[int, int]]
         """       
         col = self.__P_csc.getcol(fromidx)
         for idx in col.nonzero()[0]:
@@ -162,7 +162,7 @@ class AbstractMDP(ABC):
         :param fromidx: The given state.
         :type fromidx: int
         :yield: A state-action-pair (d,a)
-        :rtype: Tuple[int,int]
+        :rtype: Iterator[Tuple[int,int]]
         """        
         for a in self.actions_by_state[fromidx]:
             idx = self.index_by_state_action[(fromidx, a)]
@@ -191,16 +191,16 @@ class AbstractMDP(ABC):
     def from_prism_model(cls, model_file_path, prism_constants = {}, extra_labels = {}):
         """Computes an instance of this model from a PRISM model.
         
-        :param model_file_path: File path of model without file type (e.g. tra or lab).
+        :param model_file_path: File path of .pm-model.
         :type model_file_path: str
         :param prism_constants: A dictionary of constants to be assigned in the model, defaults to {}.
         :type prism_constants: Dict[str,int], optional
-        :param extra_labels: A dictionary that defines additional labels (than the ones defined in the prism module) to 
+        :param extra_labels: A dictionary that defines additional labels (other than the ones defined in the prism module) to 
             be added to the .lab file. The keys are label names and the values are PRISM expressions over the module variables, 
             defaults to {}.
         :type extra_labels: Dict[str,str], optional
-        :return: Instance of this model.
-        :rtype: [This Model]
+        :return: Instance of the class this function is called from.
+        :rtype: [This Class]
         """ 
         with tempfile.TemporaryDirectory() as tempdirname:
             temp_model_file = os.path.join(tempdirname, "model")

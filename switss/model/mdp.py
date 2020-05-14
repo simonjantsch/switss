@@ -8,13 +8,26 @@ from ..prism import prism
 from ..utils import color_from_hash
 
 class MDP(AbstractMDP):
-    def __init__(self, P, index_by_state_action, label_to_actions, label_to_states):
+    def __init__(self, P, index_by_state_action, label_to_actions={}, label_to_states={}):
+        """Instantiates a MDP from a transition matrix, a bidirectional
+        mapping from state-action pairs to corresponding transition matrix entries and labelings for states and actions.
+
+        :param P: :math:`C \\times N` transition matrix.
+        :type P: Either 2d-list, numpy.matrix, numpy.array or scipy.sparse.spmatrix
+        :param index_by_state_action: A bijection of state-action pairs :math:`(s,a) \in \mathcal{M}` to indices :math:`i=0,\dots,C-1` and vice versa.
+        :type index_by_state_action: Dict[Tuple[int,int],int]
+        :param label_to_actions: Mapping from labels to sets of state-action pairs.
+        :type label_to_actions: Dict[str,Set[Tuple[int,int]]]
+        :param label_to_states: Mapping from labels to sets of states.
+        :type label_to_states: Dict[str,Set[int]]
+        """
         super().__init__(P, index_by_state_action, label_to_actions, label_to_states)
+
 
     def digraph(self, state_map = None, trans_map = None, action_map = None):      
         """
         Creates a graphviz.Digraph object from this instance. When a digraph object is created, 
-        new nodes are added for states and actions plus additional transitions which are edges between actions and nodes. 
+        new nodes are added for states and actions plus additional edges between actions and nodes. 
         `state_map`, `trans_map` and `action_map` are functions that, on some input, compute keyword arguments for
         the digraph instance. If any one of these is None, the default mapping will be used.
         
@@ -24,14 +37,14 @@ class MDP(AbstractMDP):
 
             def standard_state_map(stateidx,labels):
                 return { "style" : "filled",
-                        "color" : color_from_hash(tuple(sorted(labels))),
-                        "label" : "State %d\\n%s" % (stateidx,",".join(labels)) }
+                         "color" : color_from_hash(tuple(sorted(labels))),
+                         "label" : "State %d\\n%s" % (stateidx,",".join(labels)) }
 
         .. code-block:: python
 
             def standard_trans_map(sourceidx, action, destidx, p):
                 return { "color" : "black", 
-                        "label" : str(round(p,10)) }
+                         "label" : str(round(p,10)) }
 
         .. code-block:: python
 
@@ -39,20 +52,18 @@ class MDP(AbstractMDP):
                 return { "node" : { "label" :  "%s\\n%s" % (action, "".join(labels)),
                                     "color" : "black", 
                                     "shape" : "rectangle" }, 
-                        "edge" : { "color" : "black",
+                         "edge" : { "color" : "black",
                                     "dir" : "none" } }
 
-        For further information on graphviz attributes, see https://www.graphviz.org/doc/info/attrs.html. 
+        where `color_from_hash` is imported from `switss.utils`. For further information on graphviz attributes, 
+        see https://www.graphviz.org/doc/info/attrs.html. 
 
 
-        :param state_map: A function that computes parameters for state-nodes, defaults to None. If the function returns None,
-            no node for this state will be drawn.
+        :param state_map: A function that computes parameters for state-nodes, defaults to None.
         :type state_map: (stateidx : int, labels : Set[str]) -> Dict[str,str], optional
         :param trans_map: A function that computes parameters for edges between actions and nodes, defaults to None. 
-            If the function returns None, no edge between the given action and destination will be drawn.
-        :type trans_map: (sourceidx : int, action : int, destidx : int, sourcelabels : Set[str], destlabels : Set[str], p : float) -> Dict[str,str], optional
-        :param action_map: A function that computes parameters for action-nodes and edges between nodes and corresponding actions, 
-            defaults to None. If the function returns None, no action-node and not edge between source and action will be drawn.
+        :type trans_map: (sourceidx : int, action : int, destidx : int, p : float) -> Dict[str,str], optional
+        :param action_map: A function that computes parameters for action-nodes and edges between nodes and corresponding actions, defaults to None.
         :type action_map: (sourceidx : int, action : int, sourcelabels : Set[str]) -> Dict[str,Dict[str,str]], optional
         :return: The digraph instance.
         :rtype: graphviz.Digraph
@@ -88,32 +99,25 @@ class MDP(AbstractMDP):
             source, action = self.index_by_state_action.inv[idx]
 
             # transition from source to dest w/ probability p
-            if p > 0:
-                for node in [source, dest]:
-                    if node not in existing_nodes:
-                        # print(self.labels[node])
-                        state_setting = state_map(
-                            node, self.labels_by_state[node])
-                        if state_setting is not None:
-                            dg.node(str(node), **state_setting)
-                            existing_nodes.add(node)
+            for node in [source, dest]:
+                if node not in existing_nodes:
+                    state_setting = state_map(node, self.labels_by_state[node])
+                    dg.node(str(node), **state_setting)
+                    existing_nodes.add(node)
 
-                params_trans = (source, action, dest, p)
-                trans_setting = trans_map(*params_trans)
-                params_action = (source, action, self.labels_by_action[(source,action)])
-                action_setting = action_map(*params_action)
-                action_node_name = "%s-%s" % (source,action)
+            params_trans = (source, action, dest, p)
+            trans_setting = trans_map(*params_trans)
+            params_action = (source, action, self.labels_by_action[(source,action)])
+            action_setting = action_map(*params_action)
+            action_node_name = "%s-%s" % (source,action)
 
-                if idx not in existing_state_action_pairs:
-                    existing_state_action_pairs.add(idx)
-                    if action_setting is not None:
-                        dg.node(action_node_name, **action_setting["node"])
-                        dg.edge(str(source), action_node_name, **action_setting["edge"])
+            if idx not in existing_state_action_pairs:
+                existing_state_action_pairs.add(idx)
+                dg.node(action_node_name, **action_setting["node"])
+                dg.edge(str(source), action_node_name, **action_setting["edge"])
 
-                if action_setting is not None and trans_setting is not None:
-                    dg.edge(action_node_name, str(dest), **trans_setting)
-                    
-
+            dg.edge(action_node_name, str(dest), **trans_setting)
+                
         return dg
 
     def save(self, filepath):
