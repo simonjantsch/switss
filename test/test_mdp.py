@@ -69,7 +69,7 @@ def test_minimal_witnesses():
                 assert max_results[0].value <= min_results[0].value
             elif max_results[0].status == "optimal":
                 assert max_results[0].status == "optimal"
-                assert len(set([result.status for result in maxresults])) == 1
+                assert len(set([result.status for result in max_results])) == 1
 
 def test_label_based_exact_min():
     ex_mdp = toy_mdp2()
