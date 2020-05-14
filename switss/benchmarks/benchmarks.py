@@ -106,7 +106,7 @@ def run(reachability_form, method, from_thr=1e-3, to_thr=1, step=1e-3, debug=Fal
     print_json(json_dir,data)
     return data
 
-def render(run, mode="laststates-thr", ax=None, title=None, normalize=True,sol_range=None):
+def render(run, mode="laststates-thr", ax=None, title=None, normalize=True, sol_range=None, custom_label=None):
     """Renders a benchmark run via matplotlib. `mode` specifies the type of the
     resulting plot, i.e. statecount vs. threshold ('states-thr', plots all intermediate results), only
     the last resulting statecount vs. threshold ('laststates-thr', plots only the last result) or time
@@ -123,6 +123,8 @@ def render(run, mode="laststates-thr", ax=None, title=None, normalize=True,sol_r
     :type normalize: Bool
     :param sol_range: allows to control which of the solutions are plotted per threshold. If None, all available solutions will be plotted.
     :type sol_range: List, optional
+    :param custom_label: Allows to define a custom label of the plot. If None, the method type will be used.
+    :type custom_label: str, optional
     :return: The axis-object that is created or specified in the method-call.
     :rtype: matplotlib.axes.Axes
     """    
@@ -131,6 +133,8 @@ def render(run, mode="laststates-thr", ax=None, title=None, normalize=True,sol_r
         ax = plt.subplot()
     
     resultcount = len(run["run"][0]["statecounts"])
+    if custom_label == None:
+        custom_label = run["method"]["type"]
     if mode in ["states-thr", "laststates-thr"]:
         maxstatecount = max([max(el["statecounts"]) for el in run["run"]])
         normalize = (maxstatecount > 10000) and normalize
@@ -143,7 +147,7 @@ def render(run, mode="laststates-thr", ax=None, title=None, normalize=True,sol_r
                 continue
             marker = markers[idx % len(markers)]
             thr = [el["threshold"] for el in run["run"]]
-            label = r"%s" % run["method"]["type"] if resultcount == 1 else r"$%s_{%s}$" % (run["method"]["type"], idx+1)
+            label = r"%s" % custom_label if resultcount == 1 else r"%s$_{%s}$" % (custom_label, idx+1)
             sta = [el["statecounts"][idx] for el in run["run"]]
             if normalize:
                 sta = [el/1000 for el in sta]
@@ -153,7 +157,7 @@ def render(run, mode="laststates-thr", ax=None, title=None, normalize=True,sol_r
         ax.set_ylabel("time [s]")
         tim = [el[times][-1] for el in run["run"]]
         thr = [el["threshold"] for el in run["run"]]
-        label = r"%s" % run["method"]["type"]
+        label = r"%s" % custom_label
         ax.plot(thr, tim, linestyle="dashed", marker="x",  label=label)
 
     ax.set_xlabel(r"threshold $\lambda$")
