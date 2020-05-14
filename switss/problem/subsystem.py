@@ -8,26 +8,42 @@ from ..model import DTMC, MDP, ReachabilityForm
 from ..utils import color_from_hash, InvertibleDict
 
 class Subsystem:
-    def __init__(self, supersystem, state_action_weights, ignore_consistency_checks=False):
+    def __init__(self, supersystem, certificate, certform, ignore_consistency_checks=False):
         assert isinstance(supersystem, ReachabilityForm)
-        assert state_action_weights.shape[0] == supersystem.P.shape[0], (
-            "result shape must be the amount of state-action pairs (%d!=%d)." % (state_action_weights.shape[0], supersystem.P.shape[0]))
-        assert ((0 <= state_action_weights) + (state_action_weights <= 1)).all(), "result has faulty values."
+        assert certform in ["min","max"]
+        D,C,N = certificate.shape[0], supersystem.P.shape[0], supersystem.P.shape[1]
+        # can be read as "certform == max ==> D == C"
+        assert certform != "max" or D == C, "certificate shape must be the amount of state-action pairs (%d!=%d)." % (D, C)
+        assert certform != "min" or D == N, "certificate shape must be the amount of states (%d!=%d)." % (D, N) 
+        assert ((0 <= certificate) + (certificate <= 1)).all(), "result has faulty values."
+        
         self.__supersys = supersystem
-        self.__state_action_weights = state_action_weights
+        self.__certificate = certificate 
+        self.__certform = certform
         self.__subsystem_mask = None
         self.__subsys = None
         self.__ignore_consistency_checks = ignore_consistency_checks
+
+    @property
+    def certform(self):
+        return self.__certform
+    
+    @property
+    def certificate(self):
+        return self.__certificate
 
     @property
     def subsystem_mask(self):
         if self.__subsystem_mask is None:
             C,N = self.__supersys.P.shape
             self.__subsystem_mask = np.zeros(N)
-            for index in range(C):
-                if self.__state_action_weights[index] > 0:
-                    (st,_) = self.__supersys.index_by_state_action.inv[index]
-                    self.__subsystem_mask[st] = True
+            if self.__certform == "max":
+                for index in range(C):
+                    if self.certificate[index] > 0:
+                        (st,_) = self.__supersys.index_by_state_action.inv[index]
+                        self.__subsystem_mask[st] = True
+            else:
+                self.__subsystem_mask = self.certificate > 0
 
         return self.__subsystem_mask
 
@@ -142,13 +158,13 @@ class Subsystem:
             else:
                 color = "azure3"
 
-            # only label state with weight if it is a markov chain
+            # only label state with weight if it is a markov chain or certform is "min"
             # otherwise the actions are labeled
-            if isinstance(self.subsys.system, DTMC) and in_subsystem:
-                weight = self.__state_action_weights[stateidx]
+            if (self.certform == "min" or isinstance(self.subsys.system, DTMC)) and in_subsystem:
+                cert = self.certificate[stateidx]
                 # coloring works, but is disabled for now.
                 # color = "gray%d" % int(100-weight*100)
-                label = "{}\nweight={:.5f}".format(label, weight)
+                label = "{}\nc[{}]={:.5f}".format(label, stateidx, cert)
                 
             return { "style" : "filled",  
                      "color" : color,  
@@ -158,12 +174,12 @@ class Subsystem:
             fail_or_target = sourceidx in [len(self.subsystem_mask), len(self.subsystem_mask)+1]
             in_subsystem = not fail_or_target and self.subsystem_mask[sourceidx]
             color, label = "black", str(action)
-            if in_subsystem:
+            if self.certform == "max" and in_subsystem:
                 index = self.supersys.index_by_state_action[(sourceidx, action)]
-                weight = self.__state_action_weights[index]
+                cert = self.certificate[index]
                 # coloring works, but is disabled for now.
                 # color = "gray%d" % int(weight*100)
-                label = "{}\nweight={:.5f}".format(label, weight)
+                label = "{}\nc[{}]={:.5f}".format(label, index, cert)
                 
             return { "node" : { "color" : color,   
                                 "label" : label,
@@ -172,8 +188,7 @@ class Subsystem:
                      "edge" : { "color" : color,  
                                 "dir" : "none" } }
 
-        graph = self.supersys.system.digraph(
-            state_map=state_map, action_map=action_map)
+        graph = self.supersys.system.digraph(state_map=state_map, action_map=action_map)
         return graph
 
     def __repr__(self):

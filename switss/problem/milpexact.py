@@ -5,7 +5,6 @@ from switss.utils import InvertibleDict
 from bidict import bidict
 import numpy as np
 
-
 class MILPExact(ProblemFormulation):
     """MILPExact implements the computation of minimal witnessing subsystems
     using mixed integer linear programs (MILP) over the corresponding
@@ -70,16 +69,7 @@ class MILPExact(ProblemFormulation):
             yield ProblemResult(milp_result.status,None,None,None)
 
         else:
-            # this creates a new C-dimensional vector which carries values for state-action pairs.
-            # every state-action pair is assigned the weight the state has.
-            # this "blowing-up" will make it easier for visualizing subsystems.
-            state_action_weights = np.zeros(C)
-            for idx in range(C):
-                state,_ = reach_form.index_by_state_action.inv[idx]
-                state_action_weights[idx] = milp_result.result_vector[state]
-
-            witness = Subsystem(reach_form, state_action_weights)
-
+            witness = Subsystem(reach_form, milp_result.result_vector, "min")
             yield ProblemResult(
                 "success",witness,milp_result.value,milp_result.result_vector)
 
@@ -108,9 +98,8 @@ class MILPExact(ProblemFormulation):
 
         if milp_result.status != "optimal":
             yield ProblemResult(milp_result.status,None,None,None)
-
         else:
-            witness = Subsystem(reach_form, milp_result.result_vector)
+            witness = Subsystem(reach_form, milp_result.result_vector, "max")
 
             yield ProblemResult(
                 "success",witness,milp_result.value,milp_result.result_vector)

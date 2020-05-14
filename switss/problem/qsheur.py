@@ -99,23 +99,12 @@ class QSHeur(ProblemFormulation):
             heur_result = heur_lp.solve(self.solver,timeout=timeout)
 
             if heur_result.status == "optimal":
-                state_weights = heur_result.result_vector[:N]
-
-                # this creates a new C-dimensional vector which carries
-                # values for state-action pairs.
-                # every state-action pair is assigned the weight the state
-                # has.
-                # this "blowing-up" will make visualizing subsystems easier.
-                state_action_weights = np.zeros(C)
-                for idx in range(C):
-                    state,_ = reach_form.index_by_state_action.inv[idx]
-                    state_action_weights[idx] = state_weights[state]
-
-                witness = Subsystem(reach_form, state_action_weights)
+                certificate = heur_result.result_vector[:N]
+                witness = Subsystem(reach_form, certificate, "min")
 
                 indicator_weights = heur_result.result_vector[N:]
                 no_nonzero_groups = len([i for i in indicator_weights if i > 0])
-                yield ProblemResult("success", witness, no_nonzero_groups,state_weights)
+                yield ProblemResult("success", witness, no_nonzero_groups, certificate)
 
                 current_objective = updater.update(heur_result.result_vector)
             else:
@@ -157,13 +146,13 @@ class QSHeur(ProblemFormulation):
             if heur_result.status == "optimal":
                 # for the max-form, the resulting vector will be
                 # C-dimensional, carrying values for state-action pairs.
-                state_action_weights = heur_result.result_vector[:C]
-                witness = Subsystem(reach_form, state_action_weights)
+                certificate = heur_result.result_vector[:C]
+                witness = Subsystem(reach_form, certificate, "max")
 
                 indicator_weights = heur_result.result_vector[C:]
                 no_nonzero_groups = len([i for i in indicator_weights if i > 0])
 
-                yield ProblemResult("success", witness, no_nonzero_groups,state_action_weights)
+                yield ProblemResult("success", witness, no_nonzero_groups, certificate)
 
                 current_objective = updater.update(heur_result.result_vector)
             else:
