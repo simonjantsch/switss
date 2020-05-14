@@ -15,7 +15,7 @@ class Subsystem:
         # can be read as "certform == max ==> D == C"
         assert certform != "max" or D == C, "certificate shape must be the amount of state-action pairs (%d!=%d)." % (D, C)
         assert certform != "min" or D == N, "certificate shape must be the amount of states (%d!=%d)." % (D, N) 
-        assert ((0 <= certificate) + (certificate <= 1)).all(), "result has faulty values."
+        # assert ((0 <= certificate) + (certificate <= 1)).all(), "result has faulty values."
         
         self.__supersys = supersystem
         self.__certificate = certificate 
