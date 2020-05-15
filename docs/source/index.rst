@@ -28,15 +28,20 @@ A MDP is a tuple :math:`\mathcal{M} = (S, \text{Act}, \iota, \textbf{P})`, where
 Also,
 
 * :math:`\text{Act}(s) \subseteq \text{Act}` denotes the set of actions that can be enabled in state :math:`s` (i.e. :math:`a \in \text{Act}(s) \Leftrightarrow \textbf{P}(s,a,d) > 0` for some state :math:`d`).
-* :math:`\mathcal{M} = \{ (s,a) \in S \times \text{Act} \mid a \in \text{Act}(s) \}` denotes the set of state-action-pairs.
+* And whenever suitable, :math:`\mathcal{M} = \{ (s,a) \in S \times \text{Act} \mid a \in \text{Act}(s) \}` also denotes the set of state-action-pairs.
 
 For :math:`\textbf{P}` we will use a :math:`C \times N` transition matrix :math:`\text{P}` where :math:`C = | \mathcal{M} |` denotes 
 the amount of state-action-pairs and :math:`N = | S |` the amount of states. Furthermore, every state-action pair :math:`(s,a) \in 
-\mathcal{M}` corresponds to some index :math:`i = 0,\dots,C-1` and every state :math:`s \in S` to some index :math:`j = 0,\dots,N-1`. 
-We define :math:`\text{P}(i,j) := \textbf{P}(s,a,d)` for all indices :math:`i,j` where :math:`i` is the index of :math:`(s,a)` and 
-:math:`j` is the index of :math:`d`. 
+\mathcal{M}` corresponds to some index :math:`i(s,a) \in \{0,\dots,C-1\}` and every state :math:`s \in S` to some index 
+:math:`j(s) \in \{0,\dots,N-1\}` and vice versa. We define :math:`\text{P}(i(s,a),j(d)) := \textbf{P}(s,a,d)` for all 
+:math:`(s \times a) \times d \in \mathcal{M} \times S`.
 
 DTMCs are treated as special MDPs where only a single action exists, which is then enabled in every state, in which case :math:`C=N`.
+
+Furthermore,
+
+* :math:`\textbf{Pr}^{\text{min}}_{s}(\diamond t)` and :math:`\textbf{Pr}^{\text{max}}_{s}(\diamond t)` denote the minimal and maximal probability over all schedulers of eventually reaching state :math:`t` when starting from state :math:`s`. For DTMCs, :math:`\textbf{Pr}^{\text{max}}_{s}(\diamond t) = \textbf{Pr}^{\text{min}}_{s}(\diamond t)`.
+* We also define :math:`\textbf{Pr}^{\text{min}}(\diamond t) = (\textbf{Pr}_s^{\text{min}}(\diamond t))_{s \in S}` (respectively for :math:`\text{max}`)  
 
 Instantiating DTMCs
 ===================
@@ -54,7 +59,7 @@ numpy arrays (or matrices), ordinary 2d-lists and scipy sparse matrices (instanc
 ...      [0.0, 0.0, 0.1, 0.9, 0.0, 0.0, 0.0]]
 >>> labels = { "target" : {3,4,6},
 ...            "init" :   {0} }
->>> mc = DTMC(P, labels)
+>>> mc = DTMC(P, label_to_states=labels)
 >>> mc.digraph().view()
 'Digraph.gv.pdf'
 
@@ -182,39 +187,255 @@ DTMCs and MDPs also support
 * getting actions that are available in some state and
 * getting predecessors & successors of states.
 
-Please see the `Models`_ subsection for more information.
+Please see the :class:`switss.model.DTMC` and :class:`switss.model.MDP` for more information.
 
 ***************************
 ReachabilityForm (RF) class
 ***************************
 
-A RF is a special DTMC/MDP with the following properties:
+A RF is a wrapper for DTMCs/MDPs with the following properties:
 
-* exactly one fail, goal and initial state :math:`fail,goal,init \in S`,
-* fail and goal have only one action :math:`\text{Act}(fail) = \{ a_{fail} \}, \text{Act}(goal) = \{ a_{goal} \}` that maps only to themselves, i.e. :math:`\textbf{P}(fail,a_{fail},fail)=1, \textbf{P}(goal,a_{goal},goal)=1`,
-* the fail state (goal state) has index :math:`N-1` (:math:`N-2`) and the corresponding state-action-pair index :math:`C-1` (:math:`C-2`),
-* every state is reachable from the initial state (fail doesn't need to be reachable): :math:`\textbf{Pr}_{init}(\diamond s) > 0 \text{ for all } s \in S \backslash \{ fail \}` and
-* every state reaches the goal state (except the fail state): :math:`\textbf{Pr}_s(\diamond goal) > 0 \text{ for all } s \in S \backslash \{ fail \}`.
+* exactly one fail, goal and initial state,
+* fail and goal have exactly one action, which maps only to themselves,
+* the fail state (goal state) has index N-1 (N-2) and the corresponding state-action-pair index C-1 (C-2),
+* every state is reachable from the initial state (fail doesn't need to be reachable) and
+* every state reaches the goal state (except the fail state).
 
+This kind of DTMC/MDP is one of the core components of SWITSS, since this enables the matrices and vectors that are 
+essential for the farkas constraints defined in `FJB19`_ (see table 1):
 
-* :math:`\textbf{Pr}^{\text{min}}_{s}(\diamond t)` and :math:`\textbf{Pr}^{\text{max}}_{s}(\diamond t)` denote the minimal and maximal probability over all schedulers of eventually reaching state :math:`t` when starting from state :math:`s`. For DTMCs, :math:`\textbf{Pr}^{\text{max}}_{s}(\diamond t) = \textbf{Pr}^{\text{min}}_{s}(\diamond t)`.
-* We also define :math:`\textbf{Pr}^{\text{min}}(\diamond t) = (\textbf{Pr}_s^{\text{min}}(\diamond t))_{s \in S}` (respectively for :math:`\text{max}`)  
+Let :math:`\textbf{A}` be a :math:`(C-2) \times (N-2)` matrix where 
 
-This kind of DTMC/MDP is one of the core components of SWITSS. 
+.. math::
+   
+   \textbf{A}(i(s,a), j(d)) = \begin{cases} 1 - \text{P}(i(s,a), j(d)) &\text{ if } d = s \\ 
+                                            - \text{P}(i(s,a), j(d)) &\text{ if } d \neq s \end{cases}, 
+      \\ \text{for all } (s,a) \in \mathcal{M} \backslash \{(goal,\cdot),(fail,\cdot)\}, 
+      \\ d \in S \backslash \{ goal, fail \}. 
 
-********************
-Problem Formulations
-********************
+and :math:`\textbf{b}` a vector of length :math:`C-2` where
 
-MILP Formulation
-================
+.. math::
 
-Quotient Sum Heuristic
-======================
+   \textbf{b}(i(s,a)) = \text{P}(i(s,a),j(goal)), \text{ for all } (s,a) \in \mathcal{M} \backslash \{(goal,\cdot),(fail,\cdot)\}.
 
-*************
-Certification
-*************
+Accessing :math:`\textbf{A}` and :math:`\textbf{b}` can be done via `rf.A` and `rf.to_target`, if `rf` is an instance 
+of `model.ReachabilityForm`. For the corresponding Farkas constraints, please see :class:`switss.model.ReachabilityForm`. 
+
+Reduction of DTMCs/MDPs to ReachabilityForms
+============================================
+
+RFs support the reduction of DTMCs/MDPs that do not fulfill the criteria to DTMCs/MDPs that do:
+
+.. code-block::
+
+   from switss.model import DTMC, ReachabilityForm
+   M = DTMC.from_file("datasets/crowds-2-3.lab", "datasets/crowds-2-3.tra")
+   Mrf, state_map, state_action_map = ReachabilityForm.reduce(M, "init", "target")
+   Mrf.system.digraph().view()
+
+In this example, `Mrf.system` is the generated DTMC/MDP in reachability form, `state_map` (`state_action_map`) describes a mapping 
+from states (state-action pairs) in `M` to states (state-action pairs) in `Mrf.system`. If a state (state-action pair) does not 
+occur in the mapping, it was removed on the way. 
+
+If is also possible to directly instantiate a RF from a DTMC/MDP that already is in reachability form: 
+
+.. code-block::
+
+   from switss.model import DTMC, ReachabilityForm
+   M = DTMC.from_file("datasets/crowds-2-3-rf.lab", "datasets/crowds-2-3-rf.tra")
+   Mrf = ReachabilityForm(M, "init", "target") 
+
+Reachability probabilities
+==========================
+
+RFs implement methods for computing maximal and minimal reachability probabilities :math:`\mathbf{Pr}^{\text{max}}(\diamond goal)` and
+:math:`\mathbf{Pr}^{\text{min}}(\diamond goal)`:
+
+.. code-block::
+
+   from switss.model import MDP, ReachabilityForm
+   index_by_state_action = {(0, 0): 0, (0, 1): 1, (1, 0): 2, (2, 0): 3, (2, 1): 4, (3,0) : 5}
+   actionlabels = {"A" : { (0,0), (2,0), (1,0), (3,0) }, "B" : { (2,1), (0,1) } }
+
+   P = [ [0.3, 0.0, 0.7, 0.0],
+         [0.0, 1.0, 0.0, 0.0],
+         [0.5, 0.0, 0.0, 0.5],
+         [0.5, 0.5, 0.0, 0.0],
+         [0.0, 0.0, 1.0, 0.0],
+         [0.0, 0.0, 0.0, 1.0]]
+
+   labels = {  "target": {2},
+               "init"  : {0}}
+
+   mdp = MDP(P, index_by_state_action, actionlabels, labels)
+   rf,_,_ = ReachabilityForm.reduce(mdp, "init", "target")
+   print(rf.pr_max(), rf.pr_min())
+
+************************
+Finding small subsystems
+************************
+
+In order to search for small subsystems, methods for exact solutions (MILP formulation) and heuristic approaches 
+(quotient sum heuristic) are implemented:
+
+.. code-block::
+
+   from switss.model import DTMC, ReachabilityForm
+   from switss.problem import MILPExact, QSHeur
+   from switss.problem import InverseFrequencyInitializer, InverseReachabilityInitializer
+
+   milpmin = MILPExact(mode="min")
+   milpmax = MILPExact(mode="max", solver="gurobi")
+   qsheurmin = QSHeur(mode="min", iterations=5)
+   qsheurmax = QSHeur(mode="max", solver="cbc")
+   qsheurmin_iri = QSHeur(mode="min", solver="gurobi", initializertype=InverseReachabilityInitializer)
+   qsheurmax_ifi = QSHeur(mode="max", solver="glpk", initializertype=InverseFrequencyInitializer)
+
+   mc = DTMC.from_file("datasets/crowds-2-3-rf.lab", "datasets/crowds-2-3-rf.tra")
+   rf = ReachabilityForm(mc, "init")
+   problems = [milpmin, milpmax, qsheurmin, qsheurmax, qsheurmax_ifi, qsheurmin_iri]
+   for p in problems:
+      result = p.solve(rf, 0.1)
+      print(result)
+      print("-"*20)
+
+Here, `MILPExact` corresponds to the MILP Formulation and `QSHeur` to the quotient sum heuristic (see :class:`switss.problem.QSHeur`
+and :class:`switss.problem.MILPExact` for more information on how to specify additional parameters). 
+
+Results of such minimizations are given as :class:`switss.problem.ProblemResult` instances which contain the objective value of the 
+solved MILP/LPs, a :math:`N-2` or :math:`C-2` dimensional certificate (dependent on whether "max" or "min" was choosen) and a 
+:class:`switss.problem.Subsystem`-object that contains reachability forms for both super- and subsystem and, additionally, a method
+for rendering subsystems with their corresponding certificate values:
+
+.. code-block::
+   
+   from switss.model import DTMC, ReachabilityForm
+   from switss.problem import QSHeur
+   mc = DTMC.from_file("datasets/crowds-2-3-rf.lab", "datasets/crowds-2-3-rf.tra")
+   rf = ReachabilityForm(mc, "init")
+   qs = QSHeur("min")
+   result = qs.solve(rf, 0.1)
+   result.subsystem.digraph().view()
+
+Label-based minimization
+========================
+
+SWITSS also implements label-based minimization, i.e. minimization based on the number of labels in a system. To do so, one can
+add lists of labels to `MILPExact` or `QSHeur` instances:
+
+.. code-block::
+
+   from switss.model import DTMC, ReachabilityForm
+   from switss.problem import MILPExact
+
+   P = [ [0.3, 0.7, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+         [0.0, 0.1, 0.0, 0.7, 0.0, 0.1, 0.0, 0.0, 0.1, 0.0],
+         [0.0, 0.1, 0.0, 0.0, 0.0, 0.1, 0.0, 0.0, 0.8, 0.0],
+         [0.0, 0.2, 0.0, 0.4, 0.2, 0.0, 0.1, 0.1, 0.0, 0.0],
+         [0.0, 0.0, 0.0, 0.0, 0.7, 0.0, 0.0, 0.1, 0.2, 0.0],
+         [0.0, 0.0, 0.0, 0.1, 0.0, 0.8, 0.0, 0.0, 0.1, 0.0],
+         [0.0, 0.0, 0.7, 0.3, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+         [0.0, 0.0, 0.0, 0.0, 0.3, 0.0, 0.0, 0.6, 0.0, 0.1],
+         [0.0, 0.0, 0.0, 0.0, 0.0, 0.9, 0.0, 0.0, 0.1, 0.0],
+         [0.0, 0.0, 0.1, 0.9, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]
+
+   labels = {  "target" : {8},
+               "init" : {0},
+               "group1" : {1,3,6},
+               "group2" : {7,9,2},
+               "group3" : {4,5} }
+
+   mc = DTMC(P, label_to_states=labels)
+   rf,_,_ = ReachabilityForm.reduce(mc, "init", "target")
+   milp = MILPExact("min")
+   result_with_labels = milp.solve(rf, 0.5, labels=["group1","group2","group3"])
+   result_no_labels = milp.solve(rf, 0.5)
+   print(result_with_labels.subsystem)
+   print("---")
+   print(result_no_labels.subsystem)
+
+Comparing the results of this particular instance, one will notice that in the second case (`result_no_labels`) the subsystem 
+yields a much smaller size than compared with the first instance. In the first case however, label `group2` was completely eliminated.
+For exectuable examples, see `examples/groups.ipynb <https://github.com/simonjantsch/switss/blob/master/examples/groups.ipynb>`_.
+
+Iterative results
+=================
+
+Repeated application of `QSHeur` yields multiple small subsystems along the way. By calling `.solveiter` instead 
+of `.solve` on `problem.ProblemFormulation` instances, one can iterate over these solutions. In fact, `.solve` uses `.solveiter` 
+itself and returns only the last result:
+
+.. code-block::
+
+   from switss.model import DTMC, ReachabilityForm
+   from switss.problem import QSHeur 
+   mc = DTMC.from_file("datasets/crowds-2-3-rf.lab", "datasets/crowds-2-3-rf.tra")
+   rf = ReachabilityForm(mc)
+   qs = QSHeur("min")
+   for result in qs.solveiter(rf, 0.01):
+      print(result)
+      print("-"*10)
+
+************
+Certificates
+************
+
+SWITSS supports the generation and the checking of farkas certificates. This can be used, for example, for validating the results 
+of solved problem instances: 
+
+>>> from switss.model import DTMC, ReachabilityForm
+>>> from switss.certification import generate_farkas_certificate
+>>> M = DTMC.from_prism_model("datasets/leader_sync3_2.pm")
+>>> Mrf,_,_ = ReachabilityForm.reduce(M,"init","elected")
+>>> generate_farkas_certificate(Mrf, "max", ">=", 0.1, solver="cbc")
+array([1.3333333 , 0.16666667, 0.16666667, 0.16666667, 0.16666667,
+       0.16666667, 0.16666667, 0.16666667, 0.16666667, 0.16666667,
+       0.16666667, 0.16666667, 0.16666667, 0.16666667, 0.16666667,
+       0.16666667, 0.16666667, 0.16666667, 0.16666667, 0.16666667,
+       0.16666667, 0.16666667, 0.16666667, 0.16666667, 0.16666667,
+       1.        ])
+
+>>> from switss.model import DTMC, ReachabilityForm
+>>> from switss.problem import MILPExact
+>>> M = DTMC.from_prism_model("datasets/leader_sync3_2.pm")
+>>> Mrf,_,_ = ReachabilityForm.reduce(M,"init","elected"
+>>> from switss.certification import check_farkas_certificate
+>>> milp = MILPExact("min")
+>>> result = milp.solve(Mrf, 0.1)    
+>>> result.farkas_cert
+array([0.1, 0. , 0. , 0. , 0. , 0.8, 0. , 0. , 0. , 0. , 0. , 0. , 0. ,
+       0.8, 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 1. , 0. , 1. ])
+>>> check_farkas_certificate(Mrf, "min", ">=", 0.1, result.farkas_cert)
+True
+
+Supported are checks for all 4 entries of table 1 of [FJB19]_. For more details, please see `Certification`_. For exectu
+
+**********
+Benchmarks
+**********
+
+In order to make heuristics or exact solutions better comparable, one can run benchmarks on different models, with different 
+methods and for varying thresholds. Benchmarks can also be plotted with the help of `matplotlib` for fast visualization:
+
+>>> from switss.problem import QSHeur, MILPExact                                                                                                                                              
+>>> from switss.benchmarks import benchmarks as bm                                                                                                                                            
+>>> from switss.model import DTMC, ReachabilityForm                                                                                                                                           
+>>> import matplotlib.pyplot as plt 
+>>> M = DTMC.from_file("datasets/crowds-2-3-rf.lab", "datasets/crowds-2-3-rf.tra")                                                                                                            
+>>> Mrf = ReachabilityForm(M,"init")                                                                                                                                                          
+>>> qs = QSHeur("min")                                                                                                                                                                        
+>>> milp = MILPExact("min")                                                                                                                                                                   
+>>> dataqs, datamilp = bm.run(Mrf, [qs,milp], from_thr=0.01, to_thr=0.5, step=0.01)                                                                                                           
+>>> fig, ax = plt.subplots(1,1,figsize=(7,6))                                                                                                                                                 
+>>> bm.render(dataqs, mode="states-thr", ax=ax, title="QSHeur min vs. MILPExact min")                                                                                                         
+<matplotlib.axes._subplots.AxesSubplot object at 0x7fc65d4f3f60>                                                                                                                              
+>>> bm.render(datamilp, mode="states-thr", ax=ax)                                                                                                                                             
+<matplotlib.axes._subplots.AxesSubplot object at 0x7fc65d4f3f60>
+>>> plt.show()
+
+See `examples/benchmarks.ipynb <https://github.com/simonjantsch/switss/blob/master/examples/benchmarks.ipynb>`_ for more executable
+examples and `Benchmarking`_ for more details on `run` and `render`.
 
 ***************************
 Modules & classes reference
@@ -237,6 +458,13 @@ Problem
 Certification
 =============
 .. automodule:: switss.certification
+   :imported-members:
+   :members:
+   :undoc-members:
+
+Benchmarking
+============
+.. automodule:: switss.benchmarks
    :imported-members:
    :members:
    :undoc-members:
