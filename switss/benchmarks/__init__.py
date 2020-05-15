@@ -1,1 +1,1 @@
-from .benchmarks import *
+from .benchmarks import render, run 
