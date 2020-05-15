@@ -114,7 +114,7 @@ class AbstractMDP(ABC):
                 self.__available_actions.add(state, action)
         return self.__available_actions
 
-    def reachable_mask(self, from_set, mode, blacklist=set()):
+    def reachable_mask(self, from_set, mode, blocklist=set()):
         """Computes an :math:`N`-dimensional vector which has a True-entry (False otherwise) for
         every state index that is reachable from 'from_set' in the given search mode (forward or backward).
         
@@ -122,8 +122,8 @@ class AbstractMDP(ABC):
         :type from_set: Set[int]
         :param mode: Either 'forward' or 'backward'. Defines the direction of search.
         :type mode: str
-        :param blacklist: Set of states that should block any further search.
-        :type blacklist: Set[int]
+        :param blocklist: Set of states that should block any further search.
+        :type blocklist: Set[int]
         :return: Resulting vector.
         :rtype: np.ndarray[bool]
         """        
@@ -134,7 +134,7 @@ class AbstractMDP(ABC):
         while True:
             fromidx = active.pop()
             reachable[fromidx] = True
-            if fromidx not in blacklist:
+            if fromidx not in blocklist:
                 succ = { sap[0] for sap in neighbour_iter(fromidx) if reachable[sap[0]] == False }
                 active.update(succ)
             if len(active) == 0:
@@ -185,7 +185,7 @@ class AbstractMDP(ABC):
         states_by_label, _, _ = parse_label_file(label_file_path)
         # then load the transition matrix
         res = cls._load_transition_matrix(tra_file_path)
-        return cls(*res, states_by_label)
+        return cls(**res, label_to_states=states_by_label)
         
     @classmethod
     def from_prism_model(cls, model_file_path, prism_constants = {}, extra_labels = {}):

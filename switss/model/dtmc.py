@@ -7,7 +7,7 @@ from ..utils import color_from_hash, cast_dok_matrix
 from ..prism import prism
 
 class DTMC(AbstractMDP):
-    def __init__(self, P, label_to_states={}, **kwargs):
+    def __init__(self, P, index_by_state_action=None, label_to_states={}, **kwargs):
         """Instantiates a DTMC from a transition matrix and labelings for states.
 
         :param P: :math:`N \\times N` transition matrix.
@@ -17,9 +17,14 @@ class DTMC(AbstractMDP):
         """# transform P into dok_matrix if neccessary
         P =  cast_dok_matrix(P)  
         assert P.shape[0] == P.shape[1], "P must be a (NxN)-matrix but has shape %s" % P.shape
-        index_by_state_action = bidict()
-        for i in range(P.shape[0]):
-            index_by_state_action[(i,0)] = i
+        if index_by_state_action is None:
+            index_by_state_action = bidict()
+            for i in range(P.shape[0]):
+                index_by_state_action[(i,0)] = i
+        else:
+            for s,a in index_by_state_action.keys():
+                assert a == 0, "If state-actions are specified, DTMCs must have all 0-entries for actions: (%s,%s)" % (s,a)
+
         super().__init__(P, index_by_state_action, {}, label_to_states)
 
     def digraph(self, state_map = None, trans_map = None, action_map = None):
@@ -74,8 +79,9 @@ class DTMC(AbstractMDP):
         # connect nodes between each other
         existing_nodes = set({})
 
-        for (source, dest), p in self.P.items():
+        for (rowidx, dest), p in self.P.items():
             # transition from source to dest w/ probability p
+            source,_ = self.index_by_state_action.inv[rowidx]
             for node in [source, dest]:
                 if node not in existing_nodes:
                     state_setting = state_map(node, self.labels_by_state[node])
@@ -95,8 +101,7 @@ class DTMC(AbstractMDP):
         with open(tra_path, "w") as tra_file:
             tra_file.write("%d %d\n" % (self.N, self.P.nnz))
             for (source,dest), p in self.P.items():
-                if p > 0:
-                    tra_file.write("%d %d %f\n" % (source, dest, p))
+                tra_file.write("%d %d %f\n" % (source, dest, p))
 
         with open(lab_path, "w") as lab_file:
             unique_labels_list = list(self.states_by_label.keys())
@@ -128,4 +133,4 @@ class DTMC(AbstractMDP):
                     dest = int(line_split[1])
                     prob = float(line_split[2])
                     P[source,dest] = prob
-        return P,
+        return { "P" :  P }

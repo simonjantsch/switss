@@ -82,7 +82,7 @@ def toy_dtmc1():
 
     labels = { "target" : {3,4,6}, "init" : {0} }
 
-    return(DTMC(P, labels))
+    return(DTMC(P, label_to_states=labels))
 
 def toy_dtmc2():
     P = [[0.3, 0.7, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -102,5 +102,5 @@ def toy_dtmc2():
               "group2" : {7,9,2},
               "group3" : {4,5} }
 
-    return(DTMC(P, labels))
+    return(DTMC(P, label_to_states=labels))
 

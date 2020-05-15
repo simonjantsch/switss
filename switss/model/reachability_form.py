@@ -71,8 +71,8 @@ class ReachabilityForm:
         assert isinstance(system, AbstractMDP)
         assert new_target_label not in system.states_by_label.keys(), "Label '%s' for target state already exists in system %s" % (new_target_label, system)
         assert new_fail_label not in system.states_by_label.keys(), "Label '%s' for fail state already exists in system %s" % (new_fail_label, system)
-        assert len(system.states_by_label[target_label]) > 0, "There needs to be at least one target state."
         target_states = system.states_by_label[target_label]
+        assert len(target_states) > 0, "There needs to be at least one target state."
         initial_state_count = len(system.states_by_label[initial_label])
         assert initial_state_count == 1, "There are %d states with label '%s'. Must be 1." % (initial_state_count, initial_label)
         initial = list(system.states_by_label[initial_label])[0]
@@ -82,21 +82,16 @@ class ReachabilityForm:
         backward_reachable = system.reachable_mask(target_states, "backward")
         if debug:
             print("calculating reachable mask (forward)...")
-        forward_reachable = system.reachable_mask(set([initial]), "forward", blacklist=target_states)
+        forward_reachable = system.reachable_mask(set([initial]), "forward", blocklist=target_states)
         # states which are reachable from the initial state AND are able to reach target states
         reachable_mask = backward_reachable & forward_reachable
         # TODO: use reachable_mask instead of reachable everywhere
         # this is much better for performance since lookup of states is always O(1)
-        reachable = { idx for idx,x in enumerate(reachable_mask) if x }
+        reachable = list({ idx for idx,x in enumerate(reachable_mask) if x })
 
         if debug:
             print("tested backward & forward reachability test")
         
-        # if debug:
-        #     print("removed target states that are only reachable from other target states")
-
-        reachable = list(reachable)
-
         # reduce states + new target and new fail state 
         new_state_count = len(reachable) + 2
         target_idx, fail_idx = new_state_count - 2, new_state_count - 1
@@ -105,65 +100,42 @@ class ReachabilityForm:
             print("new states: %s, target index: %s, fail index: %s" % (new_state_count, target_idx, fail_idx))
         
         # create a mapping from system to reachability form
-        to_rf_cols, to_rf_rows = {}, bidict()
+        to_rf_cols, to_rf_rows = bidict(), bidict()
 
-        # [0...len(reachable)-1] reachable (mapped to respective states)
-        # [len(reachable)...M-1] not in reachable but target states (mapped to target)
-        # [M-1...N-1] neither reachable nor target states (mapped to fail)
-        # overall N entries in "to_reachability"
         for sapidx in range(system.C):
             stateidx, actionidx = system.index_by_state_action.inv[sapidx]
-            newidx = None
-            if stateidx in reachable:
-                # state is reachable
+            if reachable_mask[stateidx]:
                 newidx = reachable.index(stateidx)
                 to_rf_rows[(stateidx,actionidx)] = (newidx,actionidx)
-            elif target_label in system.labels_by_state[stateidx]:
-                # state is not in reachable but a target state
-                # => map to target state
-                newidx = target_idx
-            else:
-                # state is not reachable and not a target state
-                # => map to fail state
-                newidx = fail_idx
-            to_rf_cols[stateidx] = newidx
+                to_rf_cols[stateidx] = newidx
 
         if debug:
             print("computed state-action mapping")
 
         # compute reduced transition matrix (without non-reachable states)
         # compute probability of reaching the target state in one step 
-        new_N = len(reachable)
-        new_C = len(set([(s,a) for (s,a) in system.index_by_state_action.keys() if s in reachable]))
+        new_N = len(set(to_rf_cols.values()))
+        new_C = len(set(to_rf_rows.values()))
         new_P = dok_matrix((new_C, new_N))
-        if debug:
-            print("shape of new_P %s" % (new_P.shape,))
         new_index_by_state_action = bidict()
+        
+        if debug:
+            print("shape of new_P (%s,%s)" % (new_C,new_N))
+
         to_target = np.zeros(new_C)
-
-        i = 0
-        for (sapidx, destidx), p in system.P.items():
-            sourceidx, action = system.index_by_state_action.inv[sapidx]
-            new_sourceidx = to_rf_cols[sourceidx]
-            new_destidx = to_rf_cols[destidx]
-            
-            if new_sourceidx not in [target_idx, fail_idx]:
-
-                if (new_sourceidx, action) not in new_index_by_state_action:
-                    new_index_by_state_action[new_sourceidx, action] = i
-                    i += 1
-                index = new_index_by_state_action[(new_sourceidx,action)]
-
-                if target_label in system.labels_by_state[sourceidx]:
-                    # if old source is a target state, then it is remapped to the new target state with p=1
-                    to_target[index] = 1
-                elif new_destidx not in [target_idx, fail_idx]:
-                    # new transition matrix
-                    new_P[index, new_destidx] = p
-
+        for newidx, ((source,action),(newsource,newaction)) in enumerate(to_rf_rows.items()):
+            new_index_by_state_action[(newsource,newaction)] = newidx
+            if source in target_states:
+                to_target[newidx] = 1
+            else:
+                idx = system.index_by_state_action[(source,action)]
+                for dest in [s for s,a in system.successors(source) if a == action]:
+                    if dest in to_rf_cols:
+                        newdest = to_rf_cols[dest]
+                        new_P[newidx, newdest] = system.P[idx, dest]
         if debug:
             print("computed transition matrix & to_target")
-        
+
         rf_system = ReachabilityForm.__initialize_system(
             new_P, 
             new_index_by_state_action,
@@ -177,7 +149,7 @@ class ReachabilityForm:
             rf_system, 
             initial_label, 
             target_label=new_target_label, 
-            fail_label=new_fail_label, 
+            fail_label=new_fail_label,
             ignore_consistency_checks=True)
 
         return rf, to_rf_cols, to_rf_rows
@@ -195,6 +167,7 @@ class ReachabilityForm:
         index_by_state_action_compl = index_by_state_action.copy()
         index_by_state_action_compl[(target_state,0)] = C
         index_by_state_action_compl[(fail_state,0)] = C+1
+    
         
         # copy labels from configuration (i.e. a system)
         # mapping defines which state-action pairs in the system map to which state-action pairs in the r.f.
@@ -208,15 +181,14 @@ class ReachabilityForm:
                 label_to_states[l].add(stateidx)
             actionlabels = configuration.labels_by_action[(sys_stateidx,sys_actionidx)]
             for l in actionlabels:
-                label_to_actions[l].add((sys_stateidx,sys_actionidx))
+                label_to_actions[l].add((stateidx,actionidx))
         label_to_states[fail_label].add(fail_state)
         label_to_states[target_label].add(target_state)
 
         not_to_fail = np.zeros(C)
         for (idx, dest), p in P.items():
-            if p > 0:
-                not_to_fail[idx] += p
-                P_compl[idx, dest] = p
+            not_to_fail[idx] += p
+            P_compl[idx, dest] = p
 
         for idx, p_target in enumerate(to_target):
             if p_target > 0:

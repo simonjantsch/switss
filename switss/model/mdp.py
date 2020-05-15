@@ -184,4 +184,4 @@ class MDP(AbstractMDP):
                     max_index += 1
                 P[index,dest] = prob
 
-        return P,index_by_state_action,label_to_actions
+        return { "P" : P, "index_by_state_action" : index_by_state_action, "label_to_actions" : label_to_actions }
