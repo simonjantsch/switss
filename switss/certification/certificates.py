@@ -2,12 +2,27 @@ from switss.solver import LP
 import numpy as np
 
 def generate_farkas_certificate(reach_form, mode, sense, threshold,solver="cbc"):
-    """ Generates Farkas certificates for a given reachability form, mode, sense and threshold using the characterizations in Table 1 of [FJB19]_.
-    To this end uses an LP solver to find a satisfying vector of the corresponding polytope.
-    For strict inequalities, maximizes (minimizes) the probability and then checks whether the result value is strictly greater than the threshold.
+    """Generates Farkas certificates for a given reachability form, mode, sense and threshold using the characterizations 
+    in Table 1 of [FJB19]_. To this end uses an LP solver to find a satisfying vector of the corresponding polytope. 
+    For strict inequalities, maximizes (minimizes) the probability and then checks whether the result value is strictly 
+    greater than the threshold.
 
-    As the solvers that are currently supported do not use precise arithmetic the resulting vectors may deviate from the desired result slightly.
-    """
+    Since the solvers that are currently supported do not use precise arithmetic, the resulting vectors may deviate from 
+    the desired result a bit. 
+
+    :param reach_form: RF the certificate should be generated for
+    :type reach_form: model.ReachabilityForm
+    :param mode: must be either "min" or "max"
+    :type mode: str
+    :param sense: must be either "<=", ">=", "<" or ">".
+    :type sense: str 
+    :param threshold: threshold the certificate should be generated for
+    :type threshold: float
+    :param solver: used solver, must be either "gurobi", "cbc", "glpk" or "cplex", defaults to "cbc"
+    :type solver: str, optional
+    :return: :math:`N-2` or :math:`C-2` dimensional vector, dependent on mode
+    :rtype: numpy.ndarray[float]
+    """    
 
     assert (threshold >= 0) and (threshold <= 1)
 
@@ -67,10 +82,24 @@ def check_farkas_certificate(reach_form, mode, sense, threshold, farkas_vec, tol
     whether the vector is a legal Farkas certificate for the reachability constraint.
 
     To allow small deviations when checking the certificate conditions one can set the
-    tol (for tolerance) parameter (defaults to 1e-8).
-    It is then checked that any constraint deviates by at most the value in tol.
-    """
+    tol (for tolerance) parameter (defaults to 1e-8). It is then checked that any constraint 
+    deviates by at most the value in tol.
 
+    :param reach_form: RF the certificate should be checked for
+    :type reach_form: model.ReachabilityForm
+    :param mode: either "min" or "max"
+    :type mode: str
+    :param sense: either "<=", ">=", "<" or ">"
+    :type sense: str
+    :param threshold: The threshold that should be used
+    :type threshold: float
+    :param farkas_vec: :math:`N-2` or :math:`C-2` dimensional certificate vector, dependent on mode
+    :type farkas_vec: np.ndarray[float]
+    :param tol: The used tolerance, defaults to 1e-8
+    :type tol: float, optional
+    :return: Either True (certificate is valid for used tolerance) or False (that is not the case)
+    :rtype: bool
+    """       
     assert (threshold >= 0) and (threshold <= 1)
 
     farkas_matr,rhs = __get_right_constraint_set(reach_form,mode,sense,threshold)
