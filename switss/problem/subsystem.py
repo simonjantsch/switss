@@ -179,7 +179,7 @@ class Subsystem:
             in_subsystem = not fail_or_target and self.subsystem_mask[sourceidx]
             color, label = "black", str(action)
             if self.certform == "max" and in_subsystem:
-                index = self.supersys.index_by_state_action[(sourceidx, action)]
+                index = self.supersys.system.index_by_state_action[(sourceidx, action)]
                 cert = self.certificate[index]
                 # coloring works, but is disabled for now.
                 # color = "gray%d" % int(weight*100)
