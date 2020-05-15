@@ -152,6 +152,9 @@ class ReachabilityForm:
             fail_label=new_fail_label,
             ignore_consistency_checks=True)
 
+        # check that reachability_form has no non-trivial MECs apart from goal,fail
+        rf._check_mec_freeness();
+
         return rf, to_rf_cols, to_rf_rows
 
     @property
