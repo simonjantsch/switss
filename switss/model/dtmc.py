@@ -100,7 +100,8 @@ class DTMC(AbstractMDP):
 
         with open(tra_path, "w") as tra_file:
             tra_file.write("%d %d\n" % (self.N, self.P.nnz))
-            for (source,dest), p in self.P.items():
+            for (rowidx,dest), p in self.P.items():
+                source,_ = self.index_by_state_action.inv[rowidx]
                 tra_file.write("%d %d %f\n" % (source, dest, p))
 
         with open(lab_path, "w") as lab_file:
