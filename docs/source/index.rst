@@ -30,11 +30,10 @@ Also,
 * :math:`\text{Act}(s) \subseteq \text{Act}` denotes the set of actions that can be enabled in state :math:`s` (i.e. :math:`a \in \text{Act}(s) \Leftrightarrow \textbf{P}(s,a,d) > 0` for some state :math:`d`).
 * And whenever suitable, :math:`\mathcal{M} = \{ (s,a) \in S \times \text{Act} \mid a \in \text{Act}(s) \}` also denotes the set of state-action-pairs.
 
-For :math:`\textbf{P}` we will use a :math:`C \times N` transition matrix :math:`\text{P}` where :math:`C = | \mathcal{M} |` denotes 
+For :math:`\textbf{P}` we will use a :math:`C \times N` transition matrix where :math:`C = | \mathcal{M} |` denotes 
 the amount of state-action-pairs and :math:`N = | S |` the amount of states. Furthermore, every state-action pair :math:`(s,a) \in 
-\mathcal{M}` corresponds to some index :math:`i(s,a) \in \{0,\dots,C-1\}` and every state :math:`s \in S` to some index 
-:math:`j(s) \in \{0,\dots,N-1\}` and vice versa. We define :math:`\text{P}(i(s,a),j(d)) := \textbf{P}(s,a,d)` for all 
-:math:`(s \times a) \times d \in \mathcal{M} \times S`.
+\mathcal{M}` corresponds to some index :math:`i \in \{0,\dots,C-1\}` and every state :math:`s \in S` to some index 
+:math:`j \in \{0,\dots,N-1\}` and vice versa. 
 
 DTMCs are treated as special MDPs where only a single action exists, which is then enabled in every state, in which case :math:`C=N`.
 
@@ -204,22 +203,24 @@ A RF is a wrapper for DTMCs/MDPs with the following properties:
 This kind of DTMC/MDP is one of the core components of SWITSS, since this enables the matrices and vectors that are 
 essential for the farkas constraints defined in `FJB19`_ (see table 1):
 
-Let :math:`\textbf{A}` be a :math:`(C-2) \times (N-2)` matrix where 
+:math:`\textbf{A}` is a :math:`(C-2) \times (N-2)` matrix where 
 
 .. math::
    
-   \textbf{A}(i(s,a), j(d)) = \begin{cases} 1 - \text{P}(i(s,a), j(d)) &\text{ if } d = s \\ 
-                                            - \text{P}(i(s,a), j(d)) &\text{ if } d \neq s \end{cases}, 
-      \\ \text{for all } (s,a) \in \mathcal{M} \backslash \{(goal,\cdot),(fail,\cdot)\}, 
-      \\ d \in S \backslash \{ goal, fail \}. 
+   \textbf{A}((s,a), d) = \begin{cases} 1 - \textbf{P}((s,a), d) &\text{ if } d = s \\ 
+                                            - \textbf{P}((s,a), d) &\text{ if } d \neq s \end{cases}, 
 
-and :math:`\textbf{b}` a vector of length :math:`C-2` where
+for all :math:`(s,a),d \in \mathcal{M} \times S` such that  :math:`s,d \not\in \{ fail, goal \}`.
+
+Analogous, :math:`\textbf{b}` is a vector of length :math:`C-2` where
 
 .. math::
 
-   \textbf{b}(i(s,a)) = \text{P}(i(s,a),j(goal)), \text{ for all } (s,a) \in \mathcal{M} \backslash \{(goal,\cdot),(fail,\cdot)\}.
+   \textbf{b}((s,a)) = \text{P}((s,a),goal),
+   
+for all :math:`(s,a) \in \mathcal{M}` such that :math:`s \not \in \{goal,fail\}`.
 
-Accessing :math:`\textbf{A}` and :math:`\textbf{b}` can be done via `rf.A` and `rf.to_target`, if `rf` is an instance 
+Accessing :math:`\textbf{A}` and :math:`\textbf{b}` can be done via `rf.A` and `rf.to_target` if `rf` is an instance 
 of `model.ReachabilityForm`. For the corresponding Farkas constraints, please see :class:`switss.model.ReachabilityForm`. 
 
 Reduction of DTMCs/MDPs to ReachabilityForms
@@ -269,7 +270,7 @@ RFs implement methods for computing maximal and minimal reachability probabiliti
                "init"  : {0}}
 
    mdp = MDP(P, index_by_state_action, actionlabels, labels)
-   rf,_,_ = ReachabilityForm.reduce(mdp, "init", "target")
+   rf,_,_ = ReachabilityForm.reduce(mdp, "init")
    print(rf.pr_max(), rf.pr_min())
 
 ************************
@@ -409,7 +410,9 @@ array([0.1, 0. , 0. , 0. , 0. , 0.8, 0. , 0. , 0. , 0. , 0. , 0. , 0. ,
 >>> check_farkas_certificate(Mrf, "min", ">=", 0.1, result.farkas_cert)
 True
 
-Supported are checks for all 4 entries of table 1 of [FJB19]_. For more details, please see `Certification`_. For exectu
+Supported are checks for all 4 entries of table 1 of [FJB19]_. For more details on both methods, please see `Certification`_. 
+For executable examples, see 
+`examples/certificates.ipynb <https://github.com/simonjantsch/switss/blob/master/examples/certificates.ipynb>`_.
 
 **********
 Benchmarks
