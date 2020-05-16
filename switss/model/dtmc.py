@@ -12,6 +12,10 @@ class DTMC(AbstractMDP):
 
         :param P: :math:`N \\times N` transition matrix.
         :type P: Either 2d-list, numpy.matrix, numpy.array or scipy.sparse.spmatrix
+        :param index_by_state_action: Mapping from states to their corresponding row-entries. Every
+            key must have 0 for its action value. If None, then every row-index corresponds to the
+            same column-index.
+        :type index_by_state_action: Dict[Tuple[int,int],int]
         :param label_to_states: Mapping from labels to sets of states.
         :type label_to_states: Dict[str,Set[int]]
         """# transform P into dok_matrix if neccessary
