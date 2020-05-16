@@ -13,8 +13,8 @@ class MILPExact(ProblemFormulation):
     
     .. math::
 
-       \min \sum_i \sigma(i) \quad \\text{subject to} \quad \mathbf{x} \in \\mathcal{F}(\\lambda)  \quad
-       \\text{and}  \quad \mathbf{x}(i) \leq K \cdot \sigma(i),\; \sigma(i) \in \{0,1\},
+       \min \sum_i \sigma(i) \; \\text{s.t.} \; \mathbf{x} \in \\mathcal{F}(\\lambda)  \;
+       \\text{and}  \; \mathbf{x}(i) \leq K \cdot \sigma(i),\; \sigma(i) \in \{0,1\},
 
     \- where :math:`K` is a suitable upper bound (see [FJB19]_ for more information) \-
     and label-based system minimization. In the second case, let :math:`L` be a set of labels and 
@@ -22,17 +22,17 @@ class MILPExact(ProblemFormulation):
 
     .. math::
 
-        \min \sum_{l \in L} \sigma(l) \quad \\text{subject to} \quad \mathbf{x} \in \mathcal{P}^{\\text{max}}(\\lambda) \quad 
-        \\text{and} \quad \mathbf{x}((s,a)) \leq K \cdot \sigma(l),\; \sigma(l) \in \{0,1\}, \\\\
-        \\text{for all}\quad (s,a) \in \mathcal{M},\; l \in \Lambda(s)   
+        \min \sum_{l \in L} \sigma(l) \; \\text{s.t.} \; \mathbf{x} \in \mathcal{P}^{\\text{max}}(\\lambda) \; 
+        \\text{and} \; \mathbf{x}((s,a)) \leq K \cdot \sigma(l),\; \sigma(l) \in \{0,1\}, \\\\
+        \\text{for all}\; (s,a) \in \mathcal{M},\; l \in \Lambda(s)   
 
     for the y-form and as
 
     .. math::
 
-        \min \sum_{l \in L} \sigma(l) \quad \\text{subject to} \quad \mathbf{x} \in \mathcal{P}^{\\text{min}}(\\lambda) \quad 
-        \\text{and} \quad \mathbf{x}(s) \leq \sigma(l),\; \sigma(l) \in \{0,1\}, \\\\
-        \\text{for all}\quad s \in S,\; l \in \Lambda(s)
+        \min \sum_{l \in L} \sigma(l) \; \\text{s.t.} \; \mathbf{x} \in \mathcal{P}^{\\text{min}}(\\lambda) \; 
+        \\text{and} \; \mathbf{x}(s) \leq \sigma(l),\; \sigma(l) \in \{0,1\}, \\\\
+        \\text{for all}\; s \in S,\; l \in \Lambda(s)
 
     for the z-form. In both cases, :math:`\sigma` is a :math:`|L|`-dimensional vector.
     """

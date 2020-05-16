@@ -1,4 +1,3 @@
-
 from abc import ABC, abstractmethod, abstractclassmethod
 import numpy as np
 
@@ -14,6 +13,11 @@ class Initializer(ABC):
         :type reachability_form: model.ReachabilityForm
         :param mode: QSHeur-mode, i.e. "max" or "min"
         :type mode: str
+        :param indicator_to_group: mapping from group indices to sets of states/state-action pairs. If label-based
+            minimization was not choosen, every group consists of one state/state-action pair only.
+            If label-based minimization was choosen, every group corresponds to one of the specified labels
+            and yields all states that belong to this label.
+        :type indicator_to_group: utils.InvertibleDict
         """
         assert mode in ["max", "min"]
         self.reachability_form = reachability_form
@@ -24,13 +28,11 @@ class Initializer(ABC):
 
     @abstractmethod
     def initialize(self):
-        """Computes the initial objective function :math:`\mathbf{o}_0` for a QSHeur-run. 
+        """Computes the initial objective function :math:`\mathbf{o}_0` for a QSHeur-run as a list of index/
+        coefficient pairings. Every entry is a tuple :math:`(v, \mathbf{o}_{0}(v))` where :math:`v` corresponds
+        to some group index :math:`v \in V`.
 
-        :param indicator_keys: Set of indices :math:`v_1,\dots,v_m` where each index :math:`v` corresponds to one
-            state group variable :math:`\sigma(v)`. Only indices that occur in this set should be considered in the objective function.
-        :type indicator_keys: Iterable[int]
-        :return: A list of index/coefficient pairings. Each entry is a tuple :math:`(v, \mathbf{o}_{0}(v))` 
-            where :math:`v \in \{ v_1,\dots,v_m\}`.
+        :return: The initial objective function 
         :rtype: List[Tuple[int,float]]
         """
         pass
@@ -41,7 +43,7 @@ class Initializer(ABC):
 class Updater(ABC):
     """Abstract base class for QSHeur-updaters. An updater 
     computes the new objective function :math:`\mathbf{o}_{i+1}` after each QSHeur-iteration. Computation may
-    or may not be dependent on the last result vector :math:`QS(i) = (QS_{\mathbf{x}}(i)\ QS_{\sigma}(i))`.
+    or may not be dependent on the last result vector :math:`QS(i)`.
     """    
 
     def __init__(self, reachability_form, mode, indicator_to_group, **kwargs):
@@ -51,6 +53,11 @@ class Updater(ABC):
         :type reachability_form: model.ReachabilityForm
         :param mode: QSHeur-mode, i.e. "max" or "min"
         :type mode: str
+        :param indicator_to_group: mapping from group indices to sets of states/state-action pairs. If label-based
+            minimization was not choosen, every group consists of one state/state-action pair only.
+            If label-based minimization was choosen, every group corresponds to one of the specified labels
+            and yields all states that belong to this label.
+        :type indicator_to_group: utils.InvertibleDict
         """
         assert mode in ["max", "min"]
         self.reachability_form = reachability_form
@@ -61,16 +68,15 @@ class Updater(ABC):
 
     @abstractmethod
     def update(self, last_result):
-        """Computes the updated objective function :math:`\mathbf{o}_{i+1}`.
+        """ 
+        Computes the updated objective function :math:`\mathbf{o}_{i+1}` for a QSHeur-run as a list of index/
+        coefficient pairings. Every entry is a tuple :math:`(v, \mathbf{o}_{0}(v))` where :math:`v` corresponds
+        to some group index :math:`v \in V`. 
 
         :param last_result: The past result vector :math:`QS(i)`.
-        :param indicator_keys: Set of indices :math:`v_1,\dots,v_m` where each index :math:`v` corresponds to one
-            state group variable :math:`\sigma(v)`. Only indices that occur in this set should be considered in the objective function.
-        :type indicator_keys: Iterable[int]
-        :return: A list of index/coefficient pairings. Each entry is a tuple :math:`(v, \mathbf{o}_{i+1}(v))` 
-            where :math:`v \in \{ v_1,\dots,v_m\}`.
-        :rtype: List[Tuple[int,float]]
-        """        
+        :return: The updated objective function 
+        :rtype: List[Tuple[int,float]        
+        """
         pass
 
     def __repr__(self):
@@ -81,7 +87,7 @@ class AllOnesInitializer(Initializer):
     
     .. math::
     
-        \mathbf{o}_0(v) = 1, \quad \\forall v \in \{ v_1, \dots v_m \} 
+        \mathbf{o}_0(v) = 1, \quad \\forall v \in V 
     
     """
     def __init__(self, indicator_to_group, **kwargs):
@@ -99,7 +105,7 @@ class InverseResultUpdater(Updater):
         \mathbf{o}_{i+1}(v) = \\begin{cases} 
             1/QS_{\sigma}(i)(v) & QS_{\sigma}(i)(v) > 0, \\\ 
             C & QS_{\sigma}(i)(v) = 0 
-        \end{cases}, \quad \\forall v \in \{v_1,\dots,v_m\}.
+        \end{cases}, \quad \\forall v \in V. 
 
     where :math:`C \gg 0`.
 
@@ -112,10 +118,34 @@ class InverseResultUpdater(Updater):
 class InverseReachabilityInitializer(Initializer):
     """Gives groups the most weight that have a low probability of reaching the goal state.
 
+    If the objective function has to be computed for the z-Form, we compute the average goal reachability
+    probability over all states that are in the group and then return the inverse value:
+
     .. math::
 
-        \mathbf{o}_0^{(v)} = 1/Pr_{v}(\diamond goal), \quad \\forall v \in \{ v_1, \dots v_m \} 
- 
+        \mathbf{o}_0(v) = \left( \\frac{1}{|S_v|} \sum_{s \in S_v} 
+        \mathbf{Pr}_s^{\\text{min}}(\diamond \\text{goal}) \\right)^{-1} 
+
+    This gives a high weight to groups that have a low probability of reaching the goal state.
+
+    If the objective function has to be computed for the y-Form, we compute the average goal reachability
+    probability over the states that are yield by the state-action pairs.
+
+    Let 
+
+    .. math::
+
+        \mathbf{x}((s,a)) = \mathbf{P}((s,a),\\text{goal}) + \sum_{d \in S} 
+            \mathbf{P}((s,a),d) \mathbf{Pr}^{\\text{min}}_d(\diamond \\text{goal})
+
+    We then define
+
+    .. math::
+
+        \mathbf{o}_0(v) = \left(  \\frac{1}{|\mathcal{M}_v|} \sum_{(s,a) \in \mathcal{M}_v}  \mathbf{x}((s,a)) \\right)^{-1}
+
+    The reasoning is similar to the z-Form; state-action pairs that yield states which have a low probability
+    of reaching the goal state get a high weight.
     """    
     def __init__(self, reachability_form, mode, indicator_to_group, solver="cbc"):
         super(InverseReachabilityInitializer, self).__init__(reachability_form, mode, indicator_to_group)
@@ -145,13 +175,7 @@ class InverseReachabilityInitializer(Initializer):
         return ret
 
 class InverseFrequencyInitializer(Initializer):
-    """Gives groups the most weight that have a low expected frequency.
-
-    .. math::
-
-        \mathbf{o}_0^{(v)} = 1/\mathbb{E}[v], \quad \\forall v \in \{ v_1, \dots, v_m \}
-
-    """
+    """"""
 
     def __init__(self, reachability_form, mode, indicator_to_group, solver="cbc"):
         super(InverseFrequencyInitializer, self).__init__(reachability_form, mode, indicator_to_group)

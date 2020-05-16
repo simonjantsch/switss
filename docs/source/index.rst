@@ -13,7 +13,6 @@ witnessing subsystems by reducing the problem to (mixed integer) linear programm
 can automatically be rendered graphically and are accompanied with a certificate which proves that 
 the subsystem is indeed a witness. Work is based on [FJB19]_.
 
-
 **********************
 MDP and DTMC classes
 **********************
@@ -348,7 +347,7 @@ add lists of labels to `MILPExact` or `QSHeur` instances:
 Comparing the results of this particular instance, one will notice that in the second case (`result_no_labels`) the subsystem 
 yields a much smaller size than compared with the first instance. In the first case however, label `group2` was completely eliminated.
 For exectuable examples, see `examples/groups.ipynb <https://github.com/simonjantsch/switss/blob/master/examples/groups.ipynb>`_.
-
+ 
 Iterative results
 =================
 
@@ -442,6 +441,23 @@ Models
 
 Problem
 =======
+
+Note on Initializers and Updaters
+---------------------------------
+
+The Initializer and Updater-classes rely 'groups' of states/state-action pairs for
+computing initial/updated objective functions in order unify the concept of label-based and
+default minimization. If label-based minimization was choosen, every
+group corresponds to some label and thereby to a set of states that have this label.
+If label-based minimization was not choosen, every group corresponds to some state or
+state-action pair (i.e. every group has only one member).
+
+The objective functions that are returned are given as lists of group-index/group-weight pairings.
+For now, define that :math:`V = \{ v_1, \dots, v_m \}` is the set of group indices, i.e. every objective function
+assigns a value to all :math:`v \in V`. If a group maps to sets of states (state-action pairs), we 
+will write :math:`S_v` (:math:`\mathcal{M}_v`) to indicate this particular set.
+
+
 .. automodule:: switss.problem
    :imported-members:
    :members:

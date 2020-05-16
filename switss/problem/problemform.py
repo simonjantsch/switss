@@ -21,7 +21,7 @@ class ProblemFormulation:
 
         .. math::
 
-            Pr_{\mathbf{x}}^{*}(\diamond \\text{goal}) \geq \lambda
+            \mathbf{Pr}_{\mathbf{x}}^{*}(\diamond \\text{goal}) \geq \lambda
 
         where :math:`\lambda` is the given threshold and :math:`* \in \{\\text{min},\\text{max}\}`.
 
@@ -45,7 +45,7 @@ class ProblemFormulation:
 
         .. math::
 
-            Pr_{\mathbf{x}}^{*}(\diamond \\text{goal}) \geq \lambda
+            \mathbf{Pr}_{\mathbf{x}}^{*}(\diamond \\text{goal}) \geq \lambda
 
         where :math:`\lambda` is the given threshold and :math:`* \in \{\\text{min},\\text{max}\}`.
 

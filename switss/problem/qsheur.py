@@ -13,11 +13,11 @@ class QSHeur(ProblemFormulation):
     
     .. math::
 
-       \min \mathbf{o}_i \cdot \mathbf{x} \quad \\text{ subject to } \quad \mathbf{x} \in \\mathcal{F}(\\lambda),
+       \min \mathbf{o}_i \cdot \mathbf{x} \; \\text{s.t.} \; \mathbf{x} \in \\mathcal{F}(\\lambda),
     
     where :math:`\\mathcal{F}(\\lambda)` is the Farkas (y- or z-)polytope. Also, 
     :math:`\mathbf{o}_0` is a vector of initial weights. Weights :math:`\mathbf{o}_{i}` for
-    :math:`i>0` are computed recursively from the past result; i.e. :math:`\mathbf{o}_{i} =
+    :math:`i>0` are computed recursively from the past result: :math:`\mathbf{o}_{i} =
     \operatorname{upd}(QS_{\mathbf{x}}(i-1))` where :math:`QS_{\mathbf{x}}(i-1)` denotes the solution
     to the :math:`(i-1)`-th LP and :math:`\operatorname{upd}` is some update function. 
 
@@ -27,17 +27,17 @@ class QSHeur(ProblemFormulation):
 
     .. math::
 
-        \min \mathbf{o}_i \cdot \sigma \quad \\text{ subject to } \quad \mathbf{x} \in \mathcal{P}^{\\text{max}}(\\lambda) \quad 
-        \\text{ and } \quad \mathbf{x}((s,a)) \leq K \cdot \sigma(l) \\\\
-        \\text{ for all }\quad (s,a) \in \mathcal{M},\; l \in \Lambda(s)    
+        \min \mathbf{o}_i \cdot \sigma \; \\text{s.t.} \; \mathbf{x} \in \mathcal{P}^{\\text{max}}(\\lambda) \;
+        \\text{and} \; \mathbf{x}((s,a)) \leq K \cdot \sigma(l) \;
+        \\text{for all}\; (s,a) \in \mathcal{M},\; l \in \Lambda(s)    
 
     for the y-form and as
 
     .. math::
 
-        \min \mathbf{o}_i \cdot \sigma \quad \\text{ subject to } \quad \mathbf{x} \in \mathcal{P}^{\\text{min}}(\\lambda) \quad 
-        \\text{ and } \quad \mathbf{x}(s) \leq \sigma(l),\; \sigma(l) \in \{0,1\}, \\\\
-        \\text{ for all }\quad s \in S,\; l \in \Lambda(s) 
+        \min \mathbf{o}_i \cdot \sigma \; \\text{s.t.} \; \mathbf{x} \in \mathcal{P}^{\\text{min}}(\\lambda) \; 
+        \\text{and} \; \mathbf{x}(s) \leq \sigma(l),\;
+        \\text{for all}\; s \in S,\; l \in \Lambda(s) 
 
     for the z-form.
     """
