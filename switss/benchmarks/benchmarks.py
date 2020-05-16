@@ -10,10 +10,10 @@ import json as json
 from pathlib import Path
 
 def run(reachability_form, method, from_thr=1e-3, to_thr=1, step=1e-3, debug=False, json_dir=None, timeout=None):
-    """Runs a benchmark test of a method on a given reachability form. The benchmark consists
-    of running the method on the reachability form for varying thresholds. Returns a dictionary which contains
-    result of the specified test. `from_thr` and `to_thr` specify the smallest and greatest 
-    threshold respectively. `step` specifies the resolution (i.e. distance between neighbouring thresholds).
+    """Runs a benchmark on a given reachability form. The benchmark consists of running the method on the 
+    reachability form for varying thresholds. Returns a dictionary which contains result of the specified test. 
+    `from_thr` and `to_thr` specify the smallest and greatest  threshold respectively. `step` specifies the 
+    resolution (i.e. distance between neighbouring thresholds).
 
     It is also possible to define multiple methods by giving an iterable (like a list). If 
     that is the case, a list of the generated dataset for each method is returned.
@@ -25,12 +25,15 @@ def run(reachability_form, method, from_thr=1e-3, to_thr=1, step=1e-3, debug=Fal
 
         { "method" : { "type" : method_type, ... },
           "run" : [ { "threshold" : threshold,
-                      "statecounts" : [statecount1,statecount2,...]
-                      "times" : [time1,time2,...] },
-                     ...] }
+                      "statecounts" : [statecount1, statecount2,..., statecountN ],
+                      "wall_times"  : [wall_time1,  wall_time2, ...,  wall_timeN ],
+                      "proc_times"  : [proc_time1,  proc_time2, ...,  wall_timeN ] }, ...] }
     
     where "method" contains information about the used method (see problem.ProblemUtils.details) and
-    "run" contains a list of 
+    "run" contains a list of results for different thresholds. If we pick an element from "run", 
+    "statecounts" will contain the number of states for each found subsystem while running the method 
+    on that particular instance. For example, if QSHeur with iterations=5 was choosen, statecounts will
+    have N=5 entries (ditto for wall_times and proc_times).
 
     :param reachability_form: The given reachability form.
     :type reachability_form: model.ReachabilityForm
@@ -71,7 +74,7 @@ def run(reachability_form, method, from_thr=1e-3, to_thr=1, step=1e-3, debug=Fal
         print("-"*50)
 
     def print_json(json_dir,data):
-        if json_dir != None:
+        if json_dir is not None:
             json_dir = Path(json_dir)
             json_file_name = str(method) + ".json"
             json_path = json_dir / json_file_name
@@ -109,8 +112,8 @@ def run(reachability_form, method, from_thr=1e-3, to_thr=1, step=1e-3, debug=Fal
 def render(run, mode="laststates-thr", ax=None, title=None, normalize=True, sol_range=None, custom_label=None):
     """Renders a benchmark run via matplotlib. `mode` specifies the type of the
     resulting plot, i.e. statecount vs. threshold ('states-thr', plots all intermediate results), only
-    the last resulting statecount vs. threshold ('laststates-thr', plots only the last result) or time
-    vs. threshold ('time-thr'). If no axis is specified, a new subplot is generated.
+    the last resulting statecount vs. threshold ('laststates-thr', plots only the last result), time
+    vs. threshold ('wall_time-thr'/'proc_time-thr'). If no axis is specified, a new subplot is generated.
 
     :param run: Result of a `run`-call.
     :param mode: Type of plot, defaults to "states-thr"
@@ -139,7 +142,7 @@ def render(run, mode="laststates-thr", ax=None, title=None, normalize=True, sol_
         maxstatecount = max([max(el["statecounts"]) for el in run["run"]])
         normalize = (maxstatecount > 10000) and normalize
         ax.set_ylabel("states (x1000)" if normalize else "states")
-        markers = ["o", "x", ".", "v", "+", "^", "d", "s", "*", "h"]
+        markers = ["tri_down", "x", "tri_up", ".", "+", "tri_right", "d", "s", "*", "h"]
         if sol_range == None:
             sol_range = range(resultcount)
         for idx in sol_range:
