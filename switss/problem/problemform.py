@@ -15,28 +15,51 @@ class ProblemFormulation:
         pass
 
     def solve(self, reachability_form, threshold, labels=None,timeout=None):
-        """Finds a witnessing subsystem for a given reachability form
+        """Searches for small subsystems for a given reachability form
         such that the probability of reaching the target state is above
         a given threshold: 
 
         .. math::
 
-            Pr_{\mathbf{x}}(\diamond goal) \geq \lambda
+            Pr_{\mathbf{x}}^{*}(\diamond \\text{goal}) \geq \lambda
 
-        where :math:`\lambda` is the given threshold.
+        where :math:`\lambda` is the given threshold and :math:`* \in \{\\text{min},\\text{max}\}`.
+
+        `.solve` returns the final result if multiple solutions are found.
 
         :param reachability_form: The system that should be minimized.
         :type reachability_form: model.ReachabilityForm
         :param threshold: The given threshold.
         :type threshold: float
-        :param labels: A mapping from labels to sets of states or state-action pairs.
-        :type labels: utils.InvertibleDict[str, Set[int]]
-        :return: The resulting subsystem (minimal witness).
+        :param labels: A list of labels. 
+        :type labels: List[str]
+        :return: The resulting subsystem.
         :rtype: problem.Subsystem
         """
         return deque(self.solveiter(reachability_form, threshold, labels=labels,timeout=timeout), maxlen=1).pop()
 
     def solveiter(self, reachability_form, threshold, labels=None, timeout=None):
+        """Searches for small subsystems for a given reachability form
+        such that the probability of reaching the target state is above
+        a given threshold: 
+
+        .. math::
+
+            Pr_{\mathbf{x}}^{*}(\diamond \\text{goal}) \geq \lambda
+
+        where :math:`\lambda` is the given threshold and :math:`* \in \{\\text{min},\\text{max}\}`.
+
+        `.solveiter` returns an iterator over all systems that are found. 
+        
+        :param reachability_form: The system that should be minimized.
+        :type reachability_form: model.ReachabilityForm
+        :param threshold: The given threshold.
+        :type threshold: float
+        :param labels: A list of labels. 
+        :type labels: List[str]
+        :return: The resulting subsystem.
+        :rtype: problem.Subsystem
+        """
         assert (threshold >= 0) and (threshold <= 1)
         if labels is not None:
             for l in labels:
