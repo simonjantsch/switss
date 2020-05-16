@@ -87,7 +87,7 @@ class ReachabilityForm:
         reachable_mask = backward_reachable & forward_reachable
         # TODO: use reachable_mask instead of reachable everywhere
         # this is much better for performance since lookup of states is always O(1)
-        reachable = list({ idx for idx,x in enumerate(reachable_mask) if x })
+        reachable = [ idx for idx,x in enumerate(reachable_mask) if x ]
 
         if debug:
             print("tested backward & forward reachability test")
