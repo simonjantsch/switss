@@ -8,11 +8,32 @@ import numpy as np
 from scipy.sparse import dok_matrix,hstack,vstack
 
 class ReachabilityForm:
-    """ A reachability form is an MDP with a dedicated initial and target state. 
-    It is represented by its transition matrix, an initial state and a vector that holds 
-    the probability to move to the target state in one step for each state. 
-    The target state is not included in the transition matrix. """
+    """ 
+    A reachability form is a wrapper for special DTMCs/MDPs with dedicated initial and target states. 
+    In particular, the following properties are fulfilled:
+
+    - exactly one fail, goal and initial state,
+    - fail and goal have exactly one action, which maps only to themselves,
+    - the fail state (goal state) has index N-1 (N-2) and the corresponding state-action-pair index C-1 (C-2),
+    - every state is reachable from the initial state (fail doesn't need to be reachable) and
+    - every state reaches the goal state (except the fail state)
+
+    """
     def __init__(self, system, initial_label, target_label="rf_target", fail_label="rf_fail", ignore_consistency_checks=False):
+        """Instantiates a RF.
+
+        :param system: The MDP/DTMC that fulfills the specified properties.
+        :type system: model.AbstractMDP
+        :param initial_label: Label of initial state - there must be exactly one
+        :type initial_label: str
+        :param target_label: Label of target state - there must be exactly one, defaults to "rf_target"
+        :type target_label: str, optional
+        :param fail_label: Label of fail state - there must be exactly one, defaults to "rf_fail"
+        :type fail_label: str, optional
+        :param ignore_consistency_checks: If set to False, checks consistency of given model (i.e. if the properties are satisfied),
+            defaults to False
+        :type ignore_consistency_checks: bool, optional
+        """        
         if not ignore_consistency_checks:
             ReachabilityForm.assert_consistency(system, initial_label, target_label, fail_label)
         
@@ -26,11 +47,48 @@ class ReachabilityForm:
         del self.__index_by_state_action.inv[system.C-2]
         del self.__index_by_state_action.inv[system.C-1]
         
-        self.A = self._reach_form_id_matrix() - self.__P
-        self.to_target = system.P.getcol(system.N-2).todense()[:system.C-2]
+        self.__A = self._reach_form_id_matrix() - self.__P
+        self.__to_target = system.P.getcol(system.N-2).todense()[:system.C-2]
         
+    @property
+    def A(self):
+        """
+        Returns a :math:`(C-2) \\times (N-2)` matrix :math:`\mathbf{A}` where 
+
+        .. math::
+        
+            \\textbf{A}((s,a), d) = \\begin{cases} 1 - \\textbf{P}((s,a), d) &\\text{ if } d = s \\\\
+            - \\textbf{P}((s,a), d) &\\text{ if } d \\neq s \end{cases}, 
+
+        for all :math:`(s,a),d \in \mathcal{M} \\times S` such that  :math:`s,d \\not\in \{ fail, goal \}`."""
+        return self.__A
+
+    @property
+    def to_target(self):
+        """
+        Returns a vector of length :math:`C-2` :math:`\\textbf{b}` where
+
+        .. math::
+
+            \\textbf{b}((s,a)) = \\text{P}((s,a),goal),
+
+        for all :math:`(s,a) \in \mathcal{M}` such that :math:`s \\not \in \{goal,fail\}`. 
+        """
+        return self.__to_target
+
     @staticmethod
     def assert_consistency(system, initial_label, target_label="rf_target", fail_label="rf_fail"):
+        """Checks whether a system fulfills the reachability form properties.
+
+        :param system: The system
+        :type system: model.AbstractMDP
+        :param initial_label: Label of initial state
+        :type initial_label: str
+        :param target_label: Label of target state, defaults to "rf_target"
+        :type target_label: str, optional
+        :param fail_label: Label of fail state, defaults to "rf_fail"
+        :type fail_label: str, optional
+        """        
         assert isinstance(system, AbstractMDP)
         assert len({initial_label, target_label, fail_label}) == 3, "Initial label, target label and fail label must be pairwise distinct"
 
@@ -68,6 +126,30 @@ class ReachabilityForm:
 
     @staticmethod
     def reduce(system, initial_label, target_label, new_target_label="rf_target", new_fail_label="rf_fail", debug=False):
+        """Reduces a system to a system in reachability form. 
+        The transformation does a forward search starting at the initial state, then a 
+        backwards search starting from the targets states and then removes all states 
+        that happen to be not reachable in at least one of these searches. Transitions that 
+        lead to removed states are mapped to a dedicated new "fail"-state (default label is "rf_fail"). 
+        All old target states are remapped to a dedicated new "target"-state (default label is "rf_target"). 
+        
+        :param system: The system that should be reduced.
+        :type system: model.AbstractMDP
+        :param initial_label: Label of initial state (there must be exactly one)
+        :type initial_label: str
+        :param target_label: Label of target state (there must be at least one)
+        :type target_label: str
+        :param new_target_label: Label of dedicated new target state, defaults to "rf_target"
+        :type new_target_label: str, optional
+        :param new_fail_label: Label of dedicated new fail state, defaults to "rf_fail"
+        :type new_fail_label: str, optional
+        :param debug: If True, additional diagnostic information is printed, defaults to False
+        :type debug: bool, optional
+        :return: A triple (RF, state_map, state_action_map) where state_map (state_action_map) is a mapping from system states
+            (state-actions pairs) to states (state-action pairs) of the reduced system. If a state (state-action pair) is not a 
+            key in the dictionary, it was removed.
+        :rtype: Tuple[model.ReachabilityForm, Dict[int,int], Dict[Tuple[int,int],Tuple[int,int]]]
+        """        
         assert isinstance(system, AbstractMDP)
         assert new_target_label not in system.states_by_label.keys(), "Label '%s' for target state already exists in system %s" % (new_target_label, system)
         assert new_fail_label not in system.states_by_label.keys(), "Label '%s' for fail state already exists in system %s" % (new_fail_label, system)
@@ -156,6 +238,7 @@ class ReachabilityForm:
 
     @property
     def system(self):
+        """The underlying system (instance of model.AbstractMDP)"""
         return self.__system
 
     @staticmethod
@@ -210,17 +293,20 @@ class ReachabilityForm:
         return "ReachabilityForm(initial=%s, target=%s, fail=%s, system=%s)" % (self.initial_label, self.target_label, self.fail_label, self.system)
 
     def fark_z_constraints(self, threshold):
-        """ Returns matrix and rhs of the Farkas z-constraints:
+        """
+        Returns a matrix :math:`M_z` and a vector :math:`rhs_z` such that for a :math:`N-2` vector :math:`\mathbf{z}`
 
         .. math::
 
-            (I-P) \, \mathbf{z} \leq \mathbf{b} \land \mathbf{z}(\\texttt{init}) \leq \lambda
-
-        where :math:`\mathbf{b}`` is the vector "to_target", :math:`\lambda` is the threshold and :math:`I` is the matrix that for every row (state,action) has a 1 in the column "state".
-
+            M_z\, \mathbf{z} \leq rhs_z \quad \\text{  iff  } \quad 
+            \\mathbf{A} \, \mathbf{z} \leq \mathbf{b} \land \mathbf{z}(\\texttt{init}) \geq \lambda
+            \quad \\text{  iff  } \quad
+            \mathbf{z} \in \mathcal{P}^{\\text{min}}(\lambda)
+                
         :param threshold: The threshold :math:`\lambda` for which the Farkas z-constraints should be constructed
         :type threshold: Float
-        :return: :math:`C+1 \\times N`-matrix :math:`M`, and :math:`N`-vector :math:`rhs` such that :math:`M \mathbf{z} \leq rhs` yields the Farkas z-constraints
+        :return: :math:`(C-1) \\times (N-2)`-matrix :math:`M_z`, and vector of length :math:`C-1` :math:`rhs_z`
+        :rtype: Tuple[scipy.sparse.dok_matrix, np.ndarray[float]]
         """
         C,N = self.__P.shape
 
@@ -235,17 +321,22 @@ class ReachabilityForm:
         return fark_z_matr, rhs
 
     def fark_y_constraints(self, threshold):
-        """ Returns the constraints of the Farkas y-constraints:
+        """ 
+        Returns a matrix :math:`M_y` and a vector :math:`rhs_y` such that for a :math:`C-2` vector :math:`\mathbf{y}`
 
         .. math::
 
-            \mathbf{y} \, (I-P) \leq \delta_{\\texttt{init}} \land \mathbf{b} \, \mathbf{y} \leq \lambda
+            M_y\, \mathbf{y} \leq rhs_y \quad \\text{  iff  } \quad
+            \mathbf{y} \, \mathbf{A} \leq \delta_{\\texttt{init}} \land \mathbf{b} \, \mathbf{y} \geq \lambda
+            \quad \\text{  iff  } \quad
+            \mathbf{y} \in \mathcal{P}^{\\text{max}}(\lambda)
 
-        where :math:`\mathbf{b}`` is the vector "to_target", :math:`\lambda` is the threshold and :math:`I` is the matrix that for every row (state,action) has a 1 in the column "state". The vector :math:`\delta_{\\texttt{init}}` is 1 for the initial state, and otherwise 0.
+        where :math:`\lambda` is the threshold. The vector :math:`\delta_{\\texttt{init}}` is 1 for the initial state, and otherwise 0.
 
         :param threshold: The threshold :math:`\lambda` for which the Farkas y-constraints should be constructed
         :type threshold: Float
-        :return: :math:`N+1 \\times C`-matrix :math:`M`, and :math:`C`-vector :math:`rhs` such that :math:`M \mathbf{y} \leq rhs` yields the Farkas y-constraints
+        :return: :math:`(N-1) \\times (C-2)`-matrix :math:`M_y`, and :math:`N-1`-vector :math:`rhs_y` 
+        :rtype: Tuple[scipy.sparse.dok_matrix, np.ndarray[float]]
         """
         C,N = self.__P.shape
 
@@ -270,6 +361,21 @@ class ReachabilityForm:
         return I
 
     def max_z_state(self,solver="cbc"):
+        """
+        Returns a solution to the LP        
+
+        .. math::
+
+            \max \, \sum_{s} \mathbf{x}(s) \quad \\text{ subject to } \quad \mathbf{x} \in \mathcal{P}^{\\text{min}}(0)
+            
+        The solution vector corresponds to the minimal reachabiliy probability, i.e. 
+        :math:`\mathbf{x}^*(s) = \mathbf{Pr}^{\\text{min}}_s(\diamond goal)` for all :math:`s \in S \\backslash \{goal,fail\}`.
+
+        :param solver: Solver that should be used, defaults to "cbc"
+        :type solver: str, optional
+        :return: Result vector
+        :rtype: np.ndarray[float]
+        """        
         C,N = self.__P.shape
         matr, rhs = self.fark_z_constraints(0)
         opt = np.ones(N)
@@ -284,10 +390,38 @@ class ReachabilityForm:
         return result.result_vector
 
     def max_z_state_action(self,solver="cbc"):
+        """
+        Let :math:`\mathbf{x}` be a solution vector to `max_z_state`. This function then returns a 
+        :math:`C-2` vector :math:`\mathbf{v}` such that
+
+        .. math::
+
+            \mathbf{v}((s,a)) = \sum_{d \in S \\backslash \{fail\}  } \mathbf{P}((s,a),d) \mathbf{x}(d)
+
+        for all :math:`(s,a) \in \mathcal{M}` where :math:`s \\not \in \{goal,fail\}`.
+
+        :param solver: [description], defaults to "cbc"
+        :type solver: str, optional
+        :return: Result vector
+        :rtype: np.ndarray[float]
+        """        
+
         max_z_vec = self.max_z_state(solver=solver)
         return self.__P.dot(max_z_vec) + self.to_target.A1
 
     def max_y_state_action(self,solver="cbc"):
+        """
+        Returns a solution to the LP        
+
+        .. math::
+
+            \max \, \sum_{(s,a)} \mathbf{x}((s,a)) \quad \\text{ subject to } \quad \mathbf{x} \in \mathcal{P}^{\\text{max}}(0)
+            
+        :param solver: Solver that should be used, defaults to "cbc"
+        :type solver: str, optional
+        :return: Result vector
+        :rtype: np.ndarray[float]
+        """
         N,C = self.__P.shape
 
         matr, rhs = self.fark_y_constraints(0)
@@ -301,6 +435,21 @@ class ReachabilityForm:
         return result.result_vector
 
     def max_y_state(self,solver="cbc"):
+        """
+        Let :math:`\mathbf{x}` be a solution vector to `max_y_state_action`. This function then returns a 
+        :math:`N-2` vector :math:`\mathbf{v}` such that
+
+        .. math::
+
+            \mathbf{v}(s) = \sum_{a \in \\text{Act}(s)} \mathbf{x}((s,a))
+
+        for all :math:`s \in S \\backslash \{goal,fail\}`.
+
+        :param solver: Solver that should be used, defaults to "cbc"
+        :type solver: str, optional
+        :return: Result vector
+        :rtype: np.ndarray[float]
+        """        
         C,N = self.__P.shape
         max_y_vec = self.max_y_state_action(solver=solver)
         max_y_states = np.zeros(N)
@@ -311,9 +460,25 @@ class ReachabilityForm:
         return max_y_states
 
     def pr_min(self,solver="cbc"):
-        return self.max_z_state()
+        """Computes an :math:`N-2` vector :math:`\mathbf{x}` such that 
+        :math:`\mathbf{x}(s) = \mathbf{Pr}^{\\text{min}}_s(\diamond goal)` for :math:`s \\in S \\backslash \{goal,fail\}`.
+
+        :param solver: Solver that should be used, defaults to "cbc"
+        :type solver: str, optional
+        :return: Result vector
+        :rtype: np.ndarray[float]
+        """        
+        return self.max_z_state(solver=solver)
 
     def pr_max(self,solver="cbc"):
+        """Computes an :math:`N-2` vector :math:`\mathbf{x}` such that 
+        :math:`\mathbf{x}(s) = \mathbf{Pr}^{\\text{max}}_s(\diamond goal)` for :math:`s \\in S \\backslash \{goal,fail\}`.
+
+        :param solver: Solver that should be used, defaults to "cbc"
+        :type solver: str, optional
+        :return: Result vector
+        :rtype: np.ndarray[float]
+        """
         C,N = self.__P.shape
 
         matr, rhs = self.fark_z_constraints(0)
