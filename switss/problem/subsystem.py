@@ -8,13 +8,34 @@ from ..model import DTMC, MDP, ReachabilityForm
 from ..utils import color_from_hash, InvertibleDict
 
 class Subsystem:
+    """In this context, a subsystem is the combination of a system in reachability form (RF) and 
+    a :math:`N-2` or :math:`C-2` dimensional certificate containing 0-entries for all states or state-action pairs
+    that should be removed. The Subsystem-class also implements a .subsys-method that automatically generates
+    a rechability form of the subsystem, as well as a way of rendering subsystem via calling `.digraph`.
+    """
+
     def __init__(self, supersystem, certificate, certform, ignore_consistency_checks=False):
+        """Instantiates a subsystem from a RF (supersystem) and :math:`N-2` or :math:`C-2` dimensional certificate vector
+        specifying the occurence of states or state-action pairs. 
+
+        :param supersystem: The supersystem
+        :type supersystem: model.ReachabilityForm
+        :param certificate: :math:`N-2` or :math:`C-2` dimensional vector containing 0-entries for all states or state
+            action pairs that should be removed
+        :type certificate: np.ndarray[float]
+        :param certform: Either "min" or "max". If "min" is choosen, the certificate needs to be :math:`N-2`-dimensional,
+            and :math:`C-2` in the other case.
+        :type certform: str
+        :param ignore_consistency_checks: If set to False, the RF of the generated subsystem will be checked for consistency.
+            Setting it to True will cost less time, but may lead to errors later on. Defaults to False
+        :type ignore_consistency_checks: bool, optional
+        """        
         assert isinstance(supersystem, ReachabilityForm)
         assert certform in ["min","max"]
         D,C,N = certificate.shape[0], supersystem.system.P.shape[0], supersystem.system.P.shape[1]
         # can be read as "certform == max ==> D == C"
-        assert certform != "max" or D == C-2, "certificate shape must be the amount of state-action pairs - 2 (%d!=%d)." % (D, C-2)
-        assert certform != "min" or D == N-2, "certificate shape must be the amount of states - 2 (%d!=%d)." % (D, N-2) 
+        assert certform != "max" or D == C-2, "certificate shape must be (amount of state-action pairs) - 2 (%d!=%d)." % (D, C-2)
+        assert certform != "min" or D == N-2, "certificate shape must be (amount of states) - 2 (%d!=%d)." % (D, N-2) 
         # assert ((0 <= certificate) + (certificate <= 1)).all(), "result has faulty values."
         
         self.__supersys = supersystem
@@ -26,14 +47,19 @@ class Subsystem:
 
     @property
     def certform(self):
+        """Informs about the form of this subsystem - if "min" ("max") the certificate has entries 
+        for all states (state-action pairs) that are goal/fail."""
         return self.__certform
     
     @property
     def certificate(self):
+        """:math:`N-2` or :math:`C-2` dimensional certificate vector, dependent on `.certform`."""
         return self.__certificate
 
     @property
     def subsystem_mask(self):
+        """:math:`N-2` dimensional boolean vector that contains 1-entries for all states that are in
+        the subsystem and 0-entries for all that are not."""
         if self.__subsystem_mask is None:
             C,N = self.__supersys.system.P.shape
             self.__subsystem_mask = np.zeros(N-2)
@@ -49,10 +75,14 @@ class Subsystem:
 
     @property
     def supersys(self):
+        """RF of the supersystem."""
         return self.__supersys
 
     @property
     def subsys(self):
+        """RF of the subsystem. On the first call, this will generate the subsystem from the certificate and supersystem which
+        may take some time dependent on the size of the system. If `ignore_consistency_checks` was set to True, the generated 
+        RF will not be checked for consistency."""
         if self.__subsys != None:
             return self.__subsys
 
@@ -144,6 +174,12 @@ class Subsystem:
         return model
 
     def digraph(self):
+        """Computes a `graphviz.Digraph` object that contains nodes and edges for states and transitions.
+        States that are in the subsystem are colored blue while states that are not are colored grey.
+        If the choosen certform was "min", i.e. certificate values for states, then states are accompanied with
+        additional information about their values in the certificate. Otherwise, if a certificate for state-action pairs
+        was given, this additional information is added to the corresponding actions (irrelevant for DTMCs).""" 
+
         graph = Digraph()
 
         def state_map(stateidx, labels):
