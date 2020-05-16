@@ -5,6 +5,7 @@ from ..problem import ProblemFormulation
 import time as time
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.ticker as tkr
 from collections.abc import Iterable
 import json as json
 from pathlib import Path
@@ -109,7 +110,7 @@ def run(reachability_form, method, from_thr=1e-3, to_thr=1, step=1e-3, debug=Fal
     print_json(json_dir,data)
     return data
 
-def render(run, mode="laststates-thr", ax=None, title=None, normalize=True, sol_range=None, custom_label=None):
+def render(run, mode="laststates-thr", ax=None, title=None, normalize=True, sol_range=None, custom_label=None, plot_no=1, e_mode=False, markersize=6, linewidth=1):
     """Renders a benchmark run via matplotlib. `mode` specifies the type of the
     resulting plot, i.e. statecount vs. threshold ('states-thr', plots all intermediate results), only
     the last resulting statecount vs. threshold ('laststates-thr', plots only the last result), time
@@ -128,21 +129,38 @@ def render(run, mode="laststates-thr", ax=None, title=None, normalize=True, sol_
     :type sol_range: List, optional
     :param custom_label: Allows to define a custom label of the plot. If None, the method type will be used.
     :type custom_label: str, optional
-    :return: The axis-object that is created or specified in the method-call.
+    :param plot_no: If multiple plots are rendered on the same axis, they can be distinguished by the plot_no parameter. They will then get different markers. Up to three plots (with plot_no 1,2,3) are supported, defaults to 1.
+    :type plot_no: int
+    :param e_mode: Prints thresholds in the e-x format, defaults to False.
+    :type e_mode: Bool
+    :type plot_no: int, optional    :return: The axis-object that is created or specified in the method-call.
     :rtype: matplotlib.axes.Axes
     """    
     assert mode in ["proc_time-thr","wall_time-thr", "states-thr", "laststates-thr"]
     if ax is None:
         ax = plt.subplot()
-    
+
+    if e_mode:
+        xfmt = tkr.FormatStrFormatter('%1.1e')
+        ax.xaxis.set_major_formatter(xfmt)
+
+    assert plot_no in [1,2,3]
+
     resultcount = len(run["run"][0]["statecounts"])
     if custom_label == None:
         custom_label = run["method"]["type"]
     if mode in ["states-thr", "laststates-thr"]:
         maxstatecount = max([max(el["statecounts"]) for el in run["run"]])
-        normalize = (maxstatecount > 10000) and normalize
-        ax.set_ylabel("states (x1000)" if normalize else "states")
-        markers = ["tri_down", "x", "tri_up", ".", "+", "tri_right", "d", "s", "*", "h"]
+#         normalize = (maxstatecount > 10000) and normalize
+#         ax.set_ylabel("states (x1000)" if normalize else "states")
+#         markers = ["tri_down", "x", "tri_up", ".", "+", "tri_right", "d", "s", "*", "h"]
+        #normalize = (maxstatecount > 10000) and normalize
+        ax.set_ylabel("states of subsystem (x1000)" if normalize else "states of subsystem")
+        markers = { 1 : ["o", "x", "^"],
+                    2 : ["+", "*", "3"],
+                    3 : ["d", "s", "."]}[plot_no]
+        # if plot_no == 2:
+        #     markersize += 2
         if sol_range == None:
             sol_range = range(resultcount)
         for idx in sol_range:
@@ -154,14 +172,14 @@ def render(run, mode="laststates-thr", ax=None, title=None, normalize=True, sol_
             sta = [el["statecounts"][idx] for el in run["run"]]
             if normalize:
                 sta = [el/1000 for el in sta]
-            ax.plot(thr, sta, linestyle="dashed", marker=marker, label=label)
+            ax.plot(thr, sta, linestyle="dashed", marker=marker, label=label, markersize=markersize,linewidth=linewidth)
     elif mode == "wall_time-thr" or mode == "proc_time-thr":
         times  = { "wall_time-thr" : "wall_times", "proc_time-thr" : "proc_times"}[mode]
         ax.set_ylabel("time [s]")
         tim = [el[times][-1] for el in run["run"]]
         thr = [el["threshold"] for el in run["run"]]
         label = r"%s" % custom_label
-        ax.plot(thr, tim, linestyle="dashed", marker="x",  label=label)
+        ax.plot(thr, tim, linestyle="dashed", marker="x",  label=label, markersize=markersize, linewidth=linewidth)
 
     ax.set_xlabel(r"threshold $\lambda$")
     if title is not None:
