@@ -61,11 +61,11 @@ class QSHeur(ProblemFormulation):
         """Runs the QSheuristic using the Farkas (y- or z-) polytope
         depending on the value in mode."""
         if self.mode == "min":
-            return self.solve_min(reach_form, threshold, labels,timeout=timeout)
+            return self._solve_min(reach_form, threshold, labels,timeout=timeout)
         else:
-            return self.solve_max(reach_form, threshold, labels,timeout=timeout)
+            return self._solve_max(reach_form, threshold, labels,timeout=timeout)
 
-    def solve_min(self, reach_form, threshold, labels, timeout=None):
+    def _solve_min(self, reach_form, threshold, labels, timeout=None):
         """Runs the QSheuristic using the Farkas z-polytope of a given
         reachability form for a given threshold."""
         C,N = reach_form.system.P.shape
@@ -112,7 +112,7 @@ class QSHeur(ProblemFormulation):
                 yield ProblemResult(heur_result.status, None,None,None)
                 break
 
-    def solve_max(self, reach_form, threshold, labels, timeout=None):
+    def _solve_max(self, reach_form, threshold, labels, timeout=None):
         """Runs the QSheuristic using the Farkas y-polytope of a given reachability form for a given threshold."""
         C,N = reach_form.system.P.shape
 
