@@ -18,29 +18,26 @@ the subsystem is indeed a witness. Work is based on [FJB19]_.
 MDP and DTMC classes
 **********************
 
-A MDP is a tuple :math:`\mathcal{M} = (S, \text{Act}, \iota, \textbf{P})`, where 
+A MDP is a tuple :math:`\mathcal{M} = (S_{\text{all}}, \text{Act}, \textbf{P}, s_0)`, where 
 
-* :math:`S` denotes the set of states,
+* :math:`S_{\text{all}}` denotes the set of states,
 * :math:`\text{Act}` denotes the set of actions,
-* :math:`\iota` is a probability distribution of initial states on :math:`S`,
-* and :math:`\textbf{P}: S \times \text{Act} \times S \rightarrow [0,1]` the transition probability function.
+* :math:`s_0` is the initial state,
+* and :math:`\textbf{P}: S_{\text{all}} \times \text{Act} \times S_{\text{all}} \rightarrow [0,1]` the transition probability function.
    
 Also,
 
-* :math:`\text{Act}(s) \subseteq \text{Act}` denotes the set of actions that can be enabled in state :math:`s` (i.e. :math:`a \in \text{Act}(s) \Leftrightarrow \textbf{P}(s,a,d) > 0` for some state :math:`d`).
-* And whenever suitable, :math:`\mathcal{M} = \{ (s,a) \in S \times \text{Act} \mid a \in \text{Act}(s) \}` also denotes the set of state-action-pairs.
+* :math:`\text{Act}(s) \subseteq \text{Act}` denotes the set of actions that can be enabled in state :math:`s`
+* For a set of states :math:`S` and whenever suitable, :math:`\mathcal{M}_S = \{ (s,a) \in S \times \text{Act} \mid a \in \text{Act}(s) \}` also denotes the set of state-action-pairs.
+* For a set of states :math:`S`,  :math:`C_{S} = | \mathcal{M}_{S} |` denotes the amount of state-action-pairs and :math:`N_S = | S |` the amount of states.
 
-For :math:`\textbf{P}` we will use a :math:`C \times N` transition matrix where :math:`C = | \mathcal{M} |` denotes 
-the amount of state-action-pairs and :math:`N = | S |` the amount of states. Furthermore, every state-action pair :math:`(s,a) \in 
-\mathcal{M}` corresponds to some index :math:`i \in \{0,\dots,C-1\}` and every state :math:`s \in S` to some index 
-:math:`j \in \{0,\dots,N-1\}` and vice versa. 
+For :math:`\textbf{P}` we will use a :math:`C_{S_{\text{all}}} \times N_{S_{\text{all}}}` transition matrix. Furthermore, every 
+state-action pair :math:`(s,a) \in \mathcal{M}_{S_{\text{all}}}` corresponds to some index 
+:math:`i \in \{0,\dots,C_{S_{\text{all}}}-1\}` and every state 
+:math:`s \in S` to some index :math:`j \in \{0,\dots,N_{S_{\text{all}}}-1\}` and vice versa. 
 
-DTMCs are treated as special MDPs where only a single action exists, which is then enabled in every state, in which case :math:`C=N`.
-
-Furthermore,
-
-* :math:`\textbf{Pr}^{\text{min}}_{s}(\diamond t)` and :math:`\textbf{Pr}^{\text{max}}_{s}(\diamond t)` denote the minimal and maximal probability over all schedulers of eventually reaching state :math:`t` when starting from state :math:`s`. For DTMCs, :math:`\textbf{Pr}^{\text{max}}_{s}(\diamond t) = \textbf{Pr}^{\text{min}}_{s}(\diamond t)`.
-* We also define :math:`\textbf{Pr}^{\text{min}}(\diamond t) = (\textbf{Pr}_s^{\text{min}}(\diamond t))_{s \in S}` (respectively for :math:`\text{max}`)  
+DTMCs are treated as special MDPs where only a single action exists, which is then enabled in every state, in which case 
+:math:`C_{S_{\text{all}}}=N_{S_{\text{all}}}`.
 
 Instantiating DTMCs
 ===================
@@ -196,32 +193,24 @@ A RF is a wrapper for DTMCs/MDPs with the following properties:
 
 * exactly one fail, goal and initial state,
 * fail and goal have exactly one action, which maps only to themselves,
-* the fail state (goal state) has index N-1 (N-2) and the corresponding state-action-pair index C-1 (C-2),
+* the fail state (goal state) has index :math:`N_{S_{\text{all}}}-1` (:math:`N_{S_{\text{all}}}-2`) and the corresponding state-action-pair index :math:`C_{S_{\text{all}}}-1` (:math:`C_{S_{\text{all}}}-2`),
 * every state is reachable from the initial state (fail doesn't need to be reachable) and
 * every state reaches the goal state (except the fail state).
 
 This kind of DTMC/MDP is one of the core components of SWITSS, since this enables the matrices and vectors that are 
 essential for the farkas constraints defined in `FJB19`_ (see table 1):
+ 
+In this context,
 
-:math:`\textbf{A}` is a :math:`(C-2) \times (N-2)` matrix where 
+* :math:`S = S_{\text{all}} \backslash \{ \text{goal}, \text{fail} \}`,
+* :math:`\mathcal{M} = \mathcal{M}_S`,
+* :math:`N = N_S` and :math:`C = C_S`,
 
-.. math::
-   
-   \textbf{A}((s,a), d) = \begin{cases} 1 - \textbf{P}((s,a), d) &\text{ if } d = s \\ 
-                                            - \textbf{P}((s,a), d) &\text{ if } d \neq s \end{cases}, 
+Furthermore,
 
-for all :math:`(s,a),d \in \mathcal{M} \times S` such that  :math:`s,d \not\in \{ fail, goal \}`.
+* :math:`\textbf{Pr}^{\text{min}}_{s}(\diamond t)` and :math:`\textbf{Pr}^{\text{max}}_{s}(\diamond t)` denote the minimal and maximal probability over all schedulers of eventually reaching state :math:`t` when starting from state :math:`s`. For DTMCs, :math:`\textbf{Pr}^{\text{max}}_{s}(\diamond t) = \textbf{Pr}^{\text{min}}_{s}(\diamond t)`.
+* We also define :math:`\textbf{Pr}^{\text{min}}(\diamond t) = (\textbf{Pr}_s^{\text{min}}(\diamond t))_{s \in S}` (respectively for :math:`\text{max}`)  
 
-Analogous, :math:`\textbf{b}` is a vector of length :math:`C-2` where
-
-.. math::
-
-   \textbf{b}((s,a)) = \text{P}((s,a),goal),
-   
-for all :math:`(s,a) \in \mathcal{M}` such that :math:`s \not \in \{goal,fail\}`.
-
-Accessing :math:`\textbf{A}` and :math:`\textbf{b}` can be done via `rf.A` and `rf.to_target` if `rf` is an instance 
-of `model.ReachabilityForm`. For the corresponding Farkas constraints, please see :class:`switss.model.ReachabilityForm`. 
 
 Reduction of DTMCs/MDPs to ReachabilityForms
 ============================================
@@ -305,7 +294,7 @@ Here, `MILPExact` corresponds to the MILP Formulation and `QSHeur` to the quotie
 and :class:`switss.problem.MILPExact` for more information on how to specify additional parameters). 
 
 Results of such minimizations are given as :class:`switss.problem.ProblemResult` instances which contain the objective value of the 
-solved MILP/LPs, a :math:`N-2` or :math:`C-2` dimensional certificate (dependent on whether "max" or "min" was choosen) and a 
+solved MILP/LPs, a :math:`N` or :math:`C` dimensional certificate (dependent on whether "max" or "min" was choosen) and a 
 :class:`switss.problem.Subsystem`-object that contains reachability forms for both super- and subsystem and, additionally, a method
 for rendering subsystems with their corresponding certificate values:
 

@@ -9,22 +9,22 @@ from ..utils import color_from_hash, InvertibleDict
 
 class Subsystem:
     """In this context, a subsystem is the combination of a system in reachability form (RF) and 
-    a :math:`N-2` or :math:`C-2` dimensional certificate containing 0-entries for all states or state-action pairs
+    a :math:`N` or :math:`C` dimensional certificate containing 0-entries for all states or state-action pairs
     that should be removed. The Subsystem-class also implements a .subsys-method that automatically generates
     a rechability form of the subsystem, as well as a way of rendering subsystem via calling `.digraph`.
     """
 
     def __init__(self, supersystem, certificate, certform, ignore_consistency_checks=False):
-        """Instantiates a subsystem from a RF (supersystem) and :math:`N-2` or :math:`C-2` dimensional certificate vector
+        """Instantiates a subsystem from a RF (supersystem) and :math:`N` or :math:`C` dimensional certificate vector
         specifying the occurence of states or state-action pairs. 
 
         :param supersystem: The supersystem
         :type supersystem: model.ReachabilityForm
-        :param certificate: :math:`N-2` or :math:`C-2` dimensional vector containing 0-entries for all states or state
+        :param certificate: :math:`N` or :math:`C` dimensional vector containing 0-entries for all states or state
             action pairs that should be removed
         :type certificate: np.ndarray[float]
-        :param certform: Either "min" or "max". If "min" is choosen, the certificate needs to be :math:`N-2`-dimensional,
-            and :math:`C-2` in the other case.
+        :param certform: Either "min" or "max". If "min" is choosen, the certificate needs to be :math:`N`-dimensional,
+            and :math:`C` in the other case.
         :type certform: str
         :param ignore_consistency_checks: If set to False, the RF of the generated subsystem will be checked for consistency.
             Setting it to True will cost less time, but may lead to errors later on. Defaults to False
@@ -53,12 +53,12 @@ class Subsystem:
     
     @property
     def certificate(self):
-        """:math:`N-2` or :math:`C-2` dimensional certificate vector, dependent on `.certform`."""
+        """:math:`N` or :math:`C` dimensional certificate vector, dependent on `.certform`."""
         return self.__certificate
 
     @property
     def subsystem_mask(self):
-        """:math:`N-2` dimensional boolean vector that contains 1-entries for all states that are in
+        """:math:`N` dimensional boolean vector that contains 1-entries for all states that are in
         the subsystem and 0-entries for all that are not."""
         if self.__subsystem_mask is None:
             C,N = self.__supersys.system.P.shape

@@ -12,9 +12,10 @@ class MDP(AbstractMDP):
         """Instantiates a MDP from a transition matrix, a bidirectional
         mapping from state-action pairs to corresponding transition matrix entries and labelings for states and actions.
 
-        :param P: :math:`C \\times N` transition matrix.
+        :param P: :math:`C_{S_{\\text{all}}} \\times N_{S_{\\text{all}}}` transition matrix.
         :type P: Either 2d-list, numpy.matrix, numpy.array or scipy.sparse.spmatrix
-        :param index_by_state_action: A bijection of state-action pairs :math:`(s,a) \in \mathcal{M}` to indices :math:`i=0,\dots,C-1` and vice versa.
+        :param index_by_state_action: A bijection of state-action pairs :math:`(s,a) \in \mathcal{M}_{S_{\\text{all}}}` 
+            to indices :math:`i=0,\dots,C_{S_{\\text{all}}}-1` and vice versa.
         :type index_by_state_action: Dict[Tuple[int,int],int]
         :param label_to_actions: Mapping from labels to sets of state-action pairs.
         :type label_to_actions: Dict[str,Set[Tuple[int,int]]]

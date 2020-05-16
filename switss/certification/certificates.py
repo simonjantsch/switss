@@ -20,7 +20,7 @@ def generate_farkas_certificate(reach_form, mode, sense, threshold,solver="cbc")
     :type threshold: float
     :param solver: used solver, must be either "gurobi", "cbc", "glpk" or "cplex", defaults to "cbc"
     :type solver: str, optional
-    :return: :math:`N-2` or :math:`C-2` dimensional vector, dependent on mode
+    :return: :math:`N` or :math:`C` dimensional vector, dependent on mode
     :rtype: numpy.ndarray[float]
     """    
 
@@ -93,7 +93,7 @@ def check_farkas_certificate(reach_form, mode, sense, threshold, farkas_vec, tol
     :type sense: str
     :param threshold: The threshold that should be used
     :type threshold: float
-    :param farkas_vec: :math:`N-2` or :math:`C-2` dimensional certificate vector, dependent on mode
+    :param farkas_vec: :math:`N` or :math:`C` dimensional certificate vector, dependent on mode
     :type farkas_vec: np.ndarray[float]
     :param tol: The used tolerance, defaults to 1e-8
     :type tol: float, optional

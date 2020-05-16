@@ -14,7 +14,7 @@ class ReachabilityForm:
 
     - exactly one fail, goal and initial state,
     - fail and goal have exactly one action, which maps only to themselves,
-    - the fail state (goal state) has index N-1 (N-2) and the corresponding state-action-pair index C-1 (C-2),
+    - the fail state (goal state) has index :math:`N_{S_{\\text{all}}}-1` (:math:`N_{S_{\\text{all}}}-2`) and the corresponding state-action-pair index :math:`C_{S_{\\text{all}}}-1` (:math:`C_{S_{\\text{all}}}-2`),
     - every state is reachable from the initial state (fail doesn't need to be reachable) and
     - every state reaches the goal state (except the fail state)
 
@@ -53,26 +53,26 @@ class ReachabilityForm:
     @property
     def A(self):
         """
-        Returns a :math:`(C-2) \\times (N-2)` matrix :math:`\mathbf{A}` where 
+        Returns a :math:`C \\times N` matrix :math:`\mathbf{A}` where 
 
         .. math::
         
             \\textbf{A}((s,a), d) = \\begin{cases} 1 - \\textbf{P}((s,a), d) &\\text{ if } d = s \\\\
             - \\textbf{P}((s,a), d) &\\text{ if } d \\neq s \end{cases}, 
 
-        for all :math:`(s,a),d \in \mathcal{M} \\times S` such that  :math:`s,d \\not\in \{ fail, goal \}`."""
+        for all :math:`(s,a),d \in \mathcal{M} \\times S`."""
         return self.__A
 
     @property
     def to_target(self):
         """
-        Returns a vector of length :math:`C-2` :math:`\\textbf{b}` where
+        Returns a vector of length :math:`C` :math:`\\textbf{b}` where
 
         .. math::
 
-            \\textbf{b}((s,a)) = \\text{P}((s,a),goal),
+            \\textbf{b}((s,a)) = \\text{P}((s,a),\\text{goal}),
 
-        for all :math:`(s,a) \in \mathcal{M}` such that :math:`s \\not \in \{goal,fail\}`. 
+        for all :math:`(s,a) \in \mathcal{M}`. 
         """
         return self.__to_target
 
@@ -294,7 +294,7 @@ class ReachabilityForm:
 
     def fark_z_constraints(self, threshold):
         """
-        Returns a matrix :math:`M_z` and a vector :math:`rhs_z` such that for a :math:`N-2` vector :math:`\mathbf{z}`
+        Returns a matrix :math:`M_z` and a vector :math:`rhs_z` such that for a :math:`N` vector :math:`\mathbf{z}`
 
         .. math::
 
@@ -305,7 +305,7 @@ class ReachabilityForm:
                 
         :param threshold: The threshold :math:`\lambda` for which the Farkas z-constraints should be constructed
         :type threshold: Float
-        :return: :math:`(C-1) \\times (N-2)`-matrix :math:`M_z`, and vector of length :math:`C-1` :math:`rhs_z`
+        :return: :math:`(C+1) \\times N`-matrix :math:`M_z`, and vector of length :math:`C+1` :math:`rhs_z`
         :rtype: Tuple[scipy.sparse.dok_matrix, np.ndarray[float]]
         """
         C,N = self.__P.shape
@@ -322,7 +322,7 @@ class ReachabilityForm:
 
     def fark_y_constraints(self, threshold):
         """ 
-        Returns a matrix :math:`M_y` and a vector :math:`rhs_y` such that for a :math:`C-2` vector :math:`\mathbf{y}`
+        Returns a matrix :math:`M_y` and a vector :math:`rhs_y` such that for a :math:`C` vector :math:`\mathbf{y}`
 
         .. math::
 
@@ -335,7 +335,7 @@ class ReachabilityForm:
 
         :param threshold: The threshold :math:`\lambda` for which the Farkas y-constraints should be constructed
         :type threshold: Float
-        :return: :math:`(N-1) \\times (C-2)`-matrix :math:`M_y`, and :math:`N-1`-vector :math:`rhs_y` 
+        :return: :math:`(N+1) \\times C`-matrix :math:`M_y`, and :math:`N+1`-vector :math:`rhs_y` 
         :rtype: Tuple[scipy.sparse.dok_matrix, np.ndarray[float]]
         """
         C,N = self.__P.shape
@@ -369,7 +369,7 @@ class ReachabilityForm:
             \max \, \sum_{s} \mathbf{x}(s) \quad \\text{ subject to } \quad \mathbf{x} \in \mathcal{P}^{\\text{min}}(0)
             
         The solution vector corresponds to the minimal reachabiliy probability, i.e. 
-        :math:`\mathbf{x}^*(s) = \mathbf{Pr}^{\\text{min}}_s(\diamond goal)` for all :math:`s \in S \\backslash \{goal,fail\}`.
+        :math:`\mathbf{x}^*(s) = \mathbf{Pr}^{\\text{min}}_s(\diamond \\text{goal})` for all :math:`s \in S`.
 
         :param solver: Solver that should be used, defaults to "cbc"
         :type solver: str, optional
@@ -392,13 +392,13 @@ class ReachabilityForm:
     def max_z_state_action(self,solver="cbc"):
         """
         Let :math:`\mathbf{x}` be a solution vector to `max_z_state`. This function then returns a 
-        :math:`C-2` vector :math:`\mathbf{v}` such that
+        :math:`C` vector :math:`\mathbf{v}` such that
 
         .. math::
 
-            \mathbf{v}((s,a)) = \sum_{d \in S \\backslash \{fail\}  } \mathbf{P}((s,a),d) \mathbf{x}(d)
+            \mathbf{v}((s,a)) = \mathbf{P}((s,a),\\text{goal}) + \sum_{d \in S } \mathbf{P}((s,a),d) \mathbf{x}(d)
 
-        for all :math:`(s,a) \in \mathcal{M}` where :math:`s \\not \in \{goal,fail\}`.
+        for all :math:`(s,a) \in \mathcal{M}`.
 
         :param solver: [description], defaults to "cbc"
         :type solver: str, optional
@@ -437,13 +437,13 @@ class ReachabilityForm:
     def max_y_state(self,solver="cbc"):
         """
         Let :math:`\mathbf{x}` be a solution vector to `max_y_state_action`. This function then returns a 
-        :math:`N-2` vector :math:`\mathbf{v}` such that
+        :math:`N` vector :math:`\mathbf{v}` such that
 
         .. math::
 
             \mathbf{v}(s) = \sum_{a \in \\text{Act}(s)} \mathbf{x}((s,a))
 
-        for all :math:`s \in S \\backslash \{goal,fail\}`.
+        for all :math:`s \in S`.
 
         :param solver: Solver that should be used, defaults to "cbc"
         :type solver: str, optional
@@ -460,8 +460,8 @@ class ReachabilityForm:
         return max_y_states
 
     def pr_min(self,solver="cbc"):
-        """Computes an :math:`N-2` vector :math:`\mathbf{x}` such that 
-        :math:`\mathbf{x}(s) = \mathbf{Pr}^{\\text{min}}_s(\diamond goal)` for :math:`s \\in S \\backslash \{goal,fail\}`.
+        """Computes an :math:`N` vector :math:`\mathbf{x}` such that 
+        :math:`\mathbf{x}(s) = \mathbf{Pr}^{\\text{min}}_s(\diamond \\text{goal})` for :math:`s \in S`.
 
         :param solver: Solver that should be used, defaults to "cbc"
         :type solver: str, optional
@@ -471,8 +471,8 @@ class ReachabilityForm:
         return self.max_z_state(solver=solver)
 
     def pr_max(self,solver="cbc"):
-        """Computes an :math:`N-2` vector :math:`\mathbf{x}` such that 
-        :math:`\mathbf{x}(s) = \mathbf{Pr}^{\\text{max}}_s(\diamond goal)` for :math:`s \\in S \\backslash \{goal,fail\}`.
+        """Computes an :math:`N` vector :math:`\mathbf{x}` such that :math:`\mathbf{x}(s) = 
+        \mathbf{Pr}^{\\text{max}}_s(\diamond \\text{goal})` for :math:`s \in S`.
 
         :param solver: Solver that should be used, defaults to "cbc"
         :type solver: str, optional

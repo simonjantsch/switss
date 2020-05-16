@@ -10,7 +10,7 @@ class DTMC(AbstractMDP):
     def __init__(self, P, index_by_state_action=None, label_to_states={}, **kwargs):
         """Instantiates a DTMC from a transition matrix and labelings for states.
 
-        :param P: :math:`N \\times N` transition matrix.
+        :param P: :math:`N_{S_{\\text{all}}} \\times N_{S_{\\text{all}}}` transition matrix.
         :type P: Either 2d-list, numpy.matrix, numpy.array or scipy.sparse.spmatrix
         :param index_by_state_action: Mapping from states to their corresponding row-entries. Every
             key must have 0 for its action value. If None, then every row-index corresponds to the
