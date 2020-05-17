@@ -13,6 +13,8 @@ witnessing subsystems by reducing the problem to (mixed integer) linear programm
 can automatically be rendered graphically and are accompanied with a certificate which proves that 
 the subsystem is indeed a witness. Work is based on [FJB19]_.
 
+Contact: hans.harder@mailbox.tu-dresden.de
+
 **********************
 MDP and DTMC classes
 **********************

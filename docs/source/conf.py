@@ -43,7 +43,7 @@ exclude_patterns = []
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'pyramid'
+html_theme = 'classic'
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -55,3 +55,7 @@ autoclass_content = 'both'
 
 # Sphinx sorts methods alphabetically, but we want the same as in the source code.
 autodoc_member_order = 'bysource'
+
+html_theme_options = {
+    "stickysidebar" : True
+}
