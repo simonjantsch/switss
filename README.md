@@ -4,24 +4,16 @@ SWITSS implements exact and heuristic methods for computing small witnessing sub
 linear programming. Returned subsystems can automatically be rendered graphically and are accompanied with a certificate which proves 
 that the subsystem is indeed a witness.
 
+See https://simonjantsch.github.io/switss-docs/ for the documentation.
+
 ## Requirements
-* **system** (via `apt-get install`)
-    * python3
-    * graphviz
-    * [prism](https://www.prismmodelchecker.org/download.php). The `bin/` directory of prism must be added to the `$PATH` variable,
-    i.e. add `export PATH="[prism install path]/bin:$PATH"` to your .bash_profile.
+* python3
+* graphviz
+* [prism](https://www.prismmodelchecker.org/download.php). The `bin/` directory of prism must be added to the `$PATH` variable,
+i.e. add `export PATH="[prism install path]/bin:$PATH"` to your `~/.bashsrc`.
 
 ## Installation
 Run `sudo python3 setup.py install`.
-
-## Sphinx (Documentation)
-* install Sphinx via `pip3 install sphinx`
-* generate documentation by doing the following steps: 
-```sh
-cd docs
-make html
-xdg-open build/html/index.html
-```
     
 ## Solvers
 By installing `PuLP`, the CBC-solver is automatically installed alongside of it. In order to use the Gurobi solver, 
