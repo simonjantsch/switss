@@ -25,7 +25,7 @@ by adding the following lines to `~/.bashrc`:
     export LD_LIBRARY_PATH="${GUROBI_HOME}/lib"
     
 ## Tests
-Call `pytest` in the root directory of this repository in order to run all tests. In `test/test_dtmc.py` and `test/test_mdp.py` variables `lp_solver` and `milp_solvers` specify lists of used solvers. If one of these solver happens to be not installed on your system, you can just delete it from the lists.
+Call `pytest` in the root directory of this repository in order to run all tests. In `test/test_dtmc.py` and `test/test_mdp.py` variables `lp_solver` and `milp_solvers` specify lists of used solvers. If one of these solvers happens to be not installed on your system, you can just delete it from the lists.
 
 ## SWITSS Command Line Tool
 SWITSS comes with a handy command line tool that makes it possible to find minimal witnessing subsystems without having to open up
