@@ -415,7 +415,7 @@ class ReachabilityForm:
 
         .. math::
 
-            \max \, \sum_{(s,a)} \mathbf{x}((s,a)) \quad \\text{ subject to } \quad \mathbf{x} \in \mathcal{P}^{\\text{max}}(0)
+            \max \, \mathbf{b} \, \mathbf{x} \quad \\text{ subject to } \quad \mathbf{x} \in \mathcal{P}^{\\text{max}}(0)
             
         :param solver: Solver that should be used, defaults to "cbc"
         :type solver: str, optional

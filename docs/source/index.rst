@@ -11,7 +11,8 @@ A tool for the computation of Small WITnessing SubSystems in Markov Decision Pro
 Discrete Time Markov Chains (DTMCs). SWITSS implements exact and heuristic methods for computing small 
 witnessing subsystems by reducing the problem to (mixed integer) linear programming. Returned subsystems 
 can automatically be rendered graphically and are accompanied with a certificate which proves that 
-the subsystem is indeed a witness. Work is based on [FJB19]_.
+the subsystem is indeed a witness. The work is based on [FJB19]_.
+A precondition on the MDP that can be handled is that the probability to reach goal or fail is positive under each scheduler.
 
 Contact: hans.harder@mailbox.tu-dresden.de
 
@@ -28,7 +29,7 @@ A MDP is a tuple :math:`\mathcal{M} = (S_{\text{all}}, \text{Act}, \textbf{P}, s
    
 Also,
 
-* :math:`\text{Act}(s) \subseteq \text{Act}` denotes the set of actions that can be enabled in state :math:`s`
+* :math:`\text{Act}(s) \subseteq \text{Act}` denotes the set of actions that are enabled in state :math:`s`.
 * For a set of states :math:`S` and whenever suitable, :math:`\mathcal{M}_S = \{ (s,a) \in S \times \text{Act} \mid a \in \text{Act}(s) \}` also denotes the set of state-action-pairs.
 * For a set of states :math:`S`,  :math:`C_{S} = | \mathcal{M}_{S} |` denotes the amount of state-action-pairs and :math:`N_S = | S |` the amount of states.
 
@@ -65,7 +66,7 @@ Instantiating MDPs
 
 Like DTMCs, MDPs require a transition matrix and optional state labelings. Additional parameters include
 
-* a index_by_state_action dictionary that maps state-action-pairs to their corresponding row-index in the transition matrix,
+* a dictionary (called index_by_state_action) that maps state-action-pairs to their corresponding row-index in the transition matrix,
 * and an optional labeling for state-action pairs. 
 
 >>> from switss.model import MDP
@@ -85,7 +86,7 @@ Like DTMCs, MDPs require a transition matrix and optional state labelings. Addit
 Instantiating from PRISM model files
 ====================================
 
-SWITSS supports the instantiation of MDPs and DTMCs from .lab and .tra, as well as from .pm files:
+SWITSS supports the instantiation of MDPs and DTMCs from .lab and .tra, as well as from PRISM .pm/.nm files:
 
 >>> from switss.model import DTMC
 >>> M = DTMC.from_prism_model("datasets/brp.pm",
@@ -105,8 +106,8 @@ brp.pm and csma-2-2.lab/.tra can be found in the
 Rendering of DTMCs and MDPs
 ===========================
 
-In order to make plotting DTMCs and MDPs more customizable, SWITSS implements a `.digraph`-method on DTMCs and MDPs which returns 
-`graphviz.Digraph` instances (see `here <https://www.graphviz.org/doc/info/attrs.html>`_). Changing default behaviour can be obtained 
+Plotting DTMCs and MDPs is highly customizable. SWITSS implements a `.digraph`-method on DTMCs and MDPs which returns 
+`graphviz.Digraph` instances (see `here <https://www.graphviz.org/doc/info/attrs.html>`_). The default behaviour can be changed 
 by specifying functions that return graphviz attribute settings for nodes and edges: 
 
 .. code-block::
@@ -198,8 +199,8 @@ A RF is a wrapper for DTMCs/MDPs with the following properties:
 * every state is reachable from the initial state (fail doesn't need to be reachable) and
 * every state reaches the goal state (except the fail state).
 
-This kind of DTMC/MDP is one of the core components of SWITSS, since this enables the matrices and vectors that are 
-essential for the farkas constraints defined in `FJB19`_ (see table 1):
+This kind of DTMC/MDP is one of the core components of SWITSS, since the definitions of Farkas certificates (`FJB19`_, Table 1) can be easily derived thereof.
+A further assumption that is needed is that the probability to reach goal or fail is positive under each scheduler.
  
 In this context,
 
@@ -260,7 +261,7 @@ RFs implement methods for computing maximal and minimal reachability probabiliti
                "init"  : {0}}
 
    mdp = MDP(P, index_by_state_action, actionlabels, labels)
-   rf,_,_ = ReachabilityForm.reduce(mdp, "init")
+   rf,_,_ = ReachabilityForm.reduce(mdp, "init", "target")
    print(rf.pr_max(), rf.pr_min())
 
 ************************
@@ -295,7 +296,7 @@ Here, `MILPExact` corresponds to the MILP Formulation and `QSHeur` to the quotie
 and :class:`switss.problem.MILPExact` for more information on how to specify additional parameters). 
 
 Results of such minimizations are given as :class:`switss.problem.ProblemResult` instances which contain the objective value of the 
-solved MILP/LPs, a :math:`N` or :math:`C` dimensional certificate (dependent on whether "max" or "min" was choosen) and a 
+solved MILP/LPs, a :math:`N` or :math:`C` dimensional Farkas certificate (dependent on whether "min" or "max" was choosen) and a 
 :class:`switss.problem.Subsystem`-object that contains reachability forms for both super- and subsystem and, additionally, a method
 for rendering subsystems with their corresponding certificate values:
 
@@ -372,7 +373,7 @@ itself and returns only the last result:
 Certificates
 ************
 
-SWITSS supports the generation and the checking of farkas certificates. This can be used, for example, for validating the results 
+SWITSS supports the generation and the checking of Farkas certificates. This can be used, for example, for validating the results 
 of solved problem instances: 
 
 >>> from switss.model import DTMC, ReachabilityForm
@@ -447,11 +448,11 @@ Problem
 Note on Initializers and Updaters
 ---------------------------------
 
-The Initializer and Updater-classes rely 'groups' of states/state-action pairs for
+The Initializer and Updater-classes rely on 'groups' of states/state-action pairs for
 computing initial/updated objective functions in order unify the concept of label-based and
-default minimization. If label-based minimization was choosen, every
+default minimization. If label-based minimization was chosen, every
 group corresponds to some label and thereby to a set of states that have this label.
-If label-based minimization was not choosen, every group corresponds to some state or
+If label-based minimization was not chosen, every group corresponds to some state or
 state-action pair (i.e. every group has only one member).
 
 The objective functions that are returned are given as lists of group-index/group-weight pairings.
@@ -496,4 +497,4 @@ References
 **********
 .. rubric:: References
 
-.. [FJB19] Funke, F; Jantsch, S; Baier, C: Farkas certificates and minimal witnessing subsystems for probabilistic reachability constraints. (https://arxiv.org/abs/1910.10636)
+.. [FJB19] Funke, F; Jantsch, S; Baier, C: Farkas certificates and minimal witnessing subsystems for probabilistic reachability constraints. (https://link.springer.com/chapter/10.1007/978-3-030-45190-5_18)
