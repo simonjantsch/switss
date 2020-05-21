@@ -7,7 +7,7 @@ from ..utils import color_from_hash, cast_dok_matrix
 from ..prism import prism
 
 class DTMC(AbstractMDP):
-    def __init__(self, P, index_by_state_action=None, label_to_states={}, **kwargs):
+    def __init__(self, P, label_to_states={}, index_by_state_action=None, **kwargs):
         """Instantiates a DTMC from a transition matrix and labelings for states.
 
         :param P: :math:`N_{S_{\\text{all}}} \\times N_{S_{\\text{all}}}` transition matrix.
