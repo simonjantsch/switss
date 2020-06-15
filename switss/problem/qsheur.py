@@ -133,6 +133,9 @@ class QSHeur(ProblemFormulation):
                 yield ProblemResult("success", witness, no_nonzero_groups, certificate)
 
                 current_objective = updater.update(heur_result.result_vector)
+                new_constraints = updater.constraints(heur_result.result_vector)
+                for constraint in new_constraints:
+                    heur_lp.add_constraint(*constraint)
             else:
                 # failed to optimize LP
                 yield ProblemResult(heur_result.status, None,None,None)
@@ -181,6 +184,9 @@ class QSHeur(ProblemFormulation):
                 yield ProblemResult("success", witness, no_nonzero_groups, certificate)
 
                 current_objective = updater.update(heur_result.result_vector)
+                new_constraints = updater.constraints(heur_result.result_vector)
+                for constraint in new_constraints:
+                    heur_lp.add_constraint(*constraint)
             else:
                 # failed to optimize LP
                 yield ProblemResult(heur_result.status, None,None,None)

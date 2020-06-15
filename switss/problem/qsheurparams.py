@@ -79,6 +79,26 @@ class Updater(ABC):
         """
         pass
 
+    @abstractmethod
+    def constraints(self, last_result):
+        """
+        Computes a list of linear constraints that are added to the LP.
+        Every linear constraint is given as a tuple :math:`(((i_1,a_1),\dots,(i_m,a_m)),\circ,b)`,
+        where :math:`\circ \in \{ \leq, \geq, = \}`, :math:`i_1,\dots,i_m \in \mathbb{N}` are the variable indicies 
+        that influence the constraint and :math:`a_1,\dots,a_m \in \mathbb{R}` are their respective coefficients.
+        :math:`b` is the right hand side of the resulting equation. This expresses the constraint
+
+        .. math::
+
+            \sum_{j=1}^m a_j \mathbf{x}_{i_j} \circ b
+
+        where :math:`\mathbf{x}` is the vector of variables.
+
+        :param last_result: The past result vector :math:`QS(i)`.
+        :type last_result: List[Tuple[List[Tuple[int,float]], str, float]]
+        """
+        pass
+
     def __repr__(self):
         return type(self).__name__
 
@@ -110,10 +130,29 @@ class InverseResultUpdater(Updater):
     where :math:`C \gg 0`.
 
     """    
+
     def update(self, last_result):
         C = np.min([np.max([0,1e8] + [1/last_result[group] for group in self.groups if last_result[group] != 0]),1e9])
         objective = [(group, np.min([1/last_result[group],C]) if last_result[group] > 0 else C) for group in self.groups]
         return objective
+
+    def constraints(self, last_result):
+        return []
+
+class InverseResultFixedZerosUpdater(Updater):
+
+    def update(self, last_result):
+        return [((group, 1/last_result[group]) if last_result[group] > 0 else (group,0.)) for group in self.groups]
+
+    def constraints(self, last_result):
+        # if fix_zero_states is enabled, every group that has a 0-entry in the 
+        # result vector will be constrained to equal 0 in the coming LPs
+        ret = []
+        for group in self.groups:
+            if last_result[group] == 0:
+                constraint = ([(group,1.)], "=", 0)
+                ret.append(constraint)
+        return ret
 
 class InverseReachabilityInitializer(Initializer):
     """Gives groups the most weight that have a low probability of reaching the goal state.
