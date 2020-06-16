@@ -166,10 +166,8 @@ class AbstractMDP(ABC):
         :rtype: cls
         """        
         # identify all states
-        t = time()
         states_by_label, _, _ = parse_label_file(label_file_path)
         # then load the transition matrix
-        t = time()
         res = cls._load_transition_matrix(tra_file_path)
         return cls(**res, label_to_states=states_by_label)
         
