@@ -7,6 +7,8 @@ from bidict import bidict
 import os.path
 import tempfile
 
+
+from switss.utils.graph import Graph
 from ..prism import parse_label_file, prism_to_tra
 from ..utils import InvertibleDict, cast_dok_matrix
 
@@ -49,6 +51,7 @@ class AbstractMDP(ABC):
             self.__label_to_states_invertible = InvertibleDict(label_to_states, is_default=True)
         self.__check_correctness()
         self.__available_actions = None
+        self.__graph = Graph(self.P, self.index_by_state_action)
 
     def __check_correctness(self):
         """Validates correctness of a this model by checking
@@ -127,20 +130,8 @@ class AbstractMDP(ABC):
         :type blocklist: Set[int]
         :return: Resulting vector.
         :rtype: np.ndarray[bool]
-        """        
-        assert mode in ["forward", "backward"], "Mode must be either 'forward' or 'backward' but is %s." % mode
-        reachable = np.zeros(self.N, dtype=np.bool)
-        active = { el for el in from_set }
-        neighbour_iter = { "forward" : self.successors, "backward" : self.predecessors }[mode]
-        while True:
-            fromidx = active.pop()
-            reachable[fromidx] = True
-            if fromidx not in blocklist:
-                succ = { sap[0] for sap in neighbour_iter(fromidx) if reachable[sap[0]] == False }
-                active.update(succ)
-            if len(active) == 0:
-                break
-        return reachable
+        """
+        return self.__graph.reachable(from_set, mode, blocklist)
 
     def predecessors(self, fromidx):
         """Yields an iterator that computes state-action-pairs (s,a) such that
