@@ -170,6 +170,7 @@ class ReachabilityForm:
         # TODO: use reachable_mask instead of reachable everywhere
         # this is much better for performance since lookup of states is always O(1)
         reachable = [ idx for idx,x in enumerate(reachable_mask) if x ]
+        reachable_index_mapping = { v : k for k,v in enumerate(reachable) }
 
         if debug:
             print("tested backward & forward reachability test")
@@ -187,7 +188,7 @@ class ReachabilityForm:
         for sapidx in range(system.C):
             stateidx, actionidx = system.index_by_state_action.inv[sapidx]
             if reachable_mask[stateidx]:
-                newidx = reachable.index(stateidx)
+                newidx = reachable_index_mapping[stateidx] # reachable.index(stateidx)
                 to_rf_rows[(stateidx,actionidx)] = (newidx,actionidx)
                 to_rf_cols[stateidx] = newidx
 
@@ -205,13 +206,19 @@ class ReachabilityForm:
             print("shape of new_P (%s,%s)" % (new_C,new_N))
 
         to_target = np.zeros(new_C)
+
+        # mask for faster access
+        target_mask = np.zeros(system.N, dtype=np.bool)
+        for t in target_states:
+            target_mask[t] = 1
+
         for newidx, ((source,action),(newsource,newaction)) in enumerate(to_rf_rows.items()):
             new_index_by_state_action[(newsource,newaction)] = newidx
-            if source in target_states:
+            if target_mask[source]: # in target_states:
                 to_target[newidx] = 1
             else:
                 idx = system.index_by_state_action[(source,action)]
-                for dest in [s for s,a in system.successors(source) if a == action]:
+                for dest in [s for s,a,p in system.successors(source) if a == action]:
                     if dest in to_rf_cols:
                         newdest = to_rf_cols[dest]
                         new_P[newidx, newdest] = system.P[idx, dest]

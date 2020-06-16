@@ -5,6 +5,8 @@ import numpy as np
 from scipy.sparse import dok_matrix
 from bidict import bidict
 
+ctypedef (int,int,float) SAPPair
+
 cdef struct Stack:
     int element
     Stack* btm
@@ -29,8 +31,8 @@ cdef void freestack(Stack* stack):
         current = tmp
 
 cdef struct Node:
-    int *predecessors
-    int *successors
+    SAPPair *predecessors
+    SAPPair *successors
     int predcount, succcount
 
 cdef class Graph:
@@ -45,28 +47,38 @@ cdef class Graph:
             self.nodes[i] = Node()
         
         for (i,d),p in P.items():
-            s,_ = index_by_state_action.inv[i]
-            self.add_successor(s,d)
+            s,a = index_by_state_action.inv[i]
+            self.add_successor(s,a,p,d)
 
-    cdef void add_successor(self, int fromidx, int toidx):
+    cdef void add_successor(self, int fromidx, int action, float prob, int toidx):
         cdef Node* fromnode = &self.nodes[fromidx]
         cdef Node* tonode = &self.nodes[toidx]
         
         fromnode[0].succcount += 1
-        cdef int *newsuccs = <int *> malloc(fromnode[0].succcount * sizeof(int))
+        cdef SAPPair *newsuccs = <SAPPair *> malloc(fromnode[0].succcount * sizeof(SAPPair))
         for i in range(fromnode[0].succcount-1):
             newsuccs[i] = fromnode[0].successors[i]
-        newsuccs[fromnode[0].succcount-1] = toidx
+        newsuccs[fromnode[0].succcount-1] = (toidx, action, prob)
         free(fromnode[0].successors)
         fromnode[0].successors = newsuccs
 
         tonode[0].predcount += 1
-        cdef int *newpreds = <int *> malloc(tonode[0].predcount * sizeof(int))
+        cdef SAPPair *newpreds = <SAPPair *> malloc(tonode[0].predcount * sizeof(SAPPair))
         for i in range(tonode[0].predcount-1):
             newpreds[i] = tonode[0].predecessors[i]
-        newpreds[tonode[0].predcount-1] = fromidx
+        newpreds[tonode[0].predcount-1] = (fromidx, action, prob)
         free(tonode[0].predecessors)
         tonode[0].predecessors = newpreds
+
+    def successors(self, nodeidx):
+        cdef Node *node = &self.nodes[nodeidx]
+        for i in range(node[0].succcount):
+            yield node[0].successors[i]
+    
+    def predecessors(self, nodeidx):
+        cdef Node *node = &self.nodes[nodeidx]
+        for i in range(node[0].predcount):
+            yield node[0].predecessors[i]
 
     def __str__(self):
         cdef Node *currentnode
@@ -89,7 +101,7 @@ cdef class Graph:
         cdef int currentidx
         cdef Node *currentnode
         cdef int neighbourcount
-        cdef int* neighbours
+        cdef SAPPair* neighbours
         cdef int* blockmask = <int *> malloc(self.nodecount * sizeof(int))
 
         # setup reachable mask, blockmask and stack
@@ -120,7 +132,7 @@ cdef class Graph:
                     neighbours = currentnode[0].predecessors
 
                 for idx in range(neighbourcount):
-                    neighidx = neighbours[idx]
+                    neighidx,_,_ = neighbours[idx]
                     if not reachablemask[neighidx] and not instack[neighidx]:
                         instack[neighidx] = 1
                         stack = push(stack, neighidx)

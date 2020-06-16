@@ -7,7 +7,6 @@ from bidict import bidict
 import os.path
 import tempfile
 
-
 from switss.utils.graph import Graph
 from ..prism import parse_label_file, prism_to_tra
 from ..utils import InvertibleDict, cast_dok_matrix
@@ -142,10 +141,7 @@ class AbstractMDP(ABC):
         :yield: A state-action-pair (s,a)
         :rtype: Iterator[Tuple[int, int]]
         """       
-        col = self.__P_csc.getcol(fromidx)
-        for idx in col.nonzero()[0]:
-            s,a = self.index_by_state_action.inv[idx]
-            yield s,a
+        return self.__graph.predecessors(fromidx)
 
     def successors(self, fromidx):
         """Yields an iterator that computes state-action-pairs (d,a) where applying action a to
@@ -156,11 +152,7 @@ class AbstractMDP(ABC):
         :yield: A state-action-pair (d,a)
         :rtype: Iterator[Tuple[int,int]]
         """        
-        for a in self.actions_by_state[fromidx]:
-            idx = self.index_by_state_action[(fromidx, a)]
-            row = self.__P_csr.getrow(idx)
-            for d in row.nonzero()[1]:
-                yield d, a
+        return self.__graph.successors(fromidx)
 
     @classmethod
     def from_file(cls, label_file_path, tra_file_path):
@@ -174,8 +166,10 @@ class AbstractMDP(ABC):
         :rtype: cls
         """        
         # identify all states
+        t = time()
         states_by_label, _, _ = parse_label_file(label_file_path)
         # then load the transition matrix
+        t = time()
         res = cls._load_transition_matrix(tra_file_path)
         return cls(**res, label_to_states=states_by_label)
         
