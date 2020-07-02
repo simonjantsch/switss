@@ -134,23 +134,23 @@ class AbstractMDP(ABC):
 
     def predecessors(self, fromidx):
         """Yields an iterator that computes state-action-pairs (s,a) such that
-        applying action a to state s yields the given state with some probability p > 0.
+        applying action a to state s yields the given state with probability p > 0.
         
         :param fromidx: The given state.
         :type fromidx: int
-        :yield: A state-action-pair (s,a)
-        :rtype: Iterator[Tuple[int, int]]
+        :yield: A state-action-probability-pair (s,a,p)
+        :rtype: Iterator[Tuple[int, int, float]]
         """       
         return self.__graph.predecessors(fromidx)
 
     def successors(self, fromidx):
         """Yields an iterator that computes state-action-pairs (d,a) where applying action a to
-        the given state yields state d with some probability p > 0.
+        the given state yields state d with probability p > 0.
         
         :param fromidx: The given state.
         :type fromidx: int
-        :yield: A state-action-pair (d,a)
-        :rtype: Iterator[Tuple[int,int]]
+        :yield: A state-action-probability-pair (d,a,p)
+        :rtype: Iterator[Tuple[int,int,float]]
         """        
         return self.__graph.successors(fromidx)
 
