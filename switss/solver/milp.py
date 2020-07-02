@@ -218,11 +218,14 @@ class MILP:
         # this takes quite a lot of time since accessing the rows is inefficient, even for csr-formats.
         # maybe find a way to compute Ax <= b faster.
         # now: add linear constraints: Ax <= b.
+
         for constridx in range(A.shape[0]):
             # calculates A[constridx,:]^T * x
-            lhs, row = [], A.getrow(constridx)
-            for j in row.nonzero()[1]:
-                lhs.append((j, float(A[constridx,j])))
+            row = A.getrow(constridx)
+            lhs = [0]*len(row.indices)
+            # print(row)
+            for i,j,d in zip(range(len(row.indices)), row.indices, row.data):
+                lhs[i] = (j, float(d))
             # adds constraint: A[constridx,:]^T * x <= b[constridx]
             model.add_constraint(lhs, sense, b[constridx,0])
 
