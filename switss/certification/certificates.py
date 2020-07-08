@@ -40,13 +40,7 @@ def find_interior_point(A, b, xgeq0=False, solver="cbc"):
     return result.result_vector[:-1], (result.status != "optimal" or sres > 0), sres < 0
 
 def generate_farkas_certificate(reach_form, mode, sense, threshold,solver="cbc"):
-    """Generates Farkas certificates for a given reachability form, mode, sense and threshold using the characterizations 
-    in Table 1 of [FJB19]_. To this end uses an LP solver to find a satisfying vector of the corresponding polytope. 
-    For strict inequalities, maximizes (minimizes) the probability and then checks whether the result value is strictly 
-    greater than the threshold.
-
-    Since the solvers that are currently supported do not use precise arithmetic, the resulting vectors may deviate from 
-    the desired result a bit. 
+    """Generates Farkas certificates for a given reachability form, mode, sense and threshold using the characterizations in Table 1 of [FJB19]_. To this end uses an LP solver to find a satisfying vector of the corresponding polytope.
 
     :param reach_form: RF the certificate should be generated for
     :type reach_form: model.ReachabilityForm
