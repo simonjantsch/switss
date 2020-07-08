@@ -20,6 +20,22 @@ def find_interior_point(A, b, xgeq0=False, solver="cbc"):
     :return: a 3d-tuple (x, optimal, strict) where `x` is the :math:`M`-d result vector :math:`x^*`, `optimal` indicates whether the LP-solution is optimal (i.e. not unbounded or infeasible) and `strict` whether :math:`A x^* < b` is satisfied.
     :rtype: Tuple[np.ndarray, Bool, Bool]
     """    
+    # if xgeq0 is False, then 
+    # A' = [ a11 ... a1M -1 
+    #        ...
+    #        aN1     aNM -1 ] is a Nx(M+1) matrix
+    # x' = (x1 ... xM s)
+    # b' = b
+    # if xgeq0 is True, then
+    # A' = [ a11 ... a1M -1 
+    #        ...
+    #        aN1 ... aNM -1 
+    #         -1 0 ... 0 -1
+    #         0 -1 ... 0 -1
+    #         ...
+    #         0   ... -1 -1 ] is a (N+M)x(M+1) matrix
+    # x' = (x1 ... xM s)
+    # b' = (b1 ... bN 0 ... 0) is a (N+M) vector
     A_ = dok_matrix(A.copy())
     b_ = b.copy()
     if xgeq0:
