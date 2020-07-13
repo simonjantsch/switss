@@ -106,7 +106,8 @@ class ReachabilityForm:
         for state,name,rowidx,colidx in [(target,"target",system.C-2,system.N-2),(fail,"fail",system.C-1,system.N-1)]:
             successors = list(system.successors(state))
             assert len(successors) == 1 and successors[0][0] == state, "State %s must only one action and successor; itself" % name
-            saindex = system.index_by_state_action[successors[0]]
+            succst,succact,p = successors[0]
+            saindex = system.index_by_state_action[(succst,succact)]
             assert saindex == rowidx, "State-action of %s must be at index %s but is at %s" % (name, rowidx, saindex)
             assert state == colidx, "State %s must be at index %s but is at %s" % (name, colidx, state)
 
