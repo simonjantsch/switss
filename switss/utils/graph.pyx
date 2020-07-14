@@ -44,8 +44,8 @@ cdef class Graph:
         self.nodes = <Node *> malloc(self.nodecount * sizeof(Node))
 
         for i in range(self.nodecount):
-            self.nodes[i] = Node()
-        
+            self.nodes[i] = Node(NULL,NULL,0,0)
+
         for (i,d),p in P.items():
             s,a = index_by_state_action.inv[i]
             self.add_successor(s,a,p,d)
@@ -53,7 +53,7 @@ cdef class Graph:
     cdef void add_successor(self, int fromidx, int action, float prob, int toidx):
         cdef Node* fromnode = &self.nodes[fromidx]
         cdef Node* tonode = &self.nodes[toidx]
-        
+
         fromnode[0].succcount += 1
         cdef SAPPair *newsuccs = <SAPPair *> malloc(fromnode[0].succcount * sizeof(SAPPair))
         for i in range(fromnode[0].succcount-1):
