@@ -19,7 +19,7 @@ GRAPHVIZ_COLORS = ['coral2', 'cadetblue3', 'gold', 'coral1', 'aquamarine4', 'dar
                    'darksalmon', 'deeppink4', 'blue1', 'darkgoldenrod3', 'darkolivegreen4', 'aliceblue',
                    'burlywood1', 'darkslategray1', 'azure2', 'azure', 'darkorchid', 'dodgerblue',
                    'cornsilk', 'darkseagreen3', 'firebrick', 'chocolate', 'goldenrod3', 'coral3', 'firebrick2',
-                   'deepskyblue2', 'bisque4', 'darkslategray4', 'darkorange2', 'azure3', 'brown4', 'chartreuse1',
+                   'deepskyblue2', 'bisque4', 'darkslategray4', 'darkorange2', 'brown4', 'chartreuse1',
                    'chartreuse4', 'dodgerblue1', 'cornsilk4', 'darkorchid4', 'forestgreen', 'chocolate3',
                    'antiquewhite', 'goldenrod4', 'darkslategray3', 'darkorange4', 'aquamarine']
 
@@ -37,3 +37,38 @@ def color_from_hash(obj):
     from hashlib import md5
     hc = int(md5(str(obj).encode("utf-8")).hexdigest(), 16)
     return GRAPHVIZ_COLORS[hc % len(GRAPHVIZ_COLORS)]
+
+def std_state_map(stateidx,labels):
+    return { "style" : "filled",
+             "color" : color_from_hash(tuple(sorted(labels))),
+             "label" : "State %d\n%s" % (stateidx,",".join(labels)) }
+
+def std_trans_map(sourceidx, action, destidx, p):
+    return { "color" : "black", 
+             "label" : str(round(p,10)) }
+
+def std_action_map(sourceidx, action, labels):
+    return { "node" : { "label" :  "%s\n%s" % (action, "".join(labels)),
+                        "color" : "black", 
+                        "shape" : "rectangle" }, 
+             "edge" : { "color" : "black",
+                        "dir" : "none" } }
+
+std_subsystem_cfg = {
+        "fail" : "red",
+        "target" : "green",
+        "not_included" : "azure3",
+        "included" : "keep_color" }
+
+class dtmc_visualization_config:
+    def __init__(self, state_map=None, trans_map=None, subsystem_cfg=None):
+        self.state_map = state_map if state_map != None else std_state_map
+        self.trans_map = trans_map if trans_map != None else std_trans_map
+        self.subsystem_cfg = subsystem_cfg if subsystem_cfg != None else std_subsystem_cfg
+
+class mdp_visualization_config:
+    def __init__(self, state_map=None, trans_map=None, action_map=None, subsystem_cfg=None):
+        self.state_map = state_map if state_map != None else std_state_map
+        self.trans_map = trans_map if trans_map != None else std_trans_map
+        self.subsystem_cfg = subsystem_cfg if subsystem_cfg != None else std_subsystem_cfg
+        self.action_map = action_map if action_map != None else std_action_map

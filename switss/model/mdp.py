@@ -5,10 +5,10 @@ from collections import defaultdict
 
 from . import AbstractMDP
 from ..prism import prism
-from ..utils import color_from_hash
+from ..utils import color_from_hash, mdp_visualization_config
 
 class MDP(AbstractMDP):
-    def __init__(self, P, index_by_state_action, label_to_actions={}, label_to_states={}):
+    def __init__(self, P, index_by_state_action, label_to_actions={}, label_to_states={}, vis_config=None):
         """Instantiates a MDP from a transition matrix, a bidirectional
         mapping from state-action pairs to corresponding transition matrix entries and labelings for states and actions.
 
@@ -22,7 +22,11 @@ class MDP(AbstractMDP):
         :param label_to_states: Mapping from labels to sets of states.
         :type label_to_states: Dict[str,Set[int]]
         """
-        super().__init__(P, index_by_state_action, label_to_actions, label_to_states)
+
+        if vis_config is None:
+            vis_config = mdp_visualization_config()
+
+        super().__init__(P, index_by_state_action, label_to_actions, label_to_states,vis_config)
 
 
     def digraph(self, state_map = None, trans_map = None, action_map = None):      
@@ -70,25 +74,9 @@ class MDP(AbstractMDP):
         :rtype: graphviz.Digraph
         """ 
 
-        def standard_state_map(stateidx,labels):
-            return { "style" : "filled",
-                     "color" : color_from_hash(tuple(sorted(labels))),
-                     "label" : "State %d\n%s" % (stateidx,",".join(labels)) }
-
-        def standard_trans_map(sourceidx, action, destidx, p):
-            return { "color" : "black", 
-                     "label" : str(round(p,10)) }
-
-        def standard_action_map(sourceidx, action, labels):
-            return { "node" : { "label" :  "%s\n%s" % (action, "".join(labels)),
-                                "color" : "black", 
-                                "shape" : "rectangle" }, 
-                     "edge" : { "color" : "black",
-                                "dir" : "none" } }
-
-        state_map = standard_state_map if state_map is None else state_map
-        trans_map = standard_trans_map if trans_map is None else trans_map
-        action_map = standard_action_map if action_map is None else action_map
+        state_map = self.visualization.state_map if state_map is None else state_map
+        trans_map = self.visualization.trans_map if trans_map is None else trans_map
+        action_map = self.visualization.action_map if action_map is None else action_map
 
         dg = Digraph()
 

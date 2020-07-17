@@ -4,6 +4,7 @@ from ..solver.milp import LP
 
 from collections import defaultdict
 from bidict import bidict
+import copy as copy
 import numpy as np
 from scipy.sparse import dok_matrix,hstack,vstack
 
@@ -291,11 +292,30 @@ class ReachabilityForm:
         P_compl[C, target_state] = 1
         P_compl[C+1, fail_state] = 1
 
+        #consider target and fail states in visualization
+        old_vis = configuration.visualization
+        visualization = copy.copy(configuration.visualization)
+
+        def new_state_map(stateidx,labels):
+            if stateidx == target_state:
+                return { "style" : "",
+                         "color" : old_vis.subsystem_cfg["target"],
+                         "label" : "rf_target" }
+            elif stateidx == fail_state:
+                return { "style" : "",
+                         "color" : old_vis.subsystem_cfg["fail"],
+                         "label" : "rf_fail" }
+            else:
+                return old_vis.state_map(stateidx,labels)
+
+        visualization.state_map = new_state_map
+
         return type(configuration)( 
                     P=P_compl, 
                     index_by_state_action=index_by_state_action_compl, 
                     label_to_states=label_to_states,
-                    label_to_actions=label_to_actions)
+                    label_to_actions=label_to_actions,
+                    vis_config = visualization)
 
     def __repr__(self):
         return "ReachabilityForm(initial=%s, target=%s, fail=%s, system=%s)" % (self.initial_label, self.target_label, self.fail_label, self.system)
