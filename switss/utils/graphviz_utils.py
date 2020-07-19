@@ -43,7 +43,11 @@ def std_state_map(stateidx,labels):
              "color" : color_from_hash(tuple(sorted(labels))),
              "label" : "State %d\n%s" % (stateidx,",".join(labels)) }
 
-def std_trans_map(sourceidx, action, destidx, p):
+def std_trans_map_mdp(sourceidx, action, destidx, p):
+    return { "color" : "black", 
+             "label" : str(round(p,10)) }
+
+def std_trans_map_dtmc(sourceidx, destidx, p):
     return { "color" : "black", 
              "label" : str(round(p,10)) }
 
@@ -63,12 +67,13 @@ std_subsystem_cfg = {
 class dtmc_visualization_config:
     def __init__(self, state_map=None, trans_map=None, subsystem_cfg=None):
         self.state_map = state_map if state_map != None else std_state_map
-        self.trans_map = trans_map if trans_map != None else std_trans_map
+        self.trans_map = trans_map if trans_map != None else std_trans_map_dtmc
         self.subsystem_cfg = subsystem_cfg if subsystem_cfg != None else std_subsystem_cfg
 
 class mdp_visualization_config:
     def __init__(self, state_map=None, trans_map=None, action_map=None, subsystem_cfg=None):
         self.state_map = state_map if state_map != None else std_state_map
-        self.trans_map = trans_map if trans_map != None else std_trans_map
+        self.trans_map = trans_map if trans_map != None else std_trans_map_mdp
         self.subsystem_cfg = subsystem_cfg if subsystem_cfg != None else std_subsystem_cfg
         self.action_map = action_map if action_map != None else std_action_map
+

@@ -1,5 +1,5 @@
 from . import AbstractMDP,MDP
-from ..utils import InvertibleDict, cast_dok_matrix
+from ..utils import InvertibleDict, cast_dok_matrix, dtmc_visualization_config, mdp_visualization_config
 from ..solver.milp import LP
 
 from collections import defaultdict
@@ -51,6 +51,39 @@ class ReachabilityForm:
         self.__A = self._reach_form_id_matrix() - self.__P
         self.__to_target = system.P.getcol(system.N-2).todense()[:system.C-2]
         
+        self.__target_visualization_style = None
+        self.__fail_visualization_style = None
+        self.set_target_visualization_style()
+        self.set_fail_visualization_style()
+
+    def set_target_visualization_style(self,style=None):
+        assert style is None or type(style) == type(self.system.visualization)
+
+        def _state_map(sourceidx,labels):
+            return { "color" : "green", "style": "filled", "label" : self.target_label }
+        def _action_map(sourceidx,action,labels):
+            return { "node" : { "shape" : "point" }, "edge" : { "dir" : "none" } }
+        
+        if style is None:
+            if type(self.system) is MDP: style = mdp_visualization_config(state_map=_state_map,action_map=_action_map)
+            else: style = dtmc_visualization_config(state_map=_state_map)
+        
+        self.__target_visualization_style = style
+
+    def set_fail_visualization_style(self,style=None):
+        assert style is None or type(style) == type(self.system.visualization)
+        
+        def _state_map(sourceidx,labels):
+            return { "color" : "red", "style": "filled", "label" : self.fail_label }
+        def _action_map(sourceidx,action,labels):
+            return { "node" : { "shape" : "point" }, "edge" : { "dir" : "none" } }
+
+        if style is None:
+            if type(self.system) is MDP: style = mdp_visualization_config(state_map=_state_map,action_map=_action_map)
+            else: style = dtmc_visualization_config(state_map=_state_map)
+        
+        self.__fail_visualization_style = style
+
     @property
     def A(self):
         """
@@ -243,6 +276,8 @@ class ReachabilityForm:
             fail_label=new_fail_label,
             ignore_consistency_checks=True)
 
+        rf.__adapt_style(to_rf_cols.inv, to_rf_rows.inv, system.visualization)
+
         return rf, to_rf_cols, to_rf_rows
 
     @property
@@ -292,30 +327,53 @@ class ReachabilityForm:
         P_compl[C, target_state] = 1
         P_compl[C+1, fail_state] = 1
 
-        #consider target and fail states in visualization
-        old_vis = configuration.visualization
-        visualization = copy.copy(configuration.visualization)
-
-        def new_state_map(stateidx,labels):
-            if stateidx == target_state:
-                return { "style" : "",
-                         "color" : old_vis.subsystem_cfg["target"],
-                         "label" : "rf_target" }
-            elif stateidx == fail_state:
-                return { "style" : "",
-                         "color" : old_vis.subsystem_cfg["fail"],
-                         "label" : "rf_fail" }
-            else:
-                return old_vis.state_map(stateidx,labels)
-
-        visualization.state_map = new_state_map
-
         return type(configuration)( 
                     P=P_compl, 
                     index_by_state_action=index_by_state_action_compl, 
                     label_to_states=label_to_states,
-                    label_to_actions=label_to_actions,
-                    vis_config = visualization)
+                    label_to_actions=label_to_actions)
+    
+    def __adapt_style(self, state_map, state_action_map, viz_cfg):
+        C,N = self.system.C,self.system.N
+
+        def _state_style(sourceidx, labels):
+            if sourceidx == N-2: # target state
+                return self.__target_visualization_style.state_map(sourceidx,labels)
+            elif sourceidx == N-1: 
+                return self.__fail_visualization_style.state_map(sourceidx,labels)
+            else:
+                return viz_cfg.state_map(state_map[sourceidx],labels)
+        
+        def _action_style(sourceidx,action,labels):
+            if sourceidx == N-2:
+                return self.__target_visualization_style.action_map(sourceidx,action,labels)
+            elif sourceidx == N-1:
+                return self.__fail_visualization_style.action_map(sourceidx,action,labels)
+            else:
+                _sourceidx,_action = state_action_map[(sourceidx,action)]
+                return viz_cfg.action_map(_sourceidx,_action,labels)
+        
+        def _trans_style_dtmc(sourceidx,destidx,p):
+            if destidx == N-2:
+                return self.__target_visualization_style.trans_map(sourceidx,destidx,p)
+            elif destidx == N-1:
+                return self.__fail_visualization_style.trans_map(sourceidx,destidx,p)
+            else:
+                return viz_cfg.trans_map(state_map[sourceidx],state_map[destidx],p)
+        
+        def _trans_style_mdp(sourceidx,action,destidx,p):
+            if destidx == N-2:
+                return self.__target_visualization_style.trans_map(sourceidx,action,destidx,p)
+            elif destidx == N-1:
+                return self.__fail_visualization_style.trans_map(sourceidx,action,destidx,p)
+            else:
+                _sourceidx,_action = state_action_map[(sourceidx,action)]
+                return viz_cfg.trans_map(_sourceidx,_action,state_map[destidx],p)
+        
+        if type(viz_cfg) == dtmc_visualization_config:
+            self.system.visualization = dtmc_visualization_config(state_map=_state_style,trans_map=_trans_style_dtmc,subsystem_cfg=viz_cfg.subsystem_cfg)
+        else:
+            self.system.visualization = mdp_visualization_config(state_map=_state_style,trans_map=_trans_style_mdp,action_map=_action_style,subsystem_cfg=viz_cfg.subsystem_cfg)
 
     def __repr__(self):
         return "ReachabilityForm(initial=%s, target=%s, fail=%s, system=%s)" % (self.initial_label, self.target_label, self.fail_label, self.system)

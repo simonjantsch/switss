@@ -1,3 +1,3 @@
 from .invertible_dict import InvertibleDict
-from .graphviz_utils import color_from_hash,mdp_visualization_config,dtmc_visualization_config
+from .graphviz_utils import color_from_hash,mdp_visualization_config,dtmc_visualization_config,std_action_map
 from .casting import cast_dok_matrix

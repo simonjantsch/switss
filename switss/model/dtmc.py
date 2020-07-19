@@ -34,7 +34,7 @@ class DTMC(AbstractMDP):
 
         super().__init__(P, index_by_state_action, {}, label_to_states, vis_config)
 
-    def digraph(self, state_map = None, trans_map = None):
+    def digraph(self, state_map = None, trans_map = None, **kwargs):
         """Creates a `graphviz.Digraph` object from this instance. When a digraph object is created, 
         new nodes are added for states plus additional edges for transitions between states. 
         `state_map` and `trans_map` are functions that, on some input, compute keyword arguments for

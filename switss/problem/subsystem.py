@@ -5,7 +5,7 @@ from scipy.sparse import dok_matrix
 from collections import defaultdict
 
 from ..model import DTMC, MDP, ReachabilityForm
-from ..utils import color_from_hash, InvertibleDict
+from ..utils import color_from_hash, InvertibleDict, std_action_map
 
 class Subsystem:
     """In this context, a subsystem is the combination of a system in reachability form (RF) and 
@@ -188,53 +188,36 @@ class Subsystem:
             is_fail = stateidx == len(self.subsystem_mask)+1
             is_target = stateidx == len(self.subsystem_mask)
             in_subsystem = not is_fail and not is_target and self.subsystem_mask[stateidx]
-            label = visualization.state_map(stateidx,labels)["label"]
-
-            color = None
-            if in_subsystem or is_fail or is_target:
-                color = visualization.state_map(stateidx,labels)["color"]
-                style = visualization.state_map(stateidx,labels)["style"]
-            else:
-                color = "azure3"
-                style = "filled"
+            
+            sm = None
+            if in_subsystem or is_fail or is_target: sm = visualization.state_map(stateidx,labels) 
+            else: sm = { "label" : "", "color" : "azure3", "style" : "filled" }
 
             # only label state with weight if it is a markov chain or certform is "min"
             # otherwise the actions are labeled
+            label = str(stateidx)
             if (self.certform == "min" or isinstance(self.subsys.system, DTMC)) and in_subsystem:
                 cert = self.certificate[stateidx]
                 # coloring works, but is disabled for now.
                 # color = "gray%d" % int(100-weight*100)
-                if label == "":
-                    label = "c[{}]={:.5f}".format(stateidx, cert)
-                else:
-                    label = "{}\nc[{}]={:.5f}".format(label, stateidx, cert)
-
-            return { "style" : style,
-                     "color" : color,
-                     "label" : label }
+                if label == "": label = "c[{}]={:.5f}".format(stateidx, cert)
+                else: label = "{}\nc[{}]={:.5f}".format(label, stateidx, cert)
+            return { **{ "label" : label }, **sm }
 
         def action_map(sourceidx, action, sourcelabels):
             fail_or_target = sourceidx in [len(self.subsystem_mask), len(self.subsystem_mask)+1]
             in_subsystem = not fail_or_target and self.subsystem_mask[sourceidx]
-            node_color = visualization.action_map(sourceidx,action,sourcelabels)["node"]["color"]
-            node_shape = visualization.action_map(sourceidx,action,sourcelabels)["node"]["shape"]
-            edge_color = visualization.action_map(sourceidx,action,sourcelabels)["edge"]["color"]
-            label = visualization.action_map(sourceidx,action,sourcelabels)["node"]["label"]
+            label = str(action) 
             if self.certform == "max" and in_subsystem:
                 index = self.supersys.system.index_by_state_action[(sourceidx, action)]
                 cert = self.certificate[index]
                 # coloring works, but is disabled for now.
                 # color = "gray%d" % int(weight*100)
-                if label == "":
-                    label = "c[{}]={:.5f}".format(index, cert)
-                else:
-                    label = "{}\nc[{}]={:.5f}".format(label, index, cert)
-            return { "node" : { "color" : node_color,
-                                "label" : label,
-                                "style" : "solid",
-                                "shape" : node_shape },
-                     "edge" : { "color" : edge_color,
-                                "dir" : "none" } }
+                if label == "": label = "c[{}]={:.5f}".format(index, cert)
+                else: label = "{}\nc[{}]={:.5f}".format(label, index, cert)
+            return { **std_action_map(sourceidx,action,sourcelabels),
+                     **{ "node" : { "label" : label } }, 
+                     **visualization.action_map(sourceidx,action,sourcelabels) }
 
         graph = self.supersys.system.digraph(state_map=state_map, action_map=action_map)
         return graph
