@@ -173,14 +173,13 @@ class Subsystem:
         self.__subsys = model
         return model
 
-    def digraph(self, show_weights=True):
+    def digraph(self, show_weights=True, **kwargs):
         """Computes a `graphviz.Digraph` object that contains nodes and edges for states and transitions.
-        States that are in the subsystem are colored blue while states that are not are colored grey.
-        If the choosen certform was "min", i.e. certificate values for states, then states are accompanied with
-        additional information about their values in the certificate. Otherwise, if a certificate for state-action pairs
-        was given, this additional information is added to the corresponding actions (irrelevant for DTMCs).""" 
-
-        graph = Digraph()
+        States that are in the subsystem are unchanged while states that are not are colored grey.
+        Optionally, certificate values may be visualized as well - on the states for "min"-certificates (or in DTMC), and on the actions for "max" certificates.
+        :param show_weights: if True, values of the certificate will be visualized. Defaults to True.
+        :type show_weights: Boolean, optional
+        """
 
         visualization = self.supersys.system.visualization
 
@@ -224,7 +223,7 @@ class Subsystem:
                      **{ "node" : { **visualization.action_map(sourceidx,action,sourcelabels)["node"],
                                     **action_style_overwrite } } }
 
-        graph = self.supersys.system.digraph(state_map=state_map, action_map=action_map)
+        graph = self.supersys.system.digraph(state_map=state_map, action_map=action_map,**kwargs)
         return graph
 
     def __repr__(self):

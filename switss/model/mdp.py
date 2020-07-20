@@ -5,7 +5,7 @@ from collections import defaultdict
 
 from . import AbstractMDP
 from ..prism import prism
-from ..utils import color_from_hash, mdp_visualization_config
+from ..utils import color_from_hash, VisualizationConfig
 
 class MDP(AbstractMDP):
     def __init__(self, P, index_by_state_action, label_to_actions={}, label_to_states={}, vis_config=None):
@@ -21,20 +21,22 @@ class MDP(AbstractMDP):
         :type label_to_actions: Dict[str,Set[Tuple[int,int]]]
         :param label_to_states: Mapping from labels to sets of states.
         :type label_to_states: Dict[str,Set[int]]
+        :param vis_config: Used to configure how model is visualized.
+        :type vis_config: VisualizationConfig
         """
 
         if vis_config is None:
-            vis_config = mdp_visualization_config()
+            vis_config = VisualizationConfig()
 
         super().__init__(P, index_by_state_action, label_to_actions, label_to_states,vis_config)
 
 
-    def digraph(self, state_map = None, trans_map = None, action_map = None):      
+    def digraph(self, state_map = None, trans_map = None, action_map = None, **kwargs):
         """
         Creates a graphviz.Digraph object from this instance. When a digraph object is created, 
         new nodes are added for states and actions plus additional edges between actions and nodes. 
         `state_map`, `trans_map` and `action_map` are functions that, on some input, compute keyword arguments for
-        the digraph instance. If any one of these is None, the default mapping will be used.
+        the digraph instance. If any one of these is None, the default visualization config is used.
         
         For example, these functions below are used as default parameters if no `state_map`, `trans_map` or `action_map` is specified.
         
@@ -78,7 +80,7 @@ class MDP(AbstractMDP):
         trans_map = self.visualization.trans_map if trans_map is None else trans_map
         action_map = self.visualization.action_map if action_map is None else action_map
 
-        dg = Digraph()
+        dg = Digraph(**kwargs)
 
         # connect nodes between each other
         existing_nodes = set({})

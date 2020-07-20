@@ -1,5 +1,5 @@
 from . import AbstractMDP,MDP
-from ..utils import InvertibleDict, cast_dok_matrix, dtmc_visualization_config, mdp_visualization_config
+from ..utils import InvertibleDict, cast_dok_matrix, DTMCVisualizationConfig, VisualizationConfig
 from ..solver.milp import LP
 
 from collections import defaultdict
@@ -65,8 +65,8 @@ class ReachabilityForm:
             return { "node" : { "shape" : "point" }, "edge" : { "dir" : "none" } }
         
         if style is None:
-            if type(self.system) is MDP: style = mdp_visualization_config(state_map=_state_map,action_map=_action_map)
-            else: style = dtmc_visualization_config(state_map=_state_map)
+            if type(self.system) is MDP: style = VisualizationConfig(state_map=_state_map,action_map=_action_map)
+            else: style = DTMCVisualizationConfig(state_map=_state_map)
         
         self.__target_visualization_style = style
 
@@ -79,8 +79,8 @@ class ReachabilityForm:
             return { "node" : { "shape" : "point" }, "edge" : { "dir" : "none" } }
 
         if style is None:
-            if type(self.system) is MDP: style = mdp_visualization_config(state_map=_state_map,action_map=_action_map)
-            else: style = dtmc_visualization_config(state_map=_state_map)
+            if type(self.system) is MDP: style = VisualizationConfig(state_map=_state_map,action_map=_action_map)
+            else: style = DTMCVisualizationConfig(state_map=_state_map)
         
         self.__fail_visualization_style = style
 
@@ -370,10 +370,10 @@ class ReachabilityForm:
                 _sourceidx,_action = state_action_map[(sourceidx,action)]
                 return viz_cfg.trans_map(_sourceidx,_action,state_map[destidx],p)
         
-        if type(viz_cfg) == dtmc_visualization_config:
-            self.system.visualization = dtmc_visualization_config(state_map=_state_style,trans_map=_trans_style_dtmc,subsystem_cfg=viz_cfg.subsystem_cfg)
+        if type(viz_cfg) == DTMCVisualizationConfig:
+            self.system.visualization = DTMCVisualizationConfig(state_map=_state_style,trans_map=_trans_style_dtmc)
         else:
-            self.system.visualization = mdp_visualization_config(state_map=_state_style,trans_map=_trans_style_mdp,action_map=_action_style,subsystem_cfg=viz_cfg.subsystem_cfg)
+            self.system.visualization = VisualizationConfig(state_map=_state_style,trans_map=_trans_style_mdp,action_map=_action_style)
 
     def __repr__(self):
         return "ReachabilityForm(initial=%s, target=%s, fail=%s, system=%s)" % (self.initial_label, self.target_label, self.fail_label, self.system)

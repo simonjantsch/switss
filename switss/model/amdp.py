@@ -31,6 +31,8 @@ class AbstractMDP(ABC):
         :type label_to_actions: Dict[str,Set[Tuple[int,int]]]
         :param label_to_states: Mapping from labels to sets of states.
         :type label_to_states: Dict[str,Set[int]]
+        :param vis_config: Used to configure how model is visualized.
+        :type vis_config: VisualizationConfig
         """        
         # transform P into dok_matrix if neccessary
         self.P = cast_dok_matrix(P)
