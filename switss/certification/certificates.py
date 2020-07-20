@@ -53,7 +53,9 @@ def find_interior_point(A, b, xgeq0=False, solver="cbc"):
 
     result = lp.solve(solver)
     sres = result.result_vector[-1]
-    return result.result_vector[:-1], (result.status != "optimal" or sres > 0), sres < 0
+    # print(sres, result.status)
+    # print(A.dot(result.result_vector[:-1]) <= b)
+    return result.result_vector[:-1], (result.status == "optimal" and sres <= 0), sres < 0
 
 def generate_farkas_certificate(reach_form, mode, sense, threshold,solver="cbc"):
     """Generates Farkas certificates for a given reachability form, mode, sense and threshold using the characterizations in Table 1 of [FJB19]_. To this end uses an LP solver to find a satisfying vector of the corresponding polytope.
@@ -75,8 +77,8 @@ def generate_farkas_certificate(reach_form, mode, sense, threshold,solver="cbc")
     assert (threshold >= 0) and (threshold <= 1)
 
     farkas_matr,rhs = __get_right_constraint_set(reach_form,mode,sense,threshold)
-    if sense in [">=", ">"]:
-        # Ax >=/> b <=> (-A)x <=/< -b
+    if sense in ["<=", "<"]:
+        # Ax <=/< b <=> (-A)x >=/> -b
         farkas_matr, rhs = -farkas_matr, -rhs
     lp_result, optimal, is_strict = find_interior_point(farkas_matr,rhs,True,solver)
 
