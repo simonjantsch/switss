@@ -173,7 +173,7 @@ class Subsystem:
         self.__subsys = model
         return model
 
-    def digraph(self):
+    def digraph(self, show_weights=True):
         """Computes a `graphviz.Digraph` object that contains nodes and edges for states and transitions.
         States that are in the subsystem are colored blue while states that are not are colored grey.
         If the choosen certform was "min", i.e. certificate values for states, then states are accompanied with
@@ -188,36 +188,41 @@ class Subsystem:
             is_fail = stateidx == len(self.subsystem_mask)+1
             is_target = stateidx == len(self.subsystem_mask)
             in_subsystem = not is_fail and not is_target and self.subsystem_mask[stateidx]
-            
-            sm = None
-            if in_subsystem or is_fail or is_target: sm = visualization.state_map(stateidx,labels) 
-            else: sm = { "label" : "", "color" : "azure3", "style" : "filled" }
 
-            # only label state with weight if it is a markov chain or certform is "min"
-            # otherwise the actions are labeled
-            label = str(stateidx)
-            if (self.certform == "min" or isinstance(self.subsys.system, DTMC)) and in_subsystem:
+            sm = visualization.state_map(stateidx,labels)
+            show_state_weights = (show_weights and (self.certform == "min" or isinstance(self.subsys.system, DTMC)))
+            if not (in_subsystem or is_fail or is_target):
+                return { "label" : "", "color" : "azure3", "style" : "filled" }
+            elif (show_state_weights and in_subsystem):
+                label = sm["label"]
                 cert = self.certificate[stateidx]
-                # coloring works, but is disabled for now.
-                # color = "gray%d" % int(100-weight*100)
                 if label == "": label = "c[{}]={:.5f}".format(stateidx, cert)
                 else: label = "{}\nc[{}]={:.5f}".format(label, stateidx, cert)
-            return { **{ "label" : label }, **sm }
+                return { **sm, **{ "label" : label } }
+            else:
+                return sm
 
         def action_map(sourceidx, action, sourcelabels):
             fail_or_target = sourceidx in [len(self.subsystem_mask), len(self.subsystem_mask)+1]
             in_subsystem = not fail_or_target and self.subsystem_mask[sourceidx]
-            label = str(action) 
-            if self.certform == "max" and in_subsystem:
+            show_action_weights = (show_weights and self.certform == "max" and in_subsystem)
+            if "label" in visualization.action_map(sourceidx, action, sourcelabels)["node"]:
+                label = visualization.action_map(sourceidx, action, sourcelabels)["node"]["label"]
+            else:
+                label = ""
+            if show_action_weights:
                 index = self.supersys.system.index_by_state_action[(sourceidx, action)]
                 cert = self.certificate[index]
-                # coloring works, but is disabled for now.
-                # color = "gray%d" % int(weight*100)
                 if label == "": label = "c[{}]={:.5f}".format(index, cert)
                 else: label = "{}\nc[{}]={:.5f}".format(label, index, cert)
+                action_style_overwrite = {"label" : label, "shape" : "rectangle"}
+            else:
+                action_style_overwrite = {}
+
             return { **std_action_map(sourceidx,action,sourcelabels),
-                     **{ "node" : { "label" : label } }, 
-                     **visualization.action_map(sourceidx,action,sourcelabels) }
+                     **visualization.action_map(sourceidx,action,sourcelabels),
+                     **{ "node" : { **visualization.action_map(sourceidx,action,sourcelabels)["node"],
+                                    **action_style_overwrite } } }
 
         graph = self.supersys.system.digraph(state_map=state_map, action_map=action_map)
         return graph
