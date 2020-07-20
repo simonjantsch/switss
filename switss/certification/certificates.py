@@ -78,7 +78,8 @@ def generate_farkas_certificate(reach_form, mode, sense, threshold,solver="cbc")
 
     farkas_matr,rhs = __get_right_constraint_set(reach_form,mode,sense,threshold)
     if sense in ["<=", "<"]:
-        # Ax <=/< b <=> (-A)x >=/> -b
+        # if sense is "<=" or "<", then the certificate condition is Ax >=/> b
+        # therefore, apply the transformation: Ax >=/> b <=> (-A)x <=/< -b
         farkas_matr, rhs = -farkas_matr, -rhs
     lp_result, optimal, is_strict = find_interior_point(farkas_matr,rhs,True,solver)
 
