@@ -37,9 +37,10 @@ class MDP(AbstractMDP):
         new nodes are added for states and actions plus additional edges between actions and nodes. 
         `state_map`, `trans_map` and `action_map` are functions that, on some input, compute keyword arguments for
         the digraph instance. If any one of these is None, the default visualization config is used.
-        
+        Any additional arguments will be passed to the Digraph(..) call of graphviz'.
+
         For example, these functions below are used as default parameters if no `state_map`, `trans_map` or `action_map` is specified.
-        
+
         .. code-block:: python
 
             def standard_state_map(stateidx,labels):

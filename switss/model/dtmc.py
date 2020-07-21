@@ -43,6 +43,7 @@ class DTMC(AbstractMDP):
         `state_map` and `trans_map` are functions that, on some input, compute keyword arguments for
         the digraph instance. If any one of these is None, the default visualization config will be used. `action_map`
         is ignored.
+        Any additional arguments will be passed to the Digraph(..) call of graphviz'.
 
         For example, these functions below are used as default parameters if no `state_map` or `trans_map` is specified.
 
