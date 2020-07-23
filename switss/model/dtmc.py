@@ -3,11 +3,11 @@ from graphviz import Digraph
 from scipy.sparse import dok_matrix
 
 from . import AbstractMDP
-from ..utils import color_from_hash, cast_dok_matrix
+from ..utils import color_from_hash, cast_dok_matrix, DTMCVisualizationConfig
 from ..prism import prism
 
 class DTMC(AbstractMDP):
-    def __init__(self, P, label_to_states={}, index_by_state_action=None, **kwargs):
+    def __init__(self, P, label_to_states={}, index_by_state_action=None, vis_config=None, **kwargs):
         """Instantiates a DTMC from a transition matrix and labelings for states.
 
         :param P: :math:`N_{S_{\\text{all}}} \\times N_{S_{\\text{all}}}` transition matrix.
@@ -18,7 +18,10 @@ class DTMC(AbstractMDP):
         :type index_by_state_action: Dict[Tuple[int,int],int]
         :param label_to_states: Mapping from labels to sets of states.
         :type label_to_states: Dict[str,Set[int]]
-        """# transform P into dok_matrix if neccessary
+        :param vis_config: Used to configure how model is visualized.
+        :type vis_config: VisualizationConfig
+        """
+        # transform P into dok_matrix if neccessary
         P =  cast_dok_matrix(P)  
         assert P.shape[0] == P.shape[1], "P must be a (NxN)-matrix but has shape %s" % P.shape
         if index_by_state_action is None:
@@ -29,17 +32,21 @@ class DTMC(AbstractMDP):
             for s,a in index_by_state_action.keys():
                 assert a == 0, "If state-actions are specified, DTMCs must have all 0-entries for actions: (%s,%s)" % (s,a)
 
-        super().__init__(P, index_by_state_action, {}, label_to_states)
+        if vis_config is None:
+            vis_config = DTMCVisualizationConfig()
 
-    def digraph(self, state_map = None, trans_map = None, action_map = None):
+        super().__init__(P, index_by_state_action, {}, label_to_states, vis_config)
+
+    def digraph(self, state_map = None, trans_map = None, **kwargs):
         """Creates a `graphviz.Digraph` object from this instance. When a digraph object is created, 
         new nodes are added for states plus additional edges for transitions between states. 
         `state_map` and `trans_map` are functions that, on some input, compute keyword arguments for
-        the digraph instance. If any one of these is None, the default mapping will be used. `action_map`
+        the digraph instance. If any one of these is None, the default visualization config will be used. `action_map`
         is ignored.
-        
+        Any additional arguments will be passed to the Digraph(..) call of graphviz'.
+
         For example, these functions below are used as default parameters if no `state_map` or `trans_map` is specified.
-        
+
         .. highlight:: python
         .. code-block:: python
 
@@ -66,17 +73,8 @@ class DTMC(AbstractMDP):
         :rtype: graphviz.Digraph
         """ 
 
-        def standard_state_map(stateidx,labels):
-            return { "color" : color_from_hash(tuple(sorted(labels))),
-                     "label" : "State %d\n%s" % (stateidx,",".join(labels)),
-                     "style" : "filled" }
-
-        def standard_trans_map(sourceidx, destidx, p):
-            return { "color" : "black", 
-                     "label" : str(round(p,10)) }
-
-        state_map = standard_state_map if state_map is None else state_map
-        trans_map = standard_trans_map if trans_map is None else trans_map
+        state_map = self.visualization.state_map if state_map is None else state_map
+        trans_map = self.visualization.trans_map if trans_map is None else trans_map
 
         dg = Digraph()
 
