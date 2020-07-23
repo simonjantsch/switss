@@ -205,23 +205,18 @@ class Subsystem:
             fail_or_target = sourceidx in [len(self.subsystem_mask), len(self.subsystem_mask)+1]
             in_subsystem = not fail_or_target and self.subsystem_mask[sourceidx]
             show_action_weights = (show_weights and self.certform == "max" and in_subsystem)
-            if "label" in visualization.action_map(sourceidx, action, sourcelabels)["node"]:
-                label = visualization.action_map(sourceidx, action, sourcelabels)["node"]["label"]
-            else:
-                label = ""
+            
+            am = visualization.action_map(sourceidx, action, sourcelabels)
+            am["node"] = { "label" : "", **(am["node"]) }
+            
             if show_action_weights:
                 index = self.supersys.system.index_by_state_action[(sourceidx, action)]
                 cert = self.certificate[index]
                 if label == "": label = "c[{}]={:.5f}".format(index, cert)
                 else: label = "{}\nc[{}]={:.5f}".format(label, index, cert)
-                action_style_overwrite = {"label" : label, "shape" : "rectangle"}
-            else:
-                action_style_overwrite = {}
+                am["node"] = { **am["node"], "label" : label, "shape" : "rectangle" }
 
-            return { **std_action_map(sourceidx,action,sourcelabels),
-                     **visualization.action_map(sourceidx,action,sourcelabels),
-                     **{ "node" : { **visualization.action_map(sourceidx,action,sourcelabels)["node"],
-                                    **action_style_overwrite } } }
+            return { **std_action_map(sourceidx,action,sourcelabels), **am }
 
         graph = self.supersys.system.digraph(state_map=state_map, action_map=action_map,**kwargs)
         return graph
