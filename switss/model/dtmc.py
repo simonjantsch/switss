@@ -76,7 +76,7 @@ class DTMC(AbstractMDP):
         state_map = self.visualization.state_map if state_map is None else state_map
         trans_map = self.visualization.trans_map if trans_map is None else trans_map
 
-        dg = Digraph(**kwargs)
+        dg = Digraph()
 
         # connect nodes between each other
         existing_nodes = set({})
