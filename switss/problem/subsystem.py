@@ -212,6 +212,7 @@ class Subsystem:
             if show_action_weights:
                 index = self.supersys.system.index_by_state_action[(sourceidx, action)]
                 cert = self.certificate[index]
+                label = am["node"]["label"]
                 if label == "": label = "c[{}]={:.5f}".format(index, cert)
                 else: label = "{}\nc[{}]={:.5f}".format(label, index, cert)
                 am["node"] = { **am["node"], "label" : label, "shape" : "rectangle" }
