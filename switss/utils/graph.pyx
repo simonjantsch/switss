@@ -4,7 +4,6 @@ from libc.stdlib cimport malloc, free
 import numpy as np
 from scipy.sparse import dok_matrix
 from bidict import bidict
-from abc import classmethod
 
 ctypedef (int,int,float) SAPPair
 
@@ -164,21 +163,19 @@ cdef class Graph:
         cdef int* scs = <int *> malloc(self.nodecount * sizeof(int))
         cdef int sccount = 0
 
-        # initialize a vector containing algorithmic informations for each node
+        # initialize a vector containing meta-data for each node
         cdef TarjanNode* tnodes = <TarjanNode *> malloc(self.nodecount * sizeof(TarjanNode))
         for i in range(self.nodecount):
             tnodes[i].index = -1
 
         cdef Stack *stack = NULL
-
         for v in range(self.nodecount):
             if tnodes[v].index == -1:
                 i,sccount,stack = self.strongconnect(v, stack, tnodes, i, scs, sccount)
 
-        # scs_list = [set() for i in range(sccount)]
+        # copy into numpy array
         scs_arr = np.zeros(self.nodecount)
         for i in range(self.nodecount):
-            # scs_list[scs[i]].add(i)
             scs_arr[i] = scs[i]
         
         # clear everything up
@@ -214,7 +211,7 @@ cdef class Graph:
                 yield states
             else:
                 sgs = [ graph.subgraph(components == i) for i in range(compcount) ]
-                stack += [ (subgraph ,mappings + [to_sup]) for subgraph,to_sup in sgs ]
+                stack += [ (subgraph, mappings + [to_sup]) for subgraph,to_sup in sgs ]
 
 
     def reachable(self, fromset, direction, blocklist=set()):

@@ -160,6 +160,9 @@ class AbstractMDP(ABC):
     def strongly_connected_components(self):
         return self.__graph.strongly_connected_components()
 
+    def maximal_end_components(self):
+        return self.__graph.maximal_end_components()
+
     @classmethod
     def from_file(cls, label_file_path, tra_file_path):
         """Computes an instance of this model from a given .lab and .tra file.
