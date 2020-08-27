@@ -35,6 +35,10 @@ cdef struct Node:
     SAPPair *successors
     int predcount, succcount
 
+cdef struct TarjanNode:
+    int index, lowlink
+    int onstack
+
 cdef class Graph:
     cdef Node *nodes
     cdef int nodecount
@@ -90,6 +94,63 @@ cdef class Graph:
                 ret += " " + str(currentnode[0].successors[j])
             ret += "\n"
         return ret
+
+    cdef (int,int,Stack*) strongconnect(self, int v, Stack* stack, TarjanNode* tnodes, 
+        int i, int* scs, int sccount):
+        
+        tnodes[v] = TarjanNode(i, i, 1)
+        i += 1
+        stack = push(stack, v)
+
+        cdef Node *node = &self.nodes[v]
+        for succidx in range(node[0].succcount):
+            w = node[0].successors[succidx][0] # -> index of successor state
+            if tnodes[w].index == -1:
+                i,sccount,stack = self.strongconnect(w,stack,tnodes,i,scs,sccount)
+                tnodes[v].lowlink = min(tnodes[v].lowlink,tnodes[w].lowlink)
+            elif tnodes[w].onstack:
+                tnodes[v].lowlink = min(tnodes[v].lowlink,tnodes[w].index)
+
+        if tnodes[v].lowlink == tnodes[v].index:
+            w = -1
+            while w != v:
+                stack, w = pop(stack)
+                tnodes[w].onstack = 0
+                scs[w] = sccount
+            sccount += 1
+
+        return i,sccount,stack
+
+
+    def strongly_connected_components(self):
+        # Implementation of Tarjan's Algorithm
+
+        # initialize vector containing strongly connected endcomponents
+        cdef int* scs = <int *> malloc(self.nodecount * sizeof(int))
+        cdef int sccount = 0
+
+        # initialize a vector containing algorithmic informations for each node
+        cdef TarjanNode* tnodes = <TarjanNode *> malloc(self.nodecount * sizeof(TarjanNode))
+        for i in range(self.nodecount):
+            tnodes[i].index = -1
+
+        cdef Stack *stack = NULL
+
+        for v in range(self.nodecount):
+            if tnodes[v].index == -1:
+                i,sccount,stack = self.strongconnect(v, stack, tnodes, i, scs, sccount)
+
+        # aggregate scs to list
+        scs_list = [set() for i in range(sccount)]
+        for i in range(self.nodecount):
+            scs_list[scs[i]].append(i)
+        
+        # clear everything up
+        free(tnodes)
+        free(scs)
+        freestack(stack)
+        
+        return scs_list
 
     def reachable(self, fromset, direction, blocklist=set()):
         assert len(fromset) > 0
