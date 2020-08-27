@@ -107,5 +107,6 @@ class VisualizationConfig:
 
 class DTMCVisualizationConfig(VisualizationConfig):
     def __init__(self, state_map=None, trans_map=None):
+        if trans_map is None: trans_map = std_trans_map_dtmc 
         super().__init__(state_map,trans_map,None)
         self.action_map = None
