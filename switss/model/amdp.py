@@ -157,6 +157,9 @@ class AbstractMDP(ABC):
         """        
         return self.__graph.successors(fromidx)
 
+    def strongly_connected_components(self):
+        return self.__graph.strongly_connected_components()
+
     @classmethod
     def from_file(cls, label_file_path, tra_file_path):
         """Computes an instance of this model from a given .lab and .tra file.

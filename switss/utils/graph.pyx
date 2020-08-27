@@ -140,17 +140,18 @@ cdef class Graph:
             if tnodes[v].index == -1:
                 i,sccount,stack = self.strongconnect(v, stack, tnodes, i, scs, sccount)
 
-        # aggregate scs to list
-        scs_list = [set() for i in range(sccount)]
+        # scs_list = [set() for i in range(sccount)]
+        scs_arr = np.zeros(self.nodecount)
         for i in range(self.nodecount):
-            scs_list[scs[i]].append(i)
+            # scs_list[scs[i]].add(i)
+            scs_arr[i] = scs[i]
         
         # clear everything up
         free(tnodes)
         free(scs)
         freestack(stack)
         
-        return scs_list
+        return scs_arr
 
     def reachable(self, fromset, direction, blocklist=set()):
         assert len(fromset) > 0
