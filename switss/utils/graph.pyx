@@ -196,7 +196,8 @@ cdef class Graph:
         # this would avoid unneccessary copying...
         # we should implement the copy-approach first; it's just simpler and we will
         # see whether the algorithm really works.
-        ret = []
+        ret = np.zeros(self.nodecount)
+        mec_counter = 1
         stack = [ (self,[]) ]
         while len(stack) > 0:
             graph,mappings = stack.pop()
@@ -220,11 +221,14 @@ cdef class Graph:
                         mapped_states.add(mapping[state])
                     states = mapped_states
                     mapped_states = set()
-                yield states
+                
+                for state in states:
+                    ret[state] = mec_counter
+                mec_counter += 1
             else:
                 sgs = [ graph.subgraph(components == i) for i in range(compcount) ]
                 stack += [ (subgraph, mappings + [to_sup]) for subgraph,to_sup in sgs ]
-
+        return ret, mec_counter-1
 
     def reachable(self, fromset, direction, blocklist=set()):
         assert len(fromset) > 0
