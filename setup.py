@@ -12,7 +12,7 @@ setup(
     version = '0.1',
     packages = find_packages(),
     scripts=['bin/switss'],
-    ext_modules = ext_modules,
+    ext_modules = cythonize("switss/utils/graph.pyx") + ext_modules,
     install_requires=[
         "graphviz",
         "scipy",
