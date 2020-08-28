@@ -58,10 +58,13 @@ cdef class Graph:
                 s,a = index_by_state_action.inv[i]
                 self.add_successor(s,a,p,d)
 
+    def get_nodecount(self):
+        return self.nodecount
+
     def subgraph(self, vmask):
         # compute the size of the subgraph (=#vertices)
         subgraphsize = 0
-        sub_to_sup = bidict() 
+        sub_to_sup = bidict()
         for i in range(self.nodecount):
             if vmask[i] == 1: 
                 sub_to_sup[subgraphsize] = i
@@ -198,7 +201,16 @@ cdef class Graph:
         while len(stack) > 0:
             graph,mappings = stack.pop()
             components,compcount = graph.strongly_connected_components()
+            
             if compcount == 1:
+                # make sure that every node has at least one outgoing edge (one action that can be enabled for states in the MDP)
+                ignore_this_graph = False
+                for i in range(graph.get_nodecount()):
+                    if len(list(graph.successors(i))) == 0:
+                        ignore_this_graph = True
+                        break
+                if ignore_this_graph: continue
+                
                 # cannot be reduced much further,
                 # trace chain of mappings back to root graph 
                 states = mappings[-1].keys()
