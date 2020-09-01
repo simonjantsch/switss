@@ -157,6 +157,26 @@ class AbstractMDP(ABC):
         """        
         return self.__graph.successors(fromidx)
 
+    def strongly_connected_components(self):
+        """Returns the strongly connected components (SCCs) of the underlying graph of this model using Tarjan's Algorithm. The underlying graph is defined as math:`G=(V,E)` with 
+
+        .. math::
+
+            V = S_{\\text{all}},\quad E = \{ (s,s') \in S_{\\text{all}} \\times S_{\\text{all}} \mid \exists a \in \\text{Act}(s). \\textbf{P}(s,a,s') > 0 \}
+
+        :return: A :math:`N_{S_{\\text{all}}}`-dimensional vector containing the index of the SCC every state belongs to and the number of SCCs.
+        :rtype: Tuple[np.ndarray[int],int]
+        """        
+        return self.__graph.strongly_connected_components()
+
+    def maximal_end_components(self):
+        """Returns the Maximal End Components (MECs) of this model.
+
+        :return: A :math:`N_{S_{\\text{all}}}`-dimensional vector containing the index of the MEC every state belongs to and the number of MECs. If a state has a 0-entry, then it does not belong to any MEC.
+        :rtype: Tuple[np.ndarry[int],int]
+        """        
+        return self.__graph.maximal_end_components()
+
     @classmethod
     def from_file(cls, label_file_path, tra_file_path):
         """Computes an instance of this model from a given .lab and .tra file.

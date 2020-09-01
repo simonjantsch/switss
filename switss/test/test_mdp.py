@@ -22,6 +22,17 @@ def test_create_reach_form():
         print(mdp)
         reach_form ,_,_ = ReachabilityForm.reduce(mdp,"init","target")
 
+def test_mecs():
+    import numpy as np
+    SAPpairs = [(0,0,1,1),(1,0,2,1),(2,0,0,1),(3,0,2,1),(4,0,2,0.5),(3,1,5,1),(5,1,3,1),(5,0,4,1),(4,0,6,0.5),(6,0,4,1),(7,1,6,0.5),(7,1,5,0.5),(7,0,7,1)]
+    index_by_state_action = {(0,0):0,(1,0):1,(2,0):2,(3,0):3,(4,0):4,(3,1):5,(5,1):6,(5,0):7,(6,0):8,(7,1):9,(7,0):10}
+    P = np.zeros(shape=(11,8))
+    for s,a,d,p in SAPpairs:
+        P[index_by_state_action[(s,a)],d] = p
+    mdp = MDP(P,index_by_state_action)
+    components,mec_count = mdp.maximal_end_components()
+    assert (components == np.array([3., 3., 3., 2., 0., 2., 0., 1.])).all()
+
 def test_mec_free():
     for mdp in mdps:
         rf ,_,_ = ReachabilityForm.reduce(mdp,"init","target")
