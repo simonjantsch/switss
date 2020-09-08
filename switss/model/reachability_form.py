@@ -508,9 +508,9 @@ class ReachabilityForm:
         :return: Result vector
         :rtype: np.ndarray[float]
         """
-        N,C = self.__P.shape
-
         matr, rhs = self.fark_y_constraints(0)
+        N,C = matr.shape
+
         max_y_lp = LP.from_coefficients(
             matr,rhs,self.to_target,sense="<=",objective="max")
 
@@ -567,7 +567,7 @@ class ReachabilityForm:
         """
         C,N = self.__P.shape
 
-        matr, rhs = self.fark_z_constraints(0)
+        matr, rhs = self.fark_z_constraints(1)
         opt = np.ones(N)
         pr_max_z_lp = LP.from_coefficients(
             matr,rhs,opt,sense=">=",objective="min")
