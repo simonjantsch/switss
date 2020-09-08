@@ -57,50 +57,24 @@ def find_interior_point(A, b, xgeq0=False, solver="cbc"):
     # print(A.dot(result.result_vector[:-1]) <= b)
     return result.result_vector[:-1], (result.status == "optimal" and sres <= 0), sres < 0
 
-def generate_farkas_certificate(reach_form, mode, sense, threshold,solver="cbc"):
-    """Generates Farkas certificates for a given reachability form, mode, sense and threshold using the characterizations in Table 1 of [FJB19]_. To this end uses an LP solver to find a satisfying vector of the corresponding polytope.
+def __get_right_constraint_set(reach_form,mode,sense,threshold):
 
-    :param reach_form: RF the certificate should be generated for
-    :type reach_form: model.ReachabilityForm
-    :param mode: must be either "min" or "max"
-    :type mode: str
-    :param sense: must be either "<=", ">=", "<" or ">".
-    :type sense: str 
-    :param threshold: threshold the certificate should be generated for
-    :type threshold: float
-    :param solver: used solver, must be either "gurobi", "cbc", "glpk" or "cplex", defaults to "cbc"
-    :type solver: str, optional
-    :return: :math:`N` or :math:`C` dimensional vector, dependent on mode
-    :rtype: numpy.ndarray[float]
-    """    
+    assert mode in ["min","max"]
+    assert sense in ["<=","<",">=",">"]
 
-    assert (threshold >= 0) and (threshold <= 1)
+    if mode == "min" and sense in ["<=","<"]:
+        return reach_form.fark_y_constraints(threshold)
 
-    farkas_matr,rhs = __get_right_constraint_set(reach_form,mode,sense,threshold)
-    if sense in ["<=", "<"]:
-        # if sense is "<=" or "<", then the certificate condition is Ax >=/> b
-        # therefore, apply the transformation: Ax >=/> b <=> (-A)x <=/< -b
-        farkas_matr, rhs = -farkas_matr, -rhs
-    lp_result, optimal, is_strict = find_interior_point(farkas_matr,rhs,True,solver)
+    elif mode == "max" and sense in [">=",">"]:
+        return reach_form.fark_y_constraints(threshold)
 
-    if optimal:
-        if sense == ">":
-            if lp_result[reach_form.initial] > threshold:
-                return lp_result
-            else:
-                print("Property is not satisfied!")
-                return None
-        elif sense == "<":
-            if lp_result[reach_form.initial] < threshold:
-                return lp_result
-            else:
-                print("Property is not satisfied!")
-                return None
-        else:
-            return lp_result
-    else:
-        print("Property is not satisfied!")
-        return None
+    elif mode == "min" and sense in [">=",">"]:
+        return reach_form.fark_z_constraints(threshold)
+
+    elif mode == "max" and sense in ["<=","<"]:
+        return reach_form.fark_z_constraints(threshold)
+
+    assert False
 
 def check_farkas_certificate(reach_form, mode, sense, threshold, farkas_vec, tol=1e-8):
     """Given a reachability form, mode, sense, threshold and candidate vector, checks
@@ -145,22 +119,31 @@ def check_farkas_certificate(reach_form, mode, sense, threshold, farkas_vec, tol
 
     assert False
 
+def generate_farkas_certificate(reach_form, mode, sense, threshold,solver="cbc",tol=1e-5):
+    """Generates Farkas certificates for a given reachability form, mode, sense and threshold using the characterizations in Table 1 of [FJB19]_. To this end uses an LP solver to find a satisfying vector of the corresponding polytope.
 
-def __get_right_constraint_set(reach_form,mode,sense,threshold):
+    :param reach_form: RF the certificate should be generated for
+    :type reach_form: model.ReachabilityForm
+    :param mode: must be either "min" or "max"
+    :type mode: str
+    :param sense: must be either "<=", ">=", "<" or ">".
+    :type sense: str 
+    :param threshold: threshold the certificate should be generated for
+    :type threshold: float
+    :param solver: used solver, must be either "gurobi", "cbc", "glpk" or "cplex", defaults to "cbc"
+    :type solver: str, optional
+    :return: :math:`N` or :math:`C` dimensional vector, dependent on mode
+    :rtype: numpy.ndarray[float]
+    """    
 
-    assert mode in ["min","max"]
-    assert sense in ["<=","<",">=",">"]
+    assert (threshold >= 0) and (threshold <= 1)
 
-    if mode == "min" and sense in ["<=","<"]:
-        return reach_form.fark_y_constraints(threshold)
-
-    elif mode == "max" and sense in [">=",">"]:
-        return reach_form.fark_y_constraints(threshold)
-
-    elif mode == "min" and sense in [">=",">"]:
-        return reach_form.fark_z_constraints(threshold)
-
-    elif mode == "max" and sense in ["<=","<"]:
-        return reach_form.fark_z_constraints(threshold)
-
-    assert False
+    farkas_matr,rhs = __get_right_constraint_set(reach_form,mode,sense,threshold)
+    if sense in ["<=", "<"]:
+        # if sense is "<=" or "<", then the certificate condition is Ax >=/> b
+        # therefore, apply the transformation: Ax >=/> b <=> (-A)x <=/< -b
+        farkas_matr, rhs = -farkas_matr, -rhs
+    lp_result, optimal, is_strict = find_interior_point(farkas_matr,rhs,True,solver)
+    
+    check = check_farkas_certificate(reach_form, mode, sense, threshold, lp_result,tol=tol)
+    return lp_result if check else None
