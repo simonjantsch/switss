@@ -33,27 +33,67 @@ cdef void freestack(Stack* stack):
 cdef struct Node:
     SAPPair *predecessors
     SAPPair *successors
-    int predcount, succcount
+    int predcount, succcount 
+
+cdef struct TarjanNode:
+    int index, lowlink
+    int onstack
+
+cdef struct SubMDP:
+    int* E
+    SAPPair* F
+    int nodecount, sapcount
 
 cdef class Graph:
     cdef Node *nodes
     cdef int nodecount
 
-    def __cinit__(self, P, index_by_state_action):
-        self.nodecount = P.shape[1]
-        self.nodes = <Node *> malloc(self.nodecount * sizeof(Node))
+    def __cinit__(self, P=None, index_by_state_action=None):
+        if P is not None and index_by_state_action is not None:
+            self.nodecount = P.shape[1]
+            self.nodes = <Node *> malloc(self.nodecount * sizeof(Node))
+            for i in range(self.nodecount):
+                self.nodes[i] = Node(NULL,NULL,0,0)
+            for (i,d),p in P.items():
+                s,a = index_by_state_action.inv[i]
+                self.add_successor(s,a,p,d)
 
+    def get_nodecount(self):
+        return self.nodecount
+
+    def subgraph(self, vmask):
+        # compute the size of the subgraph (=#vertices)
+        subgraphsize = 0
+        sub_to_sup = bidict()
         for i in range(self.nodecount):
-            self.nodes[i] = Node()
-        
-        for (i,d),p in P.items():
-            s,a = index_by_state_action.inv[i]
-            self.add_successor(s,a,p,d)
+            if vmask[i] == 1: 
+                sub_to_sup[subgraphsize] = i
+                subgraphsize += 1
+
+        cdef Node *nodes = <Node *> malloc(subgraphsize*sizeof(Node)) 
+        for i in range(subgraphsize):
+            nodes[i] = Node(NULL,NULL,0,0)
+        sgraph = Graph()
+        sgraph.nodes = nodes
+        sgraph.nodecount = subgraphsize
+
+        cdef SAPPair* successors
+        for i in range(subgraphsize):
+            orig = sub_to_sup[i]
+            removed_actions = set() # ignore all actions which have successors that are not masked
+            for d,a,p in self.successors(orig):
+                if vmask[d] == 0:
+                    removed_actions.add(a)
+            for d,a,p in self.successors(orig):
+                if a not in removed_actions:
+                    sgraph.add_successor(i,a,p,sub_to_sup.inv[d])
+
+        return sgraph, sub_to_sup
 
     cdef void add_successor(self, int fromidx, int action, float prob, int toidx):
         cdef Node* fromnode = &self.nodes[fromidx]
         cdef Node* tonode = &self.nodes[toidx]
-        
+
         fromnode[0].succcount += 1
         cdef SAPPair *newsuccs = <SAPPair *> malloc(fromnode[0].succcount * sizeof(SAPPair))
         for i in range(fromnode[0].succcount-1):
@@ -70,15 +110,17 @@ cdef class Graph:
         free(tonode[0].predecessors)
         tonode[0].predecessors = newpreds
 
-    def successors(self, nodeidx):
+    def successors(self, nodeidx, actionidx=None):
         cdef Node *node = &self.nodes[nodeidx]
         for i in range(node[0].succcount):
-            yield node[0].successors[i]
+            if actionidx is None or actionidx == node[0].successors[i][1]:
+                yield node[0].successors[i]
     
-    def predecessors(self, nodeidx):
+    def predecessors(self, nodeidx, actionidx=None):
         cdef Node *node = &self.nodes[nodeidx]
         for i in range(node[0].predcount):
-            yield node[0].predecessors[i]
+            if actionidx is None or actionidx == node[0].predecessors[i][1]:
+                yield node[0].predecessors[i]
 
     def __str__(self):
         cdef Node *currentnode
@@ -90,6 +132,103 @@ cdef class Graph:
                 ret += " " + str(currentnode[0].successors[j])
             ret += "\n"
         return ret
+
+    cdef (int,int,Stack*) strongconnect(self, int v, Stack* stack, TarjanNode* tnodes, 
+        int i, int* scs, int sccount):
+        
+        tnodes[v] = TarjanNode(i, i, 1)
+        i += 1
+        stack = push(stack, v)
+
+        cdef Node *node = &self.nodes[v]
+        for succidx in range(node[0].succcount):
+            w = node[0].successors[succidx][0] # -> index of successor state
+            if tnodes[w].index == -1:
+                i,sccount,stack = self.strongconnect(w,stack,tnodes,i,scs,sccount)
+                tnodes[v].lowlink = min(tnodes[v].lowlink,tnodes[w].lowlink)
+            elif tnodes[w].onstack:
+                tnodes[v].lowlink = min(tnodes[v].lowlink,tnodes[w].index)
+
+        if tnodes[v].lowlink == tnodes[v].index:
+            w = -1
+            while w != v:
+                stack, w = pop(stack)
+                tnodes[w].onstack = 0
+                scs[w] = sccount
+            sccount += 1
+
+        return i,sccount,stack
+
+
+    def strongly_connected_components(self):
+        # Implementation of Tarjan's Algorithm
+        # initialize vector containing strongly connected endcomponents
+        cdef int* scs = <int *> malloc(self.nodecount * sizeof(int))
+        cdef int sccount = 0
+
+        # initialize a vector containing meta-data for each node
+        cdef TarjanNode* tnodes = <TarjanNode *> malloc(self.nodecount * sizeof(TarjanNode))
+        for i in range(self.nodecount):
+            tnodes[i].index = -1
+
+        cdef Stack *stack = NULL
+        for v in range(self.nodecount):
+            if tnodes[v].index == -1:
+                i,sccount,stack = self.strongconnect(v, stack, tnodes, i, scs, sccount)
+
+        # copy into numpy array
+        scs_arr = np.zeros(self.nodecount)
+        for i in range(self.nodecount):
+            scs_arr[i] = scs[i]
+        
+        # clear everything up
+        free(tnodes)
+        free(scs)
+        freestack(stack)
+        
+        return scs_arr, sccount
+
+    def maximal_end_components(self):
+        # iteratively create sub-graphs. 
+        # but this may be a bit time-consuming, since it involves copying 
+        # quite a few nodes from graphs to subgraphs. 
+        # possible to share objects and instead just point to parent's objects? 
+        # this would avoid unneccessary copying...
+        # we should implement the copy-approach first; it's just simpler and we will
+        # see whether the algorithm really works.
+        ret = np.zeros(self.nodecount)
+        mec_counter = 1
+        stack = [ (self,[]) ]
+        while len(stack) > 0:
+            graph,mappings = stack.pop()
+            components,compcount = graph.strongly_connected_components()
+            
+            if compcount == 1:
+                # make sure that every node has at least one outgoing edge (one action that can be enabled for states in the MDP)
+                ignore_this_graph = False
+                for i in range(graph.get_nodecount()):
+                    if len(list(graph.successors(i))) == 0:
+                        ignore_this_graph = True
+                        break
+                if ignore_this_graph: continue
+                
+                # cannot be reduced much further,
+                # trace chain of mappings back to root graph 
+                states = mappings[-1].keys()
+                mapped_states = set()
+                for mapping in mappings[::-1]:
+                    for state in states:
+                        mapped_states.add(mapping[state])
+                    states = mapped_states
+                    mapped_states = set()
+                
+                for state in states:
+                    ret[state] = mec_counter
+                mec_counter += 1
+            else:
+                sgs = [ graph.subgraph(components == i) for i in range(compcount) ]
+                stack += [ (subgraph, mappings + [to_sup]) for subgraph,to_sup in sgs ]
+        return ret, mec_counter-1
 
     def reachable(self, fromset, direction, blocklist=set()):
         assert len(fromset) > 0

@@ -24,6 +24,18 @@ def test_create_reach_form():
         print(dtmc)
         reach_form ,_,_ = ReachabilityForm.reduce(dtmc,"init","target")
 
+def test_mecs():
+    import numpy as np
+    E = [[0,1],[1,2],[2,0],[3,2],[3,1],[3,5],[4,2],[4,6],[5,4],[5,3],[6,4],[7,5],[7,6],[7,7]]
+    P = np.zeros(shape=(8,8))
+    for u,v in E:
+        # initialize with arbitrary probabilities
+        ucount = len([w for w,z in E if w == u])
+        P[u,v] = 1/ucount
+    dtmc = DTMC(P)
+    components,mec_count = dtmc.maximal_end_components()
+    assert (components == np.array([1., 1., 1., 0., 0., 0., 0., 0.])).all()
+
 def test_minimal_witnesses():
     for dtmc in dtmcs:
         reach_form ,_,_ = ReachabilityForm.reduce(dtmc,"init","target")

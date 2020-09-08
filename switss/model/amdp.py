@@ -18,7 +18,7 @@ class AbstractMDP(ABC):
     reachability sets, rendering of MDPs/DTMCs as graphviz digraphs, loading from .pm-files and 
     loading/storing from/to .lab,.tra files. 
     """    
-    def __init__(self, P, index_by_state_action, label_to_actions={}, label_to_states={}):
+    def __init__(self, P, index_by_state_action, label_to_actions={}, label_to_states={}, vis_config=None):
         """Instantiates an AbstractMDP from a transition matrix, a bidirectional
         mapping from state-action pairs to corresponding transition matrix entries and labelings for states and actions.
 
@@ -31,6 +31,8 @@ class AbstractMDP(ABC):
         :type label_to_actions: Dict[str,Set[Tuple[int,int]]]
         :param label_to_states: Mapping from labels to sets of states.
         :type label_to_states: Dict[str,Set[int]]
+        :param vis_config: Used to configure how model is visualized.
+        :type vis_config: VisualizationConfig
         """        
         # transform P into dok_matrix if neccessary
         self.P = cast_dok_matrix(P)
@@ -51,6 +53,7 @@ class AbstractMDP(ABC):
         self.__check_correctness()
         self.__available_actions = None
         self.__graph = Graph(self.P, self.index_by_state_action)
+        self.visualization = vis_config
 
     def __check_correctness(self):
         """Validates correctness of a this model by checking
@@ -153,6 +156,26 @@ class AbstractMDP(ABC):
         :rtype: Iterator[Tuple[int,int,float]]
         """        
         return self.__graph.successors(fromidx)
+
+    def strongly_connected_components(self):
+        """Returns the strongly connected components (SCCs) of the underlying graph of this model using Tarjan's Algorithm. The underlying graph is defined as math:`G=(V,E)` with 
+
+        .. math::
+
+            V = S_{\\text{all}},\quad E = \{ (s,s') \in S_{\\text{all}} \\times S_{\\text{all}} \mid \exists a \in \\text{Act}(s). \\textbf{P}(s,a,s') > 0 \}
+
+        :return: A :math:`N_{S_{\\text{all}}}`-dimensional vector containing the index of the SCC every state belongs to and the number of SCCs.
+        :rtype: Tuple[np.ndarray[int],int]
+        """        
+        return self.__graph.strongly_connected_components()
+
+    def maximal_end_components(self):
+        """Returns the Maximal End Components (MECs) of this model.
+
+        :return: A :math:`N_{S_{\\text{all}}}`-dimensional vector containing the index of the MEC every state belongs to and the number of MECs. If a state has a 0-entry, then it does not belong to any MEC.
+        :rtype: Tuple[np.ndarry[int],int]
+        """        
+        return self.__graph.maximal_end_components()
 
     @classmethod
     def from_file(cls, label_file_path, tra_file_path):

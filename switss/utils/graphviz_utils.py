@@ -19,7 +19,7 @@ GRAPHVIZ_COLORS = ['coral2', 'cadetblue3', 'gold', 'coral1', 'aquamarine4', 'dar
                    'darksalmon', 'deeppink4', 'blue1', 'darkgoldenrod3', 'darkolivegreen4', 'aliceblue',
                    'burlywood1', 'darkslategray1', 'azure2', 'azure', 'darkorchid', 'dodgerblue',
                    'cornsilk', 'darkseagreen3', 'firebrick', 'chocolate', 'goldenrod3', 'coral3', 'firebrick2',
-                   'deepskyblue2', 'bisque4', 'darkslategray4', 'darkorange2', 'azure3', 'brown4', 'chartreuse1',
+                   'deepskyblue2', 'bisque4', 'darkslategray4', 'darkorange2', 'brown4', 'chartreuse1',
                    'chartreuse4', 'dodgerblue1', 'cornsilk4', 'darkorchid4', 'forestgreen', 'chocolate3',
                    'antiquewhite', 'goldenrod4', 'darkslategray3', 'darkorange4', 'aquamarine']
 
@@ -37,3 +37,75 @@ def color_from_hash(obj):
     from hashlib import md5
     hc = int(md5(str(obj).encode("utf-8")).hexdigest(), 16)
     return GRAPHVIZ_COLORS[hc % len(GRAPHVIZ_COLORS)]
+
+def std_state_map(stateidx,labels):
+    """Standard graphziv attributes used for states.
+    Computes the attributes for a given state with given labels.
+    :param stateidx: The index of the state that is visualized.
+    :type stateidx: int
+    :param labels: The labeling of the state.
+    :type labels: set label
+    :rtype: dict"""
+
+    return { "style" : "filled",
+             "color" : color_from_hash(tuple(sorted(labels))),
+             "label" : "State %d\n%s" % (stateidx,",".join(labels)),
+             "fontsize" : "18pt"}
+
+def std_trans_map_mdp(sourceidx, action, destidx, p):
+    """Standard graphziv attributes used for transitions in mdp.
+    Computes the attributes for a given source, destination, action and probability.
+    :param stateidx: The index of the source-state.
+    :type stateidx: int
+    :param action: The index of the action.
+    :type action: int
+    :param destidx: The index of the destination-state.
+    :type destidx: int
+    :param p: probability of the transition.
+    :type p: float
+    :rtype: dict"""
+    return { "color" : "black",
+             "label" : str(round(p,10)),
+             "fontsize" : "18pt"}
+
+def std_trans_map_dtmc(sourceidx, destidx, p):
+    """Standard graphziv attributes used for transitions in dtmc.
+    Computes the attributes for a given source, destination, action and probability.
+    :param stateidx: The index of the source-state.
+    :type stateidx: int
+    :param destidx: The index of the destination-state.
+    :type destidx: int
+    :param p: probability of the transition.
+    :type p: float
+    :rtype: dict"""
+    return { "color" : "black", 
+             "label" : str(round(p,10)),
+             "fontsize" : "18pt"}
+
+def std_action_map(sourceidx, action, labels):
+    """Standard graphziv attributes used for visualizing actions.
+    Computes the attributes for a given source, action index and action labeling.
+    :param stateidx: The index of the source-state.
+    :type stateidx: int
+    :param action: The index of the action.
+    :type destidx: int
+    :param labels: labeling of the action.
+    :type labels: set label
+    :rtype: dict"""
+    return { "node" : { "label" :  "%s\n%s" % (action, "".join(labels)),
+                        "color" : "black", 
+                        "shape" : "rectangle",
+                        "fontsize" : "18pt"}, 
+             "edge" : { "color" : "black",
+                        "dir" : "none" } }
+
+class VisualizationConfig:
+    def __init__(self, state_map=None, trans_map=None, action_map=None):
+        self.state_map = state_map if state_map != None else std_state_map
+        self.trans_map = trans_map if trans_map != None else std_trans_map_mdp
+        self.action_map = action_map if action_map != None else std_action_map
+
+class DTMCVisualizationConfig(VisualizationConfig):
+    def __init__(self, state_map=None, trans_map=std_trans_map_dtmc):
+        super().__init__(state_map,trans_map,None)
+        self.action_map = None
