@@ -1,64 +1,14 @@
 from switss.solver import LP
-from scipy.sparse import dok_matrix, identity
 import numpy as np
 
-def find_interior_point(A, b, xgeq0=False, solver="cbc"):
-    """Finds a point :math:`x` that is (strictly) inside a convex region (made up of half-spaces), i.e. a vector :math:`x \in \mathbb{R}^n` such that :math:`A x \leq b` if there are any. The algorithm finds the solution to the problem 
-
-    .. :math:
-
-        \min_{(x,s)} s \\text{ subject to } Ax \leq b + s
-
-    :param A: :math:`N \\times M` matrix :math:`A`
-    :type A: scipy.sparse.dok_matrix
-    :param b: :math:`N` vector :math:`b`
-    :type b: np.ndarray
-    :param xgeq0: If true, adds additional constraints :math:`x \geq 0`, defaults to False
-    :type xgeq0: bool, optional
-    :param solver: the used solver, may be "gurobi", "cbc", "cplex" or "glpk", defaults to "cbc"
-    :type solver: str, optional
-    :return: a 3d-tuple (x, optimal, strict) where `x` is the :math:`M`-d result vector :math:`x^*`, `optimal` indicates whether the LP-solution is optimal (i.e. not unbounded or infeasible) and `strict` whether :math:`A x^* < b` is satisfied.
-    :rtype: Tuple[np.ndarray, Bool, Bool]
-    """    
-    # if xgeq0 is False, then 
-    # A' = [ a11 ... a1M -1 
-    #        ...
-    #        aN1     aNM -1 ] is a Nx(M+1) matrix
-    # x' = (x1 ... xM s)
-    # b' = b
-    # if xgeq0 is True, then
-    # A' = [ a11 ... a1M -1 
-    #        ...
-    #        aN1 ... aNM -1 
-    #         -1 0 ... 0 -1
-    #         0 -1 ... 0 -1
-    #         ...
-    #         0   ... -1 -1 ] is a (N+M)x(M+1) matrix
-    # x' = (x1 ... xM s)
-    # b' = (b1 ... bN 0 ... 0) is a (N+M) vector
-    A_ = dok_matrix(A.copy())
-    b_ = b.copy()
-    if xgeq0:
-        A_.resize((A.shape[0]+A.shape[1], A.shape[1]+1))
-        A_[A.shape[0]:,:-1] = -identity(A.shape[1])
-        b_ = np.hstack((b_, np.zeros(A.shape[1])))
-    else:
-        A_.resize((A.shape[0], A.shape[1]+1))
-    A_[:,-1] = -1
-
-    opt = np.zeros(A_.shape[1])
-    opt[-1] = 1
-
-    lp = LP.from_coefficients(A_, b_, opt,"<=","min")
-
-    result = lp.solve(solver)
-    sres = result.result_vector[-1]
-    # print(sres, result.status)
-    # print(A.dot(result.result_vector[:-1]) <= b)
-    return result.result_vector[:-1], (result.status == "optimal" and sres <= 0), sres < 0
-
 def generate_farkas_certificate(reach_form, mode, sense, threshold,solver="cbc"):
-    """Generates Farkas certificates for a given reachability form, mode, sense and threshold using the characterizations in Table 1 of [FJB19]_. To this end uses an LP solver to find a satisfying vector of the corresponding polytope.
+    """Generates Farkas certificates for a given reachability form, mode, sense and threshold using the characterizations 
+    in Table 1 of [FJB19]_. To this end uses an LP solver to find a satisfying vector of the corresponding polytope. 
+    For strict inequalities, maximizes (minimizes) the probability and then checks whether the result value is strictly 
+    greater than the threshold.
+
+    Since the solvers that are currently supported do not use precise arithmetic, the resulting vectors may deviate from 
+    the desired result a bit. 
 
     :param reach_form: RF the certificate should be generated for
     :type reach_form: model.ReachabilityForm
@@ -77,27 +27,52 @@ def generate_farkas_certificate(reach_form, mode, sense, threshold,solver="cbc")
     assert (threshold >= 0) and (threshold <= 1)
 
     farkas_matr,rhs = __get_right_constraint_set(reach_form,mode,sense,threshold)
-    if sense in ["<=", "<"]:
-        # if sense is "<=" or "<", then the certificate condition is Ax >=/> b
-        # therefore, apply the transformation: Ax >=/> b <=> (-A)x <=/< -b
-        farkas_matr, rhs = -farkas_matr, -rhs
-    lp_result, optimal, is_strict = find_interior_point(farkas_matr,rhs,True,solver)
 
-    if optimal:
+    D = farkas_matr.shape[1]
+
+    if sense in ["<=","<"]:
+        optimization_mode = "min"
+        lp_sense = ">="
+        if mode == "min":
+            objective_fct = reach_form.to_target
+        elif mode == "max":
+            objective_fct = np.zeros(D)
+            objective_fct[reach_form.initial] = 1
+    elif sense in [">=",">"]:
+        optimization_mode = "max"
+        lp_sense = "<="
+        if mode == "max":
+            objective_fct = reach_form.to_target
+        elif mode == "min":
+            objective_fct = np.zeros(D)
+            objective_fct[reach_form.initial] = 1
+
+    fark_lp = LP.from_coefficients(farkas_matr,
+                                   rhs,
+                                   objective_fct,
+                                   sense = lp_sense,
+                                   objective = optimization_mode)
+
+    for idx in range(D):
+        fark_lp.add_constraint([(idx,1)], ">=" ,0)
+
+    lp_result = fark_lp.solve(solver=solver)
+
+    if lp_result.status == "optimal":
         if sense == ">":
-            if lp_result[reach_form.initial] > threshold:
-                return lp_result
+            if lp_result.value > threshold:
+                return lp_result.result_vector
             else:
                 print("Property is not satisfied!")
                 return None
         elif sense == "<":
-            if lp_result[reach_form.initial] < threshold:
-                return lp_result
+            if lp_result.value < threshold:
+                return lp_result.result_vector
             else:
                 print("Property is not satisfied!")
                 return None
         else:
-            return lp_result
+            return lp_result.result_vector
     else:
         print("Property is not satisfied!")
         return None
