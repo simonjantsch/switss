@@ -19,42 +19,28 @@ def find_interior_point(A, b, xgeq0=False, solver="cbc"):
     :type solver: str, optional
     :return: a 3d-tuple (x, optimal, strict) where `x` is the :math:`M`-d result vector :math:`x^*`, `optimal` indicates whether the LP-solution is optimal (i.e. not unbounded or infeasible) and `strict` whether :math:`A x^* < b` is satisfied.
     :rtype: Tuple[np.ndarray, Bool, Bool]
-    """    
-    # if xgeq0 is False, then 
+    """
     # A' = [ a11 ... a1M -1 
     #        ...
     #        aN1     aNM -1 ] is a Nx(M+1) matrix
     # x' = (x1 ... xM s)
     # b' = b
-    # if xgeq0 is True, then
-    # A' = [ a11 ... a1M -1 
-    #        ...
-    #        aN1 ... aNM -1 
-    #         -1 0 ... 0 -1
-    #         0 -1 ... 0 -1
-    #         ...
-    #         0   ... -1 -1 ] is a (N+M)x(M+1) matrix
-    # x' = (x1 ... xM s)
-    # b' = (b1 ... bN 0 ... 0) is a (N+M) vector
     A_ = dok_matrix(A.copy())
     b_ = b.copy()
-    if xgeq0:
-        A_.resize((A.shape[0]+A.shape[1], A.shape[1]+1))
-        A_[A.shape[0]:,:-1] = -identity(A.shape[1])
-        b_ = np.hstack((b_, np.zeros(A.shape[1])))
-    else:
-        A_.resize((A.shape[0], A.shape[1]+1))
+    A_.resize((A.shape[0], A.shape[1]+1))
     A_[:,-1] = -1
 
     opt = np.zeros(A_.shape[1])
     opt[-1] = 1
 
     lp = LP.from_coefficients(A_, b_, opt,"<=","min")
+    if xgeq0:
+        for idx in range(A.shape[1]):
+            lp.add_constraint([(idx,1),(A.shape[1],1)],">=",0)
 
     result = lp.solve(solver)
     sres = result.result_vector[-1]
-    # print(sres, result.status)
-    # print(A.dot(result.result_vector[:-1]) <= b)
+
     return result.result_vector[:-1], (result.status == "optimal" and sres <= 0), sres < 0
 
 def __get_right_constraint_set(reach_form,mode,sense,threshold):
@@ -119,7 +105,7 @@ def check_farkas_certificate(reach_form, mode, sense, threshold, farkas_vec, tol
 
     assert False
 
-def generate_farkas_certificate(reach_form, mode, sense, threshold,solver="cbc",tol=1e-5):
+def generate_farkas_certificate(reach_form, mode, sense, threshold,tol=1e-5,solver="cbc"):
     """Generates Farkas certificates for a given reachability form, mode, sense and threshold using the characterizations in Table 1 of [FJB19]_. To this end uses an LP solver to find a satisfying vector of the corresponding polytope.
 
     :param reach_form: RF the certificate should be generated for
@@ -130,6 +116,8 @@ def generate_farkas_certificate(reach_form, mode, sense, threshold,solver="cbc",
     :type sense: str 
     :param threshold: threshold the certificate should be generated for
     :type threshold: float
+    :param tol: the tolerance the certificate should be checked for
+    :type tol: float
     :param solver: used solver, must be either "gurobi", "cbc", "glpk" or "cplex", defaults to "cbc"
     :type solver: str, optional
     :return: :math:`N` or :math:`C` dimensional vector, dependent on mode
