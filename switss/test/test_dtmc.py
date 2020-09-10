@@ -119,9 +119,9 @@ def test_prmin_prmax():
 
             # we find farkas certificates for pr_min and pr_max
             fark_cert_min = generate_farkas_certificate(
-                reach_form,"min",">=",pr_min_at_init)
+                reach_form,"min",">=",pr_min_at_init - 1e-8)
             fark_cert_max = generate_farkas_certificate(
-                reach_form,"max",">=",pr_max_at_init)
+                reach_form,"max",">=",pr_max_at_init - 1e-8)
 
             assert (fark_cert_min is not None) and (fark_cert_max is not None)
 
