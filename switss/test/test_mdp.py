@@ -151,7 +151,7 @@ def test_prmin_prmax():
             m_y_st_act = reach_form.max_y_state_action(solver=solver)
             m_y_st = reach_form.max_y_state(solver=solver)
 
-            for idx,vec in enumerate([m_z_st,m_z_st_act,m_y_st,m_y_st_act]):
+            for vec in [m_z_st,m_z_st_act,m_y_st,m_y_st_act]:
                 assert (vec >= -1e-8).all()
 
             for vec in [m_z_st,m_z_st_act]:
