@@ -101,27 +101,27 @@ def test_prmin_prmax():
             m_y_st = reach_form.max_y_state(solver=solver)
 
             for vec in [m_z_st,m_z_st_act,m_y_st,m_y_st_act]:
-                assert (vec >= 0).all
+                assert (vec >= -1e-8).all()
 
             for vec in [m_z_st,m_z_st_act]:
-                assert (vec <= 1).all
+                assert (vec <= 1+1e-8).all()
 
             pr_min = reach_form.pr_min()
             pr_max = reach_form.pr_max()
 
             for vec in [pr_min,pr_max]:
-                assert (vec <= 1).all and (vec >= 0).all
+                assert (vec <= 1).all() and (vec >= 0).all()
 
-            assert (pr_min == pr_max).all
+            assert (pr_min == pr_max).all()
 
             pr_min_at_init = pr_min[reach_form.initial]
             pr_max_at_init = pr_max[reach_form.initial]
 
             # we find farkas certificates for pr_min and pr_max
             fark_cert_min = generate_farkas_certificate(
-                reach_form,"min",">=",pr_min_at_init)
+                reach_form,"min",">=",pr_min_at_init - 1e-8)
             fark_cert_max = generate_farkas_certificate(
-                reach_form,"max",">=",pr_max_at_init)
+                reach_form,"max",">=",pr_max_at_init - 1e-8)
 
             assert (fark_cert_min is not None) and (fark_cert_max is not None)
 
