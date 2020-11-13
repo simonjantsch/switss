@@ -2,6 +2,9 @@ import networkx as nx
 import numpy as np
 from scipy.sparse import dok_matrix
 
+import graph_tool.all as gt
+from bidict import bidict
+
 def underlying_graph(P):
     rows,cols = np.shape(P)
     G = nx.DiGraph()
@@ -10,14 +13,43 @@ def underlying_graph(P):
         G.add_edge(source,dest)
     return G
 
+def underlying_graph_graphtool(P):
+    rows,cols = np.shape(P)
+    G = gt.Graph()
+    G.add_vertex(cols)
+    for (source,dest) in P.keys():
+        G.add_edge(G.vertex(source),G.vertex(dest))
+    return G
+
+def quotient(G,partition):
+    quotientGraph = gt.Graph()
+    quotientGraph.add_vertex(len(partition))
+    labeling = G.new_vertex_property("int32_t")
+    interface = G.new_vertex_property("bool")
+    for p in range(0,len(partition)):
+        for v in partition[p]:
+            labeling[G.vertex(v)] = p
+
+    for e in G.edges():
+        l_source = labeling[G.vertex(e.source())]
+        l_target = labeling[G.vertex(e.target())]
+        if l_source != l_target:
+            interface[e.target()] = True
+            quotientGraph.edge(quotientGraph.vertex(l_source),
+                               quotientGraph.vertex(l_target),
+                               add_missing = True)
+
+    return quotientGraph,labeling,interface
+
 def scc_graph(G):
     components = list(nx.strongly_connected_components(G))
     return nx.condensation(G,components)
 
+# -> to cython (called very often)
 def sub_matrix(node_set,P):
     N = len(node_set)
     P_sub = dok_matrix((N,N))
-    node_map = dict([])
+    node_map = bidict({})
     i = 0
 
     for n in node_set:
