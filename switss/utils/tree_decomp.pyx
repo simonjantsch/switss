@@ -1,9 +1,11 @@
 # cython: language_level=3
 # cython: profile=True
+# distutils: include_dirs = /usr/local/Cellar/numpy/1.19.4/lib/python3.9/site-packages/numpy/core/include
 
 import itertools as it
 import functools as ft
 import numpy as np
+cimport numpy as np
 from scipy import linalg
 from scipy.spatial import ConvexHull
 
@@ -22,48 +24,111 @@ import time as time
 
 cimport cython
 from libc.stdlib cimport malloc, free
+from libc.string cimport memcpy
 
 cdef struct StateProb:
     int state_idx
-    float prob
+    double prob
 
 cdef struct Point:
     int no_states
+    int no_probs
     StateProb* probs
 
-cdef void free_point(Point* p):
-    if p != NULL:
-        if p.probs != NULL:
-            free(p.probs)
-        free(p)
+cdef void print_point(Point p):
+    print("no_states:" + str(p.no_states))
+    print("no_probs:" + str(p.no_probs))
+    print("**probs**")
+    for i in range(p.no_probs):
+        print("(" + str(p.probs[i].state_idx) + ", " + str(p.probs[i].prob) + ")")
 
-cdef void points_test(int i):
-    cdef Point empty_point = Point(0,NULL)
-    cdef StateProb* some_state_probs = <StateProb *> malloc(i * sizeof(StateProb))
-    for k in range(i):
-        some_state_probs[k].state_idx = k
-    empty_point.probs = some_state_probs
+# cdef void free_point(Point* p):
+#     if p != NULL:
+#         if p.probs != NULL:
+#             print("freeing probs in loc: {0:x}".format(<unsigned int> p.probs))
+#             free(p.probs)
+#         print("freeing point in loc: {0:x}".format(<unsigned int> p))
+#         free(p)
+
+cdef void free_mem(Point* p, int no_points):
+    if p == NULL:
+        return
+    cdef int i = 0
+    for i in range(no_points):
+        if p[i].probs != NULL:
+            #print("freeing probs in loc: {0:x}".format(<unsigned int> p[i].probs))
+            free(p[i].probs)
+    #print("freeing points in loc: {0:x}".format(<unsigned int> p))
+    free(p)
 
 cdef StateProb* py_to_c_probs(state_probs_py):
     cdef int l = len(state_probs_py)
+    cdef int i = 0
     if l == 0:
         return NULL
     cdef StateProb* state_probs = <StateProb* > malloc(l * sizeof(StateProb))
-    for i in range(len(state_probs_py)):
-        idx,p = list(state_probs_py)[i]
+    #print("allocated " + str(l) + "* stateprob to memory-loc: {0:x}".format(<unsigned int>state_probs))
+    for i in range(l):
+        idx,p = list(state_probs_py.items())[i]
         state_probs[i].state_idx = idx
         state_probs[i].prob = p
     return state_probs
 
 cdef Point* py_to_c_points(suc_points_py):
     cdef int l = len(suc_points_py)
+    cdef int i = 0
     if l == 0:
         return NULL
     cdef Point* suc_points_c = <Point* > malloc(l * sizeof(Point))
-    for i in range(len(suc_points_py)):
+    #print("allocated " + str(l) + "* Point to memory-loc: {0:x}".format(<unsigned int>suc_points_c))
+    for i in range(l):
         suc_points_c[i].no_states = suc_points_py[i]['states']
+        suc_points_c[i].no_probs = len(suc_points_py[i]['in_probs'])
         suc_points_c[i].probs = py_to_c_probs(suc_points_py[i]['in_probs'])
     return suc_points_c
+
+cdef Point get_point(Point** suc_points_c, int* point_it, int no_sucs):
+    cdef Point new_point = Point(0,0,NULL)
+    cdef int i = 0
+    for i in range(no_sucs):
+        new_point = add_points_c(new_point,suc_points_c[i][point_it[i]])
+    return new_point
+
+cdef Point add_points_c(Point p1, Point p2):
+    cdef int tot_states = p1.no_states + p2.no_states
+    cdef int tot_probs = p1.no_probs + p2.no_probs
+    cdef Point new_point = Point(tot_states,
+                                 tot_probs,
+                                 NULL)
+    cdef StateProb* new_probs = <StateProb*> malloc(tot_probs * sizeof(StateProb))
+    #print("allocated " + str(tot_probs) + "* StateProb to memory-loc: {0:x}".format(<unsigned int>new_probs))
+
+    memcpy(new_probs, p1.probs, p1.no_probs * sizeof(StateProb))
+    memcpy(new_probs + p1.no_probs, p2.probs, p2.no_probs * sizeof(StateProb))
+    new_point.probs = new_probs
+    return new_point
+
+
+cdef void increase_iterator(int* points_iterator, int [:] points_per_suc, int no_sucs):
+    if no_sucs == 0:
+        return
+    cdef int i = no_sucs -1
+    while True:
+        if points_iterator[i] == points_per_suc[i]:
+            points_iterator[i] = 0
+            if i == 0:
+                break
+            i = i-1
+        else:
+            points_iterator[i] = points_iterator[i] + 1
+            break
+
+cdef double state_prob(Point p, int idx):
+    cdef int i = 0
+    for i in range(p.no_probs):
+        if p.probs[i].state_idx == idx:
+            return p.probs[i].prob
+    return -1
 
 def is_tree(G):
     max_in_degree = max(G.get_in_degrees(G.get_vertices()))
@@ -83,7 +148,11 @@ def tree_decomp_from_partition_graphtool(P,partition):
 
 
 def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound):
-    cdef Point* suc_points_c = NULL
+    cdef Point** suc_points_c = NULL
+    cdef int no_new_points = 0
+    cdef int i = 0
+    cdef int k = 0
+    cdef StateProb* probs = NULL
 
     G = underlying_graph_graphtool(rf.P)
 
@@ -143,17 +212,22 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound):
 
         # collect the points from successors in quotient graph
         suc_points = []
-        points_per_suc = np.zeros(len(suc_ps))
-        for i in range(len(suc_ps)):
-            suc_points.append(partition_points[suc_ps[i]])
-            points_per_suc[i] = len(partition_points[partition_points[suc_ps[i]]])
-        # if there is no such successor, add the singleton list containing the 'zero point'
-        if len(suc_ps) == 0:
-            # figure out encoding of points...
-            #suc_points.append([np.zeros(1)])
-            suc_points.append([dict({ 'states' : 0, 'in_probs' : dict() })])
+        no_sucs = len(suc_ps)
+        points_per_suc = np.zeros(no_sucs,dtype=np.dtype("i"))
+        tot_no_points = 1
+        if no_sucs > 0:
+            suc_points_c = <Point**> malloc(sizeof(Point*) * (no_sucs))
+            for i in range(no_sucs):
+                suc_points.append(partition_points[suc_ps[i]])
+                suc_points_c[i] = py_to_c_points(partition_points[suc_ps[i]])
+                points_per_suc[i] = len(partition_points[suc_ps[i]])
+                tot_no_points = tot_no_points * points_per_suc[i]
 
-        suc_points_c = py_to_c_points(suc_points)
+        # if there is no such successor, add the singleton list containing the 'zero point'
+        elif no_sucs == 0:
+            suc_points_c = <Point**> malloc(sizeof(Point*))
+            #suc_points.append([dict({ 'states' : 0, 'in_probs' : dict() })])
+            suc_points_c[0] = py_to_c_points([dict({ 'states' : 0, 'in_probs' : dict() })])
 
         #list containing the points of p
         partition_points[part_id] = []
@@ -178,23 +252,61 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound):
 
         bdd, p_expr = compute_subsys_bdd(part_view)
         for model in bdd.pick_iter(p_expr):
-            states = bidict(zip(range(part_view.num_vertices()),
-                                [ i for i in part_view.get_vertices() if model['x{i}'.format(i=i)] == True ]))
-            subsys_points = handle_subsys(states,
-                                          suc_points,
-                                          part_to_input_mapping,
-                                          rf,
-                                          part_view,
+            states = np.array([ i for i in part_view.get_vertices()
+                                if model['x{i}'.format(i=i)] == True ],
+                              dtype="i")
+            no_states = len(states)
+            subsys_edges = np.zeros((no_states,no_states),dtype="d")
+            for i in range(no_states):
+                for j in range(no_states):
+                    e = part_view.edge(states[i],states[j])
+                    if e != None:
+                        subsys_edges[i,j] = edge_probs[e]
+
+            subsys_points = <Point*> malloc(tot_no_points * sizeof(Point))
+
+            print(rf.to_target.shape)
+            to_target_dim1 = (rf.to_target).ravel().ravel()
+            print(to_target_dim1.shape)
+            print(to_target_dim1)
+            print((rf.to_target).ravel().ravel())
+
+            no_new_points = handle_subsys(states,
+                                          suc_points_c,
+                                          to_target_dim1,
+                                          is_in,
+                                          is_out,
+                                          is_target,
+                                          subsys_edges,
                                           inp_dim,
                                           known_upper_bound,
                                           thr,
-                                          points_per_suc)
+                                          points_per_suc,
+                                          no_sucs,
+                                          tot_no_points,
+                                          subsys_points)
 
-            for k in subsys_points.keys():
+            for i in range(no_new_points):
+                k = subsys_points[p].no_states
+                probs = subsys_points[p].probs
+                inp_array = np.zeros(inp_dim,dtype='d')
+                for j in range(inp_dim):
+                    inp_array[part_to_input_mapping[probs[j].state_idx]] = probs[j].prob
                 if k not in k_points.keys():
-                    k_points[k] = subsys_points[k]
+                    k_points[k] = np.array([inp_array],dtype='d')
                 else:
-                    k_points[k].extend(subsys_points[k])
+                    k_points[k].append(inp_array)
+
+            free_mem(subsys_points,no_new_points)
+
+        if no_sucs == 0:
+            free_mem(suc_points_c[0],1)
+            free(suc_points_c)
+        else:
+            for i in range(no_sucs):
+                #print("points_per_suc[i]" + str(points_per_suc[i]))
+                free_mem(suc_points_c[i],points_per_suc[i])
+                free(suc_points_c)
 
         k_vertices = dict()
         conv_hull = None
@@ -244,6 +356,9 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound):
 
             sofar.extend(k_points[k])
             partition_points[part_id].extend([fip(p,k) for p in k_points[k]])
+
+        ## remember to free stuff (suc_points_c,...)
+
         # print("\npartition " + str(part_id) + " points: \n" + str(partition_points[part_id]))
         # print("partition " + str(part_id) + " no-points: \n" + str(len(partition_points[part_id])) + "\n")
 
@@ -304,80 +419,105 @@ def compute_subsys_bdd(part_view):
 
     return bdd, p_expr
 
-def handle_subsys(states,
-                  suc_points_c,
-                  part_to_input_mapping,
-                  rf,
-                  part_view,
-                  inp_dim,
-                  known_upper_bound,
-                  thr,
-                  points_per_suc):
-    is_in = part_view.vertex_properties["is_in"]
-    is_out = part_view.vertex_properties["is_out"]
-    no_states = len(states.keys())
-    no_not_out_states = len([(i,q) for (i,q) in states.items() if not is_out[q]])
+cdef int handle_subsys(int[:] states,
+                       Point** suc_points_c,
+                       double[:] to_target,
+                       int[:] is_in,
+                       int[:] is_out,
+                       int[:] is_target,
+                       double[:,:] subsys_edges,
+                       int inp_dim,
+                       int known_upper_bound,
+                       float thr,
+                       int[:] points_per_suc,
+                       int no_sucs,
+                       int tot_no_points,
+                       Point* subsys_points):
+    cdef int no_states = states.shape[0]
+    cdef int no_not_out_states = 0
+    cdef int i,j,state_idx = 0
+    for i in range(no_states):
+        if not is_out[states[i]]:
+            no_not_out_states = no_not_out_states +1
 
-    P_sub = sub_matrix(no_states,states,part_view)
+    #P_sub = sub_matrix(no_states,states,part_view)
 
-    subsys_points = dict()
-
-    cdef int no_sucs = len(points_per_suc)
-
-    cdef int* points_iterator = <int* > malloc(no_sucs * sizeof(int))
+    cdef int * points_iterator = NULL
+    if no_sucs > 0:
+        points_iterator = <int* > malloc(no_sucs * sizeof(int))
+    else:
+        points_iterator = <int* > malloc(sizeof(int))
     cdef int [:] points_per_suc_view = points_per_suc
-    cdef int tot_points = 0
+    target_vector = np.zeros(no_states,np.dtype("d"))
+    cdef double [:] targ_vec_view = target_vector
+    cdef int no_new_points = 0
+    cdef int tot_no_states = 0
+    cdef double sum_inp_reach,p = 0
 
-    cdef int i = 0
+    #cdef np.ndarray p_probs = np.zeros(inp_dim,dtype='d')
+    cdef np.ndarray reach_probs = np.zeros(no_states,dtype='d')
+    cdef double[:] reach_probs_view = reach_probs
 
-    for i in range(no_sucs):
-        points_iterator[i] = 0
-        tot_points = tot_points * points_per_suc_view[i]
+    if no_sucs > 0:
+        for i in range(no_sucs):
+            points_iterator[i] = 0
+    else:
+        points_iterator[0] = 1
 
-    for point in point_product(suc_points):
+    cdef Point current_point = Point(0,0,NULL)
 
-        total_no_states = no_not_out_states + point['states']
-
-        if total_no_states > known_upper_bound:
+    for i in range(tot_no_points):
+        # print("points_iterator:")
+        # for j in range(no_sucs):
+        #     print(points_iterator[j])
+        current_point = get_point(suc_points_c,points_iterator,no_sucs)
+        #print_point(current_point)
+        increase_iterator(points_iterator, points_per_suc_view, no_sucs)
+        # for j in range(no_sucs):
+        #     print(points_iterator[j])
+        tot_no_states = no_not_out_states + current_point.no_states
+        if tot_no_states > known_upper_bound:
             continue
-
-        targ_vect = np.zeros(no_states)
-        for i in range(no_states):
-            state_idx = states[i]
-            if is_out[state_idx] and state_idx in point['in_probs']:
-                targ_vect[i] = point['in_probs'][state_idx]
+        for j in range(no_states):
+            state_idx = states[j]
+            if is_out[state_idx]:
+                p = state_prob(current_point,state_idx)
+                if p >= 0:
+                    target_vec_view[j] = p
+                else:
+                    target_vec_view[j] = 0
+            elif is_target[state_idx]:
+                target_vec_view[j] = to_target[state_idx]
             else:
-                targ_vect[i] = rf.to_target[state_idx]
+                target_vec_view[j] = 0
 
-        reach_probs = compute_reach(no_states,P_sub,targ_vect)
+        #print(target_vector)
+
+        if current_point.probs != NULL:
+            free(current_point.probs)
+
+        reach_probs_view = compute_reach(no_states,subsys_edges,target_vec_view)
 
         # this part needs to be changed into "rest-system" doesn't match threshold
         sum_inp_reach = 0
-        for i in range(no_states):
-            if is_in[states[i]]:
-                sum_inp_reach += reach_probs[i]
+        for j in range(no_states):
+            if is_in[states[j]]:
+                sum_inp_reach += reach_probs_view[j]
 
         #fix the following ("if entire subsystem has less then thr...")
         if(sum_inp_reach < thr):
             continue
 
-        p_probs = np.zeros(inp_dim)
-        for (i,q) in states.items():
-            if is_in[q]:
-                p_probs[part_to_input_mapping[q]] = reach_probs[i]
+        subsys_points[no_new_points].no_states = tot_no_states
+        subsys_points[no_new_points].probs = <StateProb*> malloc(inp_dim * sizeof(StateProb))
+        for i in range(no_states):
+            if is_in[states[i]]:
+                subsys_points[no_new_points].probs[i].state_idx = states[i]
+                subsys_points[no_new_points].probs[i].prob = reach_probs_view[i]
+        no_new_points = no_new_points +1
 
-        # in_probs_dict = dict([(q,reach_probs[i])
-        #                       for (i,q) in states.items() if is_in[q]])
+    return no_new_points
 
-        # new_point = dict({ 'states' : total_no_states,
-        #                    'in_probs': { **in_probs_dict }})
-
-        if total_no_states not in subsys_points:
-            subsys_points[total_no_states] = [p_probs]
-        else:
-            subsys_points[total_no_states].append(p_probs)
-
-    return subsys_points
 
 def to_inp_point(point,part_to_input_mapping,inp_dim):
     inp_point = np.zeros(inp_dim)
