@@ -6,7 +6,7 @@ setup(
     version = '0.1',
     packages = find_packages(),
     scripts=['bin/switss'],
-    ext_modules = cythonize("switss/utils/graph.pyx"),
+    ext_modules = cythonize(["switss/utils/graph.pyx","switss/utils/tree_decomp.pyx"]),
     install_requires=[
         "graphviz",
         "scipy",

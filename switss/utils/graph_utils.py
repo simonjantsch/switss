@@ -45,23 +45,6 @@ def scc_graph(G):
     components = list(nx.strongly_connected_components(G))
     return nx.condensation(G,components)
 
-# -> to cython (called very often)
-def sub_matrix(node_set,P):
-    N = len(node_set)
-    P_sub = dok_matrix((N,N))
-    node_map = bidict({})
-    i = 0
-
-    for n in node_set:
-        node_map[n] = i
-        i += 1
-
-    for (n1,n2) in P.keys():
-        if (n1 in node_set) and (n2 in node_set):
-            P_sub[node_map[n1],node_map[n2]] = P[n1,n2]
-
-    return P_sub, node_map
-
 def interface(node_set1,node_set2,P):
     M = len(node_set1)
     N = len(node_set2)
