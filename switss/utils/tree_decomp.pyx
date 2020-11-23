@@ -3,6 +3,7 @@
 # distutils: include_dirs = /usr/local/Cellar/numpy/1.19.4/lib/python3.9/site-packages/numpy/core/include
 
 import itertools as it
+from more_itertools import powerset
 import functools as ft
 import numpy as np
 cimport numpy as np
@@ -45,14 +46,6 @@ cdef void print_point(Point p):
     print("**probs**")
     for i in range(p.no_probs):
         print("(" + str(p.probs[i].state_idx) + ", " + str(p.probs[i].prob) + ")")
-
-# cdef void free_point(Point* p):
-#     if p != NULL:
-#         if p.probs != NULL:
-#             print("freeing probs in loc: {0:x}".format(<unsigned int> p.probs))
-#             free(p.probs)
-#         print("freeing point in loc: {0:x}".format(<unsigned int> p))
-#         free(p)
 
 cdef void free_mem(Point* p, int no_points):
     if p == NULL:
@@ -159,19 +152,53 @@ def tree_decomp_from_partition_graphtool(P,partition):
     #gt.graph_draw(decomp, output="quotient.pdf",output_size=(300,300),vertex_text=decomp.vertex_index,vertex_size=5)
 
 
+def partition_graph(G,part_id,suc_ps,labeling,interface,rf):
+    in_partition = lambda v: ((labeling[v] == part_id)
+                              or ((labeling[v] in suc_ps)
+                                  and interface[v]))
+
+    part_view = gt.GraphView(G, vfilt = in_partition)
+
+    is_in = part_view.new_vp("bool")
+    is_out = part_view.new_vp("bool")
+    is_target = part_view.new_vp("bool")
+
+    has_out_suc = lambda v: len([i for i in part_view.get_out_neighbours(v)
+                                 if (interface[i] and
+                                     (labeling[i] != part_id))]) > 0
+
+    for v in part_view.get_vertices():
+        if (interface[v] and (labeling[v] == part_id)) or (rf.initial == v):
+            is_in[v] = True
+        if interface[v] and (labeling[v] != part_id):
+            is_out[v] = True
+        if (rf.to_target[v] > 0) or has_out_suc(v):
+            is_target[v] = True
+    part_view.vertex_properties["is_in"] = is_in
+    part_view.vertex_properties["is_out"] = is_out
+    part_view.vertex_properties["is_target"] = is_target
+
+    return part_view
 
 
-
-def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound):
+def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound=None,timeout=None):
+    start_time = time.perf_counter()
     cdef Point** suc_points_c = NULL
     cdef int no_new_points = 0
     cdef int i,j = 0
     cdef int k = 0
     cdef StateProb* probs = NULL
 
+    # TODO when does the overhead of keeping 'dense' P in memory become visible?
     cdef double[:,:] P_memview = rf.P.todense()
 
+    if known_upper_bound == None:
+        known_upper_bound = rf.P.shape[0]
+
     G = underlying_graph_graphtool(rf.P)
+
+    dist_from_init = gt.shortest_distance(G,source=G.vertex(rf.initial))
+    print(dist_from_init.a)
 
     edge_probs = G.new_ep("double")
     for e in G.edges():
@@ -180,7 +207,7 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound):
 
     decomp, labeling, interface = quotient(G,partition)
 
-    ## hack to get better partition
+    ## hack to get better partition for brp
 
     new_partition = []
     for p in decomp.get_vertices():
@@ -192,40 +219,22 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound):
     decomp, labeling, interface = quotient(G,new_partition)
     ##
 
-    # compute an order by which to process the quotient
+    gt.graph_draw(G, output="input.pdf",output_size=(1500,1500),vertex_text=dist_from_init,vertex_fill_color=labeling,edge_text=edge_probs,vertex_size=3)
 
+    # compute an order by which to process the quotient
     rev_top_order = np.flipud(gt.topological_sort(decomp))
-    #gt.graph_draw(decomp, output="quotient.pdf",output_size=(300,300),vertex_text=decomp.vertex_index,vertex_size=5)
-    #gt.graph_draw(G, output="input.pdf",output_size=(1000,1000),vertex_text=G.vertex_index,vertex_fill_color=interface,vertex_size=10,edge_text=edge_probs)
-    #print(rev_top_order)
 
     # the "solved" partitions have an entry in the following dictionary, which includes a set of relevant points
     partition_points = dict()
 
     for part_id in rev_top_order:
-        print("\n\n**in partition " + str(part_id) + "**\n\n")
-
         suc_ps = decomp.get_out_neighbors(decomp.vertex(part_id))
 
-        part_view = gt.GraphView(G,
-                                 vfilt = lambda v: (labeling[v] == part_id) or ((labeling[v] in suc_ps) and interface[v]))
+        part_view = partition_graph(G,part_id,suc_ps,labeling,interface,rf)
 
-        #gt.graph_draw(part_view, output="part " + str(part_id) + ".pdf",vertex_fill_color=interface,vertex_size=3)
-
-        is_in = part_view.new_vp("bool")
-        is_out = part_view.new_vp("bool")
-        is_target = part_view.new_vp("bool")
-
-        for v in part_view.get_vertices():
-            if (interface[v] and (labeling[v] == part_id)) or (rf.initial == v):
-                is_in[v] = True
-            if interface[v] and (labeling[v] != part_id):
-                is_out[v] = True
-            if (rf.to_target[v] > 0) or len([i for i in part_view.get_out_neighbours(v) if (interface[i] and (labeling[i] != part_id))]) > 0:
-                is_target[v] = True
-        part_view.vertex_properties["is_in"] = is_in
-        part_view.vertex_properties["is_out"] = is_out
-        part_view.vertex_properties["is_target"] = is_target
+        is_in = part_view.vp["is_in"]
+        is_out = part_view.vp["is_out"]
+        is_target = part_view.vp["is_target"]
 
         # collect the points from successors in quotient graph
         suc_points = []
@@ -243,15 +252,15 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound):
         # if there is no such successor, add the singleton list containing the 'zero point'
         elif no_sucs == 0:
             suc_points_c = <Point**> malloc(sizeof(Point*))
-            #suc_points.append([dict({ 'states' : 0, 'in_probs' : dict() })])
             suc_points_c[0] = py_to_c_points([dict({ 'states' : 0, 'in_probs' : dict() })])
 
         #list containing the points of p
         partition_points[part_id] = []
 
-        # convex hulls used to remove unnecessary points
+        # convex hulls used to remove dominated points
         p_hulls = dict([])
 
+        # map from partition state indices to [0,..,input_dimension-1]
         part_to_input_mapping = bidict()
         inp_dim = 0
         for i in part_view.get_vertices():
@@ -259,29 +268,30 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound):
                 part_to_input_mapping[i] = inp_dim
                 inp_dim += 1
 
-        # properly handle lower-dim cases!
-        if inp_dim < 2:
-            break
-
         k_points = dict()
 
-        # enumerate rel. subsystems of part_view
-
+        # enumerate relevant subsystems of part_view
         bdd, p_expr = compute_subsys_bdd(part_view)
         for model in bdd.pick_iter(p_expr):
+            if timeout != None:
+                if time.perf_counter() - start_time > timeout:
+                    return -1
+            # states in the subsystem
             states = np.array([ i for i in part_view.get_vertices()
                                 if model['x{i}'.format(i=i)] == True ],
                               dtype="i")
             no_states = len(states)
+
             subsys_edges = comp_subsys_edges(P_memview,states,no_states)
 
             subsys_points = <Point*> malloc(tot_no_points * sizeof(Point))
 
-            to_target_dim1 = ((np.array(rf.to_target)).ravel())
+            to_target = ((np.array(rf.to_target)).ravel())
 
+            # compute all the new points generated by the subsystem (stored into subsys_points)
             no_new_points = handle_subsys(states,
                                           suc_points_c,
-                                          to_target_dim1,
+                                          to_target,
                                           is_in.a,
                                           is_out.a,
                                           is_target.a,
@@ -292,13 +302,14 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound):
                                           points_per_suc,
                                           no_sucs,
                                           tot_no_points,
-                                          subsys_points)
+                                          subsys_points,
+                                          dist_from_init.a)
 
+            print("no_new_points :" + str(no_new_points))
 
-            # print(part_to_input_mapping)
-            # print(no_new_points)
+            # sort all the new points by their 'no_states' and add to k_points
             for i in range(no_new_points):
-                #print_point(subsys_points[i])
+                print_point(subsys_points[i])
                 k = subsys_points[i].no_states
                 probs = subsys_points[i].probs
                 inp_array = np.zeros(inp_dim,dtype='d')
@@ -316,75 +327,77 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound):
             free(suc_points_c)
         else:
             for i in range(no_sucs):
-                #print("points_per_suc[i]" + str(points_per_suc[i]))
                 free_mem(suc_points_c[i],points_per_suc[i])
                 free(suc_points_c)
 
-        k_vertices = dict()
-        conv_hull = None
-        for k in sorted(k_points.keys()):
-            #is this slow?
-            points_to_add = np.concatenate((*map(lambda p: points_to_add_in_inp_space_v2(p,part_to_input_mapping,inp_dim), k_points[k]),))
-
-            if conv_hull == None:
-                # todo: figure out how to handle degenerate cases!
-                # todo: handle dim 1 case!
-                start = time.perf_counter()
-                conv_hull = ConvexHull(np.append(points_to_add,np.array([np.zeros(inp_dim)]),axis=0),
-                                       incremental=True,qhull_options='QJ1e-12 Q12 Pp')
-                #print("\nhull-time: " + str(time.perf_counter() - start) + "\n")
-            else:
-                start = time.perf_counter()
-                conv_hull.add_points(points_to_add)
-                #print("\nhull-time: " + str(time.perf_counter() - start) + "\n")
-
-            # pp = PdfPages(str(k) + '_conv_hull.pdf')
-            # plt.plot(conv_hull.points[:,0], conv_hull.points[:,1], 'o')
-
-            # for simplex in conv_hull.simplices:
-
-            #     plt.plot(conv_hull.points[simplex, 0], conv_hull.points[simplex, 1], 'k-')
-
-            # pp.savefig()
-            # pp.close()
-
-            k_vertices[k] = np.reshape(conv_hull.vertices,(conv_hull.vertices.shape[0],1))
-
-        conv_hull.close()
-
-        #tip = lambda p: to_inp_point(p,part_to_input_mapping,inp_dim)
+        # lambda to go from inp point to python Point dict
         fip = lambda p,k: from_inp_point(p,part_to_input_mapping,inp_dim,k)
 
-        sofar = np.zeros(shape=(1,inp_dim))
-        sofar_cnt = 0
-        for k in sorted(k_vertices.keys()):
+        if inp_dim == 1:
+            current_max = 0
+            for k in sorted(k_points.keys()):
+                best_k = max(k_points[k].flatten())
+                if best_k > current_max:
+                    current_max = best_k
+                    partition_points[part_id].extend([fip(np.array([best_k]),k)])
 
-            vertex_cnt = 0
-            k_vertex_points = np.take_along_axis(conv_hull.points,k_vertices[k],0)
-            vertex_cnt = len(k_vertex_points)
-            k_points_k_cnt = len(k_points[k])
-            tmp_list = []
+        else:
+            # compute convex-hulls for all k (iteratively from lowest)
+            # and keep points that are vertices in the respective hulls
+            k_vertices = dict()
+            conv_hull = None
 
-            for i in range(vertex_cnt):
-                if (arreqclose_in_list2(k_vertex_points[i],k_points[k],inp_dim,k_points_k_cnt,1e-10) and
-                    not arreqclose_in_list2(k_vertex_points[i],sofar,inp_dim,sofar_cnt+1,1e-10)):
-                    sofar = np.append(sofar,[k_vertex_points[i]],axis=0)
-                    sofar_cnt += 1
-                    tmp_list.append(k_vertex_points[i])
+            print(k_points)
 
-            # print("**k_vertex_points**")
-            # print(k_vertex_points)
-            # print("**k_points[k]**")
-            # print(k_points[k])
-            # print("k_points computed")
-            # print(np.array(tmp_list))
+            for k in sorted(k_points.keys()):
+                # add projections onto all axes
+                points_to_add = np.concatenate((*map(lambda p: points_to_add_in_inp_space(p,part_to_input_mapping,inp_dim), k_points[k]),))
 
-            k_points[k] = np.array(tmp_list)
+                if conv_hull == None:
+                    # todo: figure out how to handle degenerate cases!
+                    conv_hull = ConvexHull(np.append(points_to_add,np.array([np.zeros(inp_dim)]),axis=0),
+                                           incremental=True,qhull_options='QJ1e-12 Q12 Pp')
+                else:
+                    conv_hull.add_points(points_to_add)
 
-            partition_points[part_id].extend([fip(p,k) for p in k_points[k]])
+                k_vertices[k] = np.reshape(conv_hull.vertices,(conv_hull.vertices.shape[0],1))
+
+            conv_hull.close()
+
+            # keep k-points that are real points from the current partitions (not projections)
+            # and vertices that are not vertices of convex hulls for any k' < k
+            sofar = np.zeros(shape=(1,inp_dim))
+            sofar_cnt = 0
+            for k in sorted(k_vertices.keys()):
+
+                vertex_cnt = 0
+                k_vertex_points = np.take_along_axis(conv_hull.points,k_vertices[k],0)
+                vertex_cnt = len(k_vertex_points)
+                k_points_k_cnt = len(k_points[k])
+                tmp_list = []
+
+                for i in range(vertex_cnt):
+                    if (arreqclose_in_list2(k_vertex_points[i],k_points[k],inp_dim,k_points_k_cnt,1e-12) and
+                        not arreqclose_in_list2(k_vertex_points[i],sofar,inp_dim,sofar_cnt+1,1e-12)):
+                        sofar = np.append(sofar,[k_vertex_points[i]],axis=0)
+                        sofar_cnt += 1
+                        tmp_list.append(k_vertex_points[i])
+
+                # print("**k_vertex_points**")
+                # print(k_vertex_points)
+                # print("**k_points[k]**")
+                # print(k_points[k])
+                # print("k_points computed")
+                # print(np.array(tmp_list))
+
+                k_points[k] = np.array(tmp_list)
+
+                partition_points[part_id].extend([fip(p,k) for p in k_points[k]])
 
         print("\npartition " + str(part_id) + " points: \n" + str(partition_points[part_id]))
         print("partition " + str(part_id) + " no-points: \n" + str(len(partition_points[part_id])) + "\n")
+
+    return min([p["states"] for p in partition_points[rev_top_order[-1]]])
 
 # from https://stackoverflow.com/questions/23979146/check-if-numpy-array-is-in-list-of-numpy-arrays
 def arreqclose_in_list(myarr, list_arrays):
@@ -470,10 +483,14 @@ cdef int handle_subsys(int[:] states,
                        int[:] points_per_suc,
                        int no_sucs,
                        int tot_no_points,
-                       Point* subsys_points):
+                       Point* subsys_points,
+                       int[:] dist_from_init):
     cdef int no_states = states.shape[0]
     cdef int no_not_out_states = 0
-    cdef int i,j,state_idx = 0
+    cdef int i = 0
+    cdef int j = 0
+    cdef int state_idx = 0
+
     for i in range(no_states):
         if not is_out[states[i]]:
             no_not_out_states = no_not_out_states +1
@@ -484,13 +501,21 @@ cdef int handle_subsys(int[:] states,
     else:
         points_iterator = <int* > malloc(sizeof(int))
     cdef int [:] points_per_suc_view = points_per_suc
-    target_vector = np.zeros(no_states,np.dtype("d"))
-    cdef double [:] target_vec_view = target_vector
     cdef int no_new_points = 0
     cdef int tot_no_states = 0
-    cdef double sum_inp_reach,p = 0
+    cdef int min_dist_from_init = 0
+    cdef int excl_by_states = 0
+    cdef int excl_by_thr = 0
+    cdef double sum_inp_reach = 0
+    cdef double p = 0
 
     cdef double* reach_probs = <double*> malloc(no_states * sizeof(double))
+
+    ## stuff needed for compute_reach
+    cdef double* P_arr = <double*> malloc(no_states * no_states * sizeof(double))
+    cdef double* target_arr = <double*> malloc(no_states * sizeof(double))
+    # this array is needed for LAPACK call
+    cdef int* IPIV_arr = <int*> malloc(no_states * sizeof(int))
 
     if no_sucs > 0:
         for i in range(no_sucs):
@@ -501,45 +526,55 @@ cdef int handle_subsys(int[:] states,
     cdef Point current_point = Point(0,0,NULL)
 
     for i in range(tot_no_points):
-        # print("points_iterator:")
-        # for j in range(no_sucs):
-        #     print(points_iterator[j])
         current_point = get_point(suc_points_c,points_iterator,no_sucs)
-        #print_point(current_point)
         increase_iterator(points_iterator, points_per_suc_view, no_sucs)
-        # for j in range(no_sucs):
-        #     print(points_iterator[j])
         tot_no_states = no_not_out_states + current_point.no_states
-        if tot_no_states > known_upper_bound:
+
+        # exclude point if it (+ its minimal distance to the initial state) already has more states than known upper-bound
+        # TODO sensible value for min_dist_from_init
+        min_dist_from_init = 100000
+        for j in range(no_states):
+            if is_in[states[j]]:
+                min_dist_from_init = min(min_dist_from_init,dist_from_init[states[j]])
+
+        print("min_dist_from_init:" + str(min_dist_from_init))
+        print("tot_no_states:" + str(tot_no_states))
+        print("known_upper_bound:" + str(known_upper_bound))
+
+        if (tot_no_states + min_dist_from_init) > known_upper_bound:
+            excl_by_states = excl_by_states + 1
             continue
+
+        # define target_arr (RHS of the linear equation system to solve) using out-probabilities
+        # given by current_point
         for j in range(no_states):
             state_idx = states[j]
             if is_out[state_idx]:
                 p = state_prob(current_point,state_idx)
                 if p >= 0:
-                    target_vec_view[j] = p
+                    target_arr[j] = p
                 else:
-                    target_vec_view[j] = 0
+                    target_arr[j] = 0
             elif is_target[state_idx]:
-                target_vec_view[j] = to_target[state_idx]
+                target_arr[j] = to_target[state_idx]
             else:
-                target_vec_view[j] = 0
-
-        #print(target_vector)
+                target_arr[j] = 0
 
         if current_point.probs != NULL:
             free(current_point.probs)
 
-        compute_reach(no_states,subsys_edges,target_vec_view,reach_probs)
+        compute_reach(no_states,subsys_edges,target_arr,P_arr,reach_probs,IPIV_arr)
 
-        # this part needs to be changed into "rest-system" doesn't match threshold
+        # exclude point if the sum of probabilities of the inits is less than the threshold
+        # TODO maybe replace by more elaborate checks
+        # e.g. including *all* predecessor states the probability is too low
         sum_inp_reach = 0
         for j in range(no_states):
             if is_in[states[j]]:
                 sum_inp_reach += reach_probs[j]
 
-        #fix the following ("if entire subsystem has less then thr...")
         if(sum_inp_reach < thr):
+            excl_by_thr = excl_by_thr + 1
             continue
 
         subsys_points[no_new_points].no_states = tot_no_states
@@ -554,6 +589,10 @@ cdef int handle_subsys(int[:] states,
         no_new_points = no_new_points +1
 
     free(points_iterator)
+    free(P_arr)
+    free(IPIV_arr)
+    free(target_arr)
+
     return no_new_points
 
 def to_inp_point(point,part_to_input_mapping,inp_dim):
@@ -574,38 +613,30 @@ def from_inp_point(point,part_to_input_mapping,inp_dim,k):
     return p
 
 def points_to_add_in_inp_space(new_point,part_to_input_mapping,inp_dim):
-    main_point = to_inp_point(new_point,part_to_input_mapping,inp_dim)
-
-    projections = []
-    for i in range(inp_dim):
-        i_proj = np.zeros(inp_dim)
-        i_proj[i] = main_point[i]
-        projections.append(i_proj)
-
-    return np.array([main_point] + projections)
-
-def points_to_add_in_inp_space_v2(new_point,part_to_input_mapping,inp_dim):
     projections = []
 
-    for i in range(inp_dim):
-        i_proj = np.zeros(inp_dim)
-        i_proj[i] = new_point[i]
-        projections.append(i_proj)
+    for sub_dims in powerset(range(inp_dim)):
+        if len(sub_dims) == 0:
+            continue
+        proj = np.zeros(inp_dim)
+        for i in sub_dims:
+            proj[i] = new_point[i]
+        projections.append(proj)
 
     return np.array([new_point] + projections)
 
 
+# computes the reachability probabilities of input states of a partition
+# for given probabilties of the output states (in target_arr)
 @cython.boundscheck(False)
 @cython.wraparound(False)
 cdef int compute_reach(int no_states,
-                        double[:,:] P,
-                        double[:] target,
-                        double* reach_probs):
+                       double[:,:] P,
+                       double* target_arr,
+                       double* P_arr,
+                       double* reach_probs,
+                       int* IPIV_arr):
     cdef int i,j = 0
-    cdef double* P_arr = <double*> malloc(no_states * no_states * sizeof(double))
-    cdef double* target_arr = <double*> malloc(no_states * sizeof(double))
-    # this array is needed for LAPACK call
-    cdef int* IPIV_arr = <int*> malloc(no_states * sizeof(int))
     # will contain the status of computation
     cdef int INFO = 0
     cdef int NO_COLS = 1
@@ -617,24 +648,30 @@ cdef int compute_reach(int no_states,
             else:
                 P_arr[no_states * i + j] = - P[j][i]
 
-        target_arr[i] = target[i]
-
     # solve equation system by call to lapack routine dgesv
     dgesv(&no_states,&NO_COLS,P_arr,&no_states,IPIV_arr,target_arr,&no_states,&INFO)
 
     for i in range(no_states):
         target_arr[i]
         reach_probs[i] = target_arr[i]
-        # free resources
-
-    free(P_arr)
-    free(IPIV_arr)
-    free(target_arr)
 
     return INFO
-    #return linalg.solve(np.identity(no_states)-P,target)
 
-## todo: use a c-struct instead of a python dict for points
+
+
+def print_conv_hull(conv_hull,k):
+    pp = PdfPages(str(k) + '_conv_hull.pdf')
+    plt.plot(conv_hull.points[:,0], conv_hull.points[:,1], 'o')
+
+    for simplex in conv_hull.simplices:
+        plt.plot(conv_hull.points[simplex, 0], conv_hull.points[simplex, 1], 'k-')
+
+    pp.savefig()
+    pp.close()
+
+
+
+####  ----  Below is old stuff  ----
 def add_points(p1,p2):
     return dict({ 'states' : p1['states'] + p2['states'], 'in_probs' : {**p1['in_probs'], **p2['in_probs']}})
 

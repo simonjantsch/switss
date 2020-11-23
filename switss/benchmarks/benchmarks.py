@@ -98,8 +98,9 @@ def run(reachability_form, method, from_thr=1e-3, to_thr=1, step=1e-3, debug=Fal
             wall_times.append(wall_time)
             proc_times.append(proc_time)
             if result.status == "success":
-                statecount = np.sum(result.subsystem.subsystem_mask)
-                statecounts.append(int(statecount))
+                # statecount = np.sum(result.subsystem.subsystem_mask)
+                # statecounts.append(int(statecount))
+                statecounts.append(result.value)
             else:
                 statecounts.append(-1)
         if debug:
