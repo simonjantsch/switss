@@ -26,10 +26,12 @@ import time as time
 
 cimport cython
 
-from libc.stdlib cimport malloc, free
+from libc.stdlib cimport malloc, realloc, free
 from libc.string cimport memcpy
 
 ctypedef np.uint8_t uint8
+
+cdef int INT_MAX = 2147483647
 
 cdef struct StateProb:
     int state_idx
@@ -39,6 +41,12 @@ cdef struct Point:
     int no_states
     int no_probs
     StateProb* probs
+
+cdef struct SortedInputPoints:
+    int size
+    int no_points
+    double** points
+    SortedInputPoints* next_entry
 
 cdef void print_point(Point p):
     print("no_states:" + str(p.no_states))
@@ -153,9 +161,13 @@ def tree_decomp_from_partition_graphtool(P,partition):
 
 
 def partition_graph(G,part_id,suc_ps,labeling,interface,rf):
-    in_partition = lambda v: ((labeling[v] == part_id)
+    in_partition = np.array([((labeling[v] == part_id)
                               or ((labeling[v] in suc_ps)
-                                  and interface[v]))
+                                  and interface[v])) for v in G.get_vertices()])
+
+    # in_partition = lambda v: ((labeling[v] == part_id)
+    #                           or ((labeling[v] in suc_ps)
+    #                               and interface[v]))
 
     part_view = gt.GraphView(G, vfilt = in_partition)
 
@@ -188,6 +200,8 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound=None,timeo
     cdef int i,j = 0
     cdef int k = 0
     cdef StateProb* probs = NULL
+    cdef SortedInputPoints* subsys_points = NULL
+    cdef SortedInputPoints* subsys_points_it = NULL
 
     # TODO when does the overhead of keeping 'dense' P in memory become visible?
     cdef double[:,:] P_memview = rf.P.todense()
@@ -196,6 +210,8 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound=None,timeo
         known_upper_bound = rf.P.shape[0]
 
     G = underlying_graph_graphtool(rf.P)
+
+    #gt.graph_draw(G, output="input.pdf",output_size=(1500,1500),vertex_text=G.vertex_index,vertex_size=10)
 
     dist_from_init = gt.shortest_distance(G,source=G.vertex(rf.initial))
     print(dist_from_init.a)
@@ -219,7 +235,9 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound=None,timeo
     decomp, labeling, interface = quotient(G,new_partition)
     ##
 
-    gt.graph_draw(G, output="input.pdf",output_size=(1500,1500),vertex_text=dist_from_init,vertex_fill_color=labeling,edge_text=edge_probs,vertex_size=3)
+    #gt.graph_draw(G, output="input.pdf",output_size=(1500,1500),vertex_text=G.vertex_index,vertex_fill_color=dist_from_init.a,edge_text=edge_probs,vertex_size=10)
+
+    #assert(False)
 
     # compute an order by which to process the quotient
     rev_top_order = np.flipud(gt.topological_sort(decomp))
@@ -270,6 +288,12 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound=None,timeo
 
         k_points = dict()
 
+        subsys_points = <SortedInputPoints*> malloc (sizeof(SortedInputPoints))
+        subsys_points.size = 0
+        subsys_points.no_points = 0
+        subsys_points.points = NULL
+        subsys_points.next_entry = NULL
+
         # enumerate relevant subsystems of part_view
         bdd, p_expr = compute_subsys_bdd(part_view)
         for model in bdd.pick_iter(p_expr):
@@ -283,8 +307,6 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound=None,timeo
             no_states = len(states)
 
             subsys_edges = comp_subsys_edges(P_memview,states,no_states)
-
-            subsys_points = <Point*> malloc(tot_no_points * sizeof(Point))
 
             to_target = ((np.array(rf.to_target)).ravel())
 
@@ -303,24 +325,22 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound=None,timeo
                                           no_sucs,
                                           tot_no_points,
                                           subsys_points,
-                                          dist_from_init.a)
+                                          dist_from_init.a,
+                                          np.array(part_to_input_mapping,dtype='i'))
 
-            print("no_new_points :" + str(no_new_points))
-
-            # sort all the new points by their 'no_states' and add to k_points
-            for i in range(no_new_points):
-                print_point(subsys_points[i])
-                k = subsys_points[i].no_states
-                probs = subsys_points[i].probs
-                inp_array = np.zeros(inp_dim,dtype='d')
-                for j in range(subsys_points[i].no_probs):
-                    inp_array[part_to_input_mapping[probs[j].state_idx]] = probs[j].prob
-                if k not in k_points.keys():
-                    k_points[k] = np.array([inp_array],dtype='d')
-                else:
-                    k_points[k] = np.append(k_points[k],[inp_array],axis=0)
-
-            free_mem(subsys_points,no_new_points)
+            #print("no_new_points :" + str(no_new_points))
+            #subsys_points_it = subsys_points
+            # print("iterating through subsystem points")
+            # while subsys_points_it != NULL:
+            #     print("size")
+            #     print (subsys_points_it.size)
+            #     print("no_points")
+            #     print (subsys_points_it.no_points)
+            #     for i in range(subsys_points_it.no_points):
+            #         print("a point:")
+            #         for j in range(inp_dim):
+            #             print(subsys_points_it.points[i][j])
+            #     subsys_points_it = subsys_points_it.next_entry
 
         if no_sucs == 0:
             free_mem(suc_points_c[0],1)
@@ -335,11 +355,18 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound=None,timeo
 
         if inp_dim == 1:
             current_max = 0
-            for k in sorted(k_points.keys()):
-                best_k = max(k_points[k].flatten())
-                if best_k > current_max:
-                    current_max = best_k
-                    partition_points[part_id].extend([fip(np.array([best_k]),k)])
+            subsys_points_it = subsys_points
+            while subsys_points_it != NULL:
+                best_k = 0
+                #k_points[subsys_points_it.size] = subsys_points_it.points
+                for p_idx in range(subsys_points_it.no_points):
+                    best_k = max(best_k,subsys_points_it.points[p_idx][0])
+                    free(subsys_points_it.points[p_idx])
+                partition_points[part_id].extend([fip(np.array([best_k]),subsys_points_it.size)])
+                free(subsys_points_it.points)
+                tmp = subsys_points_it
+                subsys_points_it = subsys_points_it.next_entry
+                free(tmp)
 
         else:
             # compute convex-hulls for all k (iteratively from lowest)
@@ -347,20 +374,28 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound=None,timeo
             k_vertices = dict()
             conv_hull = None
 
-            print(k_points)
+            #print(k_points)
 
-            for k in sorted(k_points.keys()):
-                # add projections onto all axes
-                points_to_add = np.concatenate((*map(lambda p: points_to_add_in_inp_space(p,part_to_input_mapping,inp_dim), k_points[k]),))
+            subsys_points_it = subsys_points
+            while subsys_points_it != NULL:
+                k = subsys_points_it.size
+                for p_idx in range(subsys_points_it.no_points):
+                    if conv_hull == None:
+                        # todo: figure out how to handle degenerate cases!
+                        conv_hull = ConvexHull(np.append(points_to_add_in_inp_space(subsys_points_it.points[p_idx],inp_dim),
+                                                         np.array([np.zeros(inp_dim)]),
+                                                         axis=0),
+                                               incremental=True,qhull_options='QJ1e-12 Q12 Pp')
+                    else:
+                        conv_hull.add_points(points_to_add_in_inp_space(subsys_points_it.points[p_idx],inp_dim))
+                if(subsys_points_it.no_points > 0):
+                    k_vertices[k] = np.reshape(conv_hull.vertices,(conv_hull.vertices.shape[0],1))
+                    # print("convex-hull <=%d points:" % k)
+                    # print(conv_hull.points)
+                    # print("convex-hull <=%d vertices:" % k)
+                    # print(np.take_along_axis(conv_hull.points,k_vertices[k],0))
 
-                if conv_hull == None:
-                    # todo: figure out how to handle degenerate cases!
-                    conv_hull = ConvexHull(np.append(points_to_add,np.array([np.zeros(inp_dim)]),axis=0),
-                                           incremental=True,qhull_options='QJ1e-12 Q12 Pp')
-                else:
-                    conv_hull.add_points(points_to_add)
-
-                k_vertices[k] = np.reshape(conv_hull.vertices,(conv_hull.vertices.shape[0],1))
+                subsys_points_it = subsys_points_it.next_entry
 
             conv_hull.close()
 
@@ -373,11 +408,20 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound=None,timeo
                 vertex_cnt = 0
                 k_vertex_points = np.take_along_axis(conv_hull.points,k_vertices[k],0)
                 vertex_cnt = len(k_vertex_points)
-                k_points_k_cnt = len(k_points[k])
+                subsys_points_it = subsys_points
+                while subsys_points_it != NULL:
+                    if subsys_points_it.size == k:
+                        break
+                    subsys_points_it = subsys_points_it.next_entry
+
+                if subsys_points_it == NULL:
+                    assert(False)
+
+                k_points_k_cnt = subsys_points_it.no_points
                 tmp_list = []
 
                 for i in range(vertex_cnt):
-                    if (arreqclose_in_list2(k_vertex_points[i],k_points[k],inp_dim,k_points_k_cnt,1e-12) and
+                    if (arreqclose_in_list2_carr(k_vertex_points[i],subsys_points_it.points,inp_dim,k_points_k_cnt,1e-12) and
                         not arreqclose_in_list2(k_vertex_points[i],sofar,inp_dim,sofar_cnt+1,1e-12)):
                         sofar = np.append(sofar,[k_vertex_points[i]],axis=0)
                         sofar_cnt += 1
@@ -386,13 +430,20 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound=None,timeo
                 # print("**k_vertex_points**")
                 # print(k_vertex_points)
                 # print("**k_points[k]**")
-                # print(k_points[k])
+                # print(subsys_points_it.points)
                 # print("k_points computed")
                 # print(np.array(tmp_list))
 
-                k_points[k] = np.array(tmp_list)
+                #k_points[k] = np.array(tmp_list)
 
-                partition_points[part_id].extend([fip(p,k) for p in k_points[k]])
+                partition_points[part_id].extend([fip(p,k) for p in tmp_list])
+
+            subsys_points_it = subsys_points
+            while subsys_points_it != NULL:
+                free(subsys_points_it.points)
+                tmp = subsys_points_it
+                subsys_points_it = subsys_points_it.next_entry
+                free(tmp)
 
         print("\npartition " + str(part_id) + " points: \n" + str(partition_points[part_id]))
         print("partition " + str(part_id) + " no-points: \n" + str(len(partition_points[part_id])) + "\n")
@@ -424,6 +475,28 @@ cdef bint arreqclose_in_list2(double[:] myarr,
         else:
             is_eq = True
     return False
+
+# reimplement this using some sound is-close-check
+@cython.boundscheck(False)
+@cython.wraparound(False)
+cdef bint arreqclose_in_list2_carr(double[:] myarr,
+                                   double** list_arrays,
+                                   int dim,
+                                   int list_size,
+                                   double tol):
+    cdef bint is_eq = True
+    cdef int i,j = 0
+    for j in range(list_size):
+        for i in range(dim):
+            if not (((myarr[i] - list_arrays[j][i]) < tol) and ((list_arrays[j][i] - myarr[i]) < tol)):
+                is_eq = False
+                break
+        if is_eq:
+            return True
+        else:
+            is_eq = True
+    return False
+
 
 def compute_subsys_bdd(part_view):
     is_in = part_view.vertex_properties["is_in"]
@@ -483,8 +556,10 @@ cdef int handle_subsys(int[:] states,
                        int[:] points_per_suc,
                        int no_sucs,
                        int tot_no_points,
-                       Point* subsys_points,
-                       int[:] dist_from_init):
+                       SortedInputPoints* subsys_points,
+                       int[:] dist_from_init,
+                       int[:] inp_to_part):
+    cdef int found = 0
     cdef int no_states = states.shape[0]
     cdef int no_not_out_states = 0
     cdef int i = 0
@@ -510,12 +585,16 @@ cdef int handle_subsys(int[:] states,
     cdef double p = 0
 
     cdef double* reach_probs = <double*> malloc(no_states * sizeof(double))
+    cdef SortedInputPoints* subsys_points_it = NULL
+    cdef SortedInputPoints* subsys_points_new = NULL
 
     ## stuff needed for compute_reach
     cdef double* P_arr = <double*> malloc(no_states * no_states * sizeof(double))
     cdef double* target_arr = <double*> malloc(no_states * sizeof(double))
     # this array is needed for LAPACK call
     cdef int* IPIV_arr = <int*> malloc(no_states * sizeof(int))
+
+    cdef int ALLOC_BLOCK_SIZE = 10
 
     if no_sucs > 0:
         for i in range(no_sucs):
@@ -532,14 +611,14 @@ cdef int handle_subsys(int[:] states,
 
         # exclude point if it (+ its minimal distance to the initial state) already has more states than known upper-bound
         # TODO sensible value for min_dist_from_init
-        min_dist_from_init = 100000
+        min_dist_from_init = INT_MAX
         for j in range(no_states):
             if is_in[states[j]]:
                 min_dist_from_init = min(min_dist_from_init,dist_from_init[states[j]])
 
-        print("min_dist_from_init:" + str(min_dist_from_init))
-        print("tot_no_states:" + str(tot_no_states))
-        print("known_upper_bound:" + str(known_upper_bound))
+        # print("min_dist_from_init:" + str(min_dist_from_init))
+        # print("tot_no_states:" + str(tot_no_states))
+        # print("known_upper_bound:" + str(known_upper_bound))
 
         if (tot_no_states + min_dist_from_init) > known_upper_bound:
             excl_by_states = excl_by_states + 1
@@ -577,16 +656,49 @@ cdef int handle_subsys(int[:] states,
             excl_by_thr = excl_by_thr + 1
             continue
 
-        subsys_points[no_new_points].no_states = tot_no_states
-        subsys_points[no_new_points].probs = <StateProb*> malloc(inp_dim * sizeof(StateProb))
-        j = 0
-        for i in range(no_states):
-            if is_in[states[i]]:
-                subsys_points[no_new_points].probs[j].state_idx = states[i]
-                subsys_points[no_new_points].probs[j].prob = reach_probs[i]
-                j = j+1
-        subsys_points[no_new_points].no_probs = j
-        no_new_points = no_new_points +1
+        subsys_points_it = subsys_points
+        while True:
+            if subsys_points_it.next_entry == NULL:
+                subsys_points_new = <SortedInputPoints*> malloc(sizeof(SortedInputPoints))
+                subsys_points_new.size = tot_no_states
+                subsys_points_new.no_points = 0
+                subsys_points_new.next_entry = NULL
+                subsys_points_it.next_entry = subsys_points_new
+            elif subsys_points_it.size > tot_no_states:
+                subsys_points_new = <SortedInputPoints*> malloc(sizeof(SortedInputPoints))
+                subsys_points_new.size = tot_no_states
+                subsys_points_new.no_points = 0
+                subsys_points_new.next_entry = subsys_points_it.next_entry
+                subsys_points = subsys_points_new
+            elif subsys_points_it.size == tot_no_states:
+                subsys_points_new = subsys_points_it
+            elif subsys_points_it.next_entry.size > tot_no_states:
+                subsys_points_new = <SortedInputPoints*> malloc(sizeof(SortedInputPoints))
+                subsys_points_new.size = tot_no_states
+                subsys_points_new.no_points = 0
+                subsys_points_new.next_entry = subsys_points_it.next_entry
+                subsys_points_it.next_entry = subsys_points_new
+            else:
+                subsys_points_it = subsys_points_it.next_entry
+                continue
+            no_points = subsys_points_new.no_points + 1
+            subsys_points_new.no_points = no_points
+            if ((no_points - 1) % ALLOC_BLOCK_SIZE) == 0:
+                if (no_points - 1) == 0:
+                    subsys_points_new.points = <double**> malloc(sizeof(double*) * ((no_points-1) + ALLOC_BLOCK_SIZE))
+                else:
+                    subsys_points_new.points = <double**> realloc(subsys_points_new.points,sizeof(double*) * ((no_points-1) + ALLOC_BLOCK_SIZE))
+            subsys_points_new.points[no_points-1] = <double*> malloc(sizeof(double) * inp_dim)
+            for j in range(inp_dim):
+                found = 0
+                for i in range(no_states):
+                    if inp_to_part[j] == states[i]:
+                        found = 1
+                        subsys_points_new.points[no_points-1][j] = reach_probs[i]
+                if found == 0:
+                    subsys_points_new.points[no_points-1][j] = 0
+            no_new_points += 1
+            break
 
     free(points_iterator)
     free(P_arr)
@@ -595,14 +707,14 @@ cdef int handle_subsys(int[:] states,
 
     return no_new_points
 
-def to_inp_point(point,part_to_input_mapping,inp_dim):
-    inp_point = np.zeros(inp_dim)
-    for i in range(inp_dim):
-        if part_to_input_mapping.inverse[i] in point['in_probs']:
-            inp_point[i] = point['in_probs'][part_to_input_mapping.inverse[i]]
-        else:
-            inp_point[i] = 0
-    return inp_point
+# def to_inp_point(point,part_to_input_mapping,inp_dim):
+#     inp_point = np.zeros(inp_dim)
+#     for i in range(inp_dim):
+#         if part_to_input_mapping.inverse[i] in point['in_probs']:
+#             inp_point[i] = point['in_probs'][part_to_input_mapping.inverse[i]]
+#         else:
+#             inp_point[i] = 0
+#     return inp_point
 
 def from_inp_point(point,part_to_input_mapping,inp_dim,k):
     p = dict()
@@ -612,7 +724,8 @@ def from_inp_point(point,part_to_input_mapping,inp_dim,k):
         p["in_probs"][part_to_input_mapping.inverse[i]] = point[i]
     return p
 
-def points_to_add_in_inp_space(new_point,part_to_input_mapping,inp_dim):
+cdef points_to_add_in_inp_space(double* new_point,
+                                int inp_dim):
     projections = []
 
     for sub_dims in powerset(range(inp_dim)):
@@ -623,7 +736,7 @@ def points_to_add_in_inp_space(new_point,part_to_input_mapping,inp_dim):
             proj[i] = new_point[i]
         projections.append(proj)
 
-    return np.array([new_point] + projections)
+    return np.array(projections)
 
 
 # computes the reachability probabilities of input states of a partition

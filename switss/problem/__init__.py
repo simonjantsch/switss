@@ -4,3 +4,4 @@ from .subsystem import Subsystem
 from .problemresult import ProblemResult
 from .qsheur import QSHeur
 from .milpexact import MILPExact
+from .tree_algo import TreeAlgo
