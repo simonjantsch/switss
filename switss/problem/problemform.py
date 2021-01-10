@@ -14,7 +14,13 @@ class ProblemFormulation:
     def __init__(self):
         pass
 
-    def solve(self, reachability_form, threshold, labels=None,timeout=None):
+    def solve(self, 
+              reachability_form, 
+              threshold, 
+              mode, 
+              labels=None, 
+              timeout=None, 
+              fixed_values=dict()):
         """Searches for small subsystems for a given reachability form
         such that the probability of reaching the target state is above
         a given threshold: 
@@ -31,14 +37,29 @@ class ProblemFormulation:
         :type reachability_form: model.ReachabilityForm
         :param threshold: The given threshold.
         :type threshold: float
+        :param mode: The polytope that should be selected for optimization, either "min" or "max"
+        :type mode: str
         :param labels: A list of labels. 
         :type labels: List[str]
+        :param fixed_values: A dictionary mapping states to fixed values.
+        :type fixed_values: Dict[int, int]
         :return: The resulting subsystem.
         :rtype: problem.Subsystem
         """
-        return deque(self.solveiter(reachability_form, threshold, labels=labels,timeout=timeout), maxlen=1).pop()
+        return deque(self.solveiter(    reachability_form, 
+                                        threshold, 
+                                        mode,
+                                        labels=labels,
+                                        timeout=timeout,
+                                        fixed_values=fixed_values), maxlen=1).pop()
 
-    def solveiter(self, reachability_form, threshold, labels=None, timeout=None):
+    def solveiter(self, 
+                  reachability_form, 
+                  threshold, 
+                  mode, 
+                  labels=None, 
+                  timeout=None, 
+                  fixed_values=dict()):
         """Searches for small subsystems for a given reachability form
         such that the probability of reaching the target state is above
         a given threshold: 
@@ -55,21 +76,44 @@ class ProblemFormulation:
         :type reachability_form: model.ReachabilityForm
         :param threshold: The given threshold.
         :type threshold: float
+        :param mode: The polytope that should be selected for optimization, either "min" or "max"
+        :type mode: str
         :param labels: A list of labels. 
         :type labels: List[str]
+        :param fixed_values: A dictionary mapping states to fixed values.
+        :type fixed_values: Dict[int, int]
         :return: The resulting subsystem.
         :rtype: problem.Subsystem
         """
         assert (threshold >= 0) and (threshold <= 1)
+        assert mode in ["min","max"]
+
         if labels is not None:
             for l in labels:
                 available = reachability_form.system.states_by_label.keys()
-                assert l in available, "'%s' is not an existing label. Available are %s" % (l,available)
+                assert l in available, "'%s' is not an existing label. \
+                                       Available are %s" % (l,available)
+            groups = ProblemFormulation._var_groups_from_labels(reachability_form, labels, mode)
+        else:
+            C,N = reachability_form.system.P.shape
+            maxvars = N-2 if mode == "min" else C-2
+            groups = InvertibleDict({ i : { i } for i in range(maxvars)})
 
-        return self._solveiter(reachability_form, threshold, labels, timeout=timeout)
+        return self._solveiter(reachability_form, 
+                               threshold,
+                               mode, 
+                               groups, 
+                               timeout=timeout, 
+                               fixed_values=fixed_values)
 
     @abstractmethod
-    def _solveiter(self, reachability, threshold, labels,timeout=None):
+    def _solveiter(self, 
+                   reachability, 
+                   threshold, 
+                   mode, 
+                   groups, 
+                   timeout=None, 
+                   fixed_values=dict()):
         pass
 
     def __repr__(self):
@@ -105,7 +149,8 @@ class ProblemFormulation:
                             rhs,
                             var_groups,
                             upper_bound = None,
-                            indicator_type="binary"):
+                            indicator_type="binary",
+                            fixed_values=dict()):
         assert indicator_type in ["binary","real"]
 
         C,N = matr.shape
@@ -125,10 +170,10 @@ class ProblemFormulation:
         for (group, var_indices) in var_groups.items():
             indicator_var = var_groups_program.add_variables(indicator_type)
             indicator_to_group[indicator_var] = var_indices
+            if indicator_type != "binary":
+                var_groups_program.add_constraint([(indicator_var,1)],"<=",1)
+                var_groups_program.add_constraint([(indicator_var,1)],">=",0)
             for var_idx in var_indices:
-                if indicator_type != "binary":
-                    var_groups_program.add_constraint([(indicator_var,1)],"<=",1)
-                    var_groups_program.add_constraint([(indicator_var,1)],">=",0)
                 var_groups_program.add_constraint([(var_idx,1),(indicator_var,-upper_bound)],"<=",0)
 
         indicator_to_group = InvertibleDict(indicator_to_group)
@@ -136,6 +181,10 @@ class ProblemFormulation:
         for idx in range(N):
             var_groups_program.add_constraint([(idx,1)], ">=", 0)
             var_groups_program.add_constraint([(idx,1)], "<=", upper_bound)
+
+        # fix variable values
+        for var_idx, value in fixed_values.items():
+            var_groups_program.add_constraint([(var_idx,1)], "=", value)
 
         return var_groups_program, indicator_to_group
 
