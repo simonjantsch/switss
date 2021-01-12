@@ -113,22 +113,22 @@ class MILPExact(ProblemFormulation):
     @staticmethod
     def __min_nonzero_groups(matrix,
                              rhs,
-                             var_groups,
+                             groups,
                              upper_bound = None,
                              solver = "cbc",
                              timeout=None,
                              fixed_values=dict()):
         C,N = matrix.shape
-        min_nonzero_milp, indicator_var_to_vargroup_idx = ProblemFormulation._var_groups_program(
+        min_nonzero_milp, indicator_var_to_vargroup_idx = ProblemFormulation._groups_program(
             matrix, 
             rhs, 
-            var_groups, 
+            groups, 
             upper_bound, 
             indicator_type="binary", 
             fixed_values=fixed_values)
 
-        if min_nonzero_milp == None:
-            return SolverResult("infeasible",None,None)
+        if min_nonzero_milp is None:
+            return SolverResult("infeasible", None, None)
 
         objective = AllOnesInitializer(indicator_var_to_vargroup_idx).initialize()
         min_nonzero_milp.set_objective_function(objective)
@@ -137,7 +137,6 @@ class MILPExact(ProblemFormulation):
         result_projected = ProblemFormulation._project_from_binary_indicators(
             milp_result.result_vector,
             N,
-            var_groups,
             indicator_var_to_vargroup_idx)
 
         return SolverResult(milp_result.status,

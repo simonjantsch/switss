@@ -80,8 +80,9 @@ class ProblemFormulation:
         :type mode: str
         :param labels: A list of labels. 
         :type labels: List[str]
-        :param fixed_values: A dictionary mapping states to fixed values.
-        :type fixed_values: Dict[int, int]
+        :param fixed_values: A dictionary mapping states or state-action-pairs 
+            or labels to fixed values.
+        :type fixed_values: Dict[int, int] or Dict[str, int]
         :return: The resulting subsystem.
         :rtype: problem.Subsystem
         """
@@ -93,7 +94,8 @@ class ProblemFormulation:
                 available = reachability_form.system.states_by_label.keys()
                 assert l in available, "'%s' is not an existing label. \
                                        Available are %s" % (l,available)
-            groups = ProblemFormulation._var_groups_from_labels(reachability_form, labels, mode)
+            groups = ProblemFormulation._groups_from_labels(reachability_form, labels, mode)
+
         else:
             C,N = reachability_form.system.P.shape
             maxvars = N-2 if mode == "min" else C-2
@@ -141,62 +143,60 @@ class ProblemFormulation:
         lp_result = upper_bound_LP.solve(solver=solver)
 
         assert lp_result.status != "unbounded"
-
         return lp_result.status,lp_result.value
 
     @staticmethod
-    def _var_groups_program(matr,
+    def _groups_program(matr,
                             rhs,
-                            var_groups,
+                            groups,
                             upper_bound = None,
                             indicator_type="binary",
                             fixed_values=dict()):
-        assert indicator_type in ["binary","real"]
 
+        assert indicator_type in ["binary","real"]
         C,N = matr.shape
 
-        if upper_bound == None:
+        # compute upper bound
+        if upper_bound is None:
             stat, upper_bound = ProblemFormulation._compute_upper_bound(matr,rhs)
             if stat != "optimal":
-                return None,None
+                return None, None
 
+        # construct basic program
         if indicator_type == "binary":
-            var_groups_program = MILP.from_coefficients(
-                matr,rhs,np.zeros(N),["real"]*N,sense="<=",objective="min")
+            program = MILP.from_coefficients(
+                matr, rhs, np.zeros(N), 
+                ["real"]*N, sense="<=", objective="min")
         else:
-            var_groups_program = LP.from_coefficients(
-                matr,rhs,np.zeros(N),sense="<=",objective="min")
-        indicator_to_group = {}
-        for (group, var_indices) in var_groups.items():
-            indicator_var = var_groups_program.add_variables(indicator_type)
-            indicator_to_group[indicator_var] = var_indices
-            if indicator_type != "binary":
-                var_groups_program.add_constraint([(indicator_var,1)],"<=",1)
-                var_groups_program.add_constraint([(indicator_var,1)],">=",0)
-            for var_idx in var_indices:
-                var_groups_program.add_constraint([(var_idx,1),(indicator_var,-upper_bound)],"<=",0)
+            program = LP.from_coefficients(
+                matr, rhs, np.zeros(N),
+                sense="<=", objective="min")
 
+        # add indicator variables (one for each group)
+        indicator_to_group = {}
+        for group, var_indices in groups.items():
+            indicator_var = program.add_variables(indicator_type)
+            indicator_to_group[indicator_var] = var_indices
+            for var_idx in var_indices: # add constraints var[i] <= K*indicator[i] 
+                program.add_constraint([(var_idx,1), (indicator_var, -upper_bound)], "<=", 0)
+            if group in fixed_values: # restrict indicator to fixed value
+                fixed_value = fixed_values[group]
+                program.add_constraint([(indicator_var, 1)], "=", fixed_value)
+            elif indicator_type != "binary": # restrict indicator to range [0,1] if not binary
+                program.add_constraint([(indicator_var, 1)], "<=", 1)
+                program.add_constraint([(indicator_var, 1)], ">=", 0)
         indicator_to_group = InvertibleDict(indicator_to_group)
 
-        for idx in range(N):
-            var_groups_program.add_constraint([(idx,1)], ">=", 0)
-            var_groups_program.add_constraint([(idx,1)], "<=", upper_bound)
-
-        # fix variable values
-        for var_idx, value in fixed_values.items():
-            var_groups_program.add_constraint([(var_idx,1)], "=", value)
-
-        return var_groups_program, indicator_to_group
+        return program, indicator_to_group
 
     @staticmethod
     def _project_from_binary_indicators(result_vector,
                                         projected_length,
-                                        var_groups,
                                         indicator_to_group):
         result_projected = np.zeros(projected_length)
         handled_vars = dict()
         
-        for (indicator,group) in indicator_to_group.items():
+        for (indicator, group) in indicator_to_group.items():
             if result_vector[indicator] == 1:
                 for var_idx in group:
                     result_projected[var_idx] = result_vector[var_idx]
@@ -215,7 +215,7 @@ class ProblemFormulation:
         return result_projected
 
     @staticmethod
-    def _var_groups_from_labels(reach_form,labels,mode): 
+    def _groups_from_labels(reach_form, labels, mode): 
         """Creates an invertible mapping from labels to states (min) or state-actions pair indices (max), dependent on mode. 
 
         :param reach_form: The reachability form that contains states with labels respectively. 
@@ -228,22 +228,26 @@ class ProblemFormulation:
         :rtype: utils.InvertibleDict[str, Set[int]]
         """              
         assert mode in ["min","max"]
-
         C,N = reach_form.system.P.shape
 
+        # maps lables to sets of states
         sys_st_by_label = reach_form.system.states_by_label
         min_labels = InvertibleDict({ l : sys_st_by_label[l] for l in labels})
 
         if mode == "min":
+            # for state-based optimization min_labels is sufficient
             return min_labels
         else:
-            var_groups = InvertibleDict({})
-            # the max-form has indices in the range from 0 to C-2 which correspond to state-action pairs.
-            # the goal is now to assign all labels of a state s to all state-actions pairs (s,*).
-            for st_act_idx in range(C-2):
-                (st,act) = reach_form.system.index_by_state_action.inv[st_act_idx]
-                if st in min_labels.inv.keys():
-                    st_labels = min_labels.inv[st]
-                    for l in st_labels:
-                        var_groups.add(l, st_act_idx)
-        return var_groups
+            # for state-action-based optimization, we need to consider all state-action pairs
+            groups = InvertibleDict({})
+            # iterate over all state-labels-pairs
+            for state, state_labels in min_labels.inv.items():
+                # compute actions for this state
+                actions = reach_form.system.actions_by_state[state]
+                for act in actions:
+                    sap_idx = reach_form.system.index_by_state_action[(state, act)]
+                    # add corresponding state-action-pair index to this label
+                    for label in state_labels:
+                        groups.add(label, sap_idx)
+            return groups
+

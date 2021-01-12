@@ -103,7 +103,7 @@ class QSHeur(ProblemFormulation):
         C, N = reach_form.system.P.shape
         fark_matr, fark_rhs = reach_form.fark_z_constraints(threshold)
 
-        heur_lp, indicator_to_group = ProblemFormulation._var_groups_program(
+        heur_lp, indicator_to_group = ProblemFormulation._groups_program(
             fark_matr,
             fark_rhs,
             groups,
@@ -155,7 +155,7 @@ class QSHeur(ProblemFormulation):
         C,N = reach_form.system.P.shape
         fark_matr,fark_rhs = reach_form.fark_y_constraints(threshold)
 
-        heur_lp, indicator_to_group = ProblemFormulation._var_groups_program(
+        heur_lp, indicator_to_group = ProblemFormulation._groups_program(
             fark_matr,
             fark_rhs,
             groups,
@@ -182,7 +182,7 @@ class QSHeur(ProblemFormulation):
         # next objective function
         # from the result of the previous round according to the given
         # update function
-        for i in range(0,self.iterations):
+        for i in range(0, self.iterations):
             heur_lp.set_objective_function(current_objective)
             heur_result = heur_lp.solve(self.solver,timeout=timeout)
 
