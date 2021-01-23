@@ -74,7 +74,7 @@ class MILP:
         elif solver == "cbc":
             cbc_options = ["--integerT","0"]
             self.__pulpmodel.setSolver(
-                pulp.PULP_CBC_CMD(fracGap=1e-9,maxSeconds=timeout,options=cbc_options))
+                pulp.PULP_CBC_CMD(gapRel=1e-9,timeLimit=timeout,options=cbc_options))
         elif solver == "glpk":
             glpk_options = ["--tmlim",str(timeout)] if timeout != None else []
             self.__pulpmodel.setSolver(pulp.GLPK_CMD(options=glpk_options))
