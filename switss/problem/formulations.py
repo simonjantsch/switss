@@ -121,6 +121,8 @@ def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_
     # construct MILP
     _, dimW = fark_matr.shape # height vs. width
     model = MILP.from_coefficients(fark_matr, fark_rhs, np.zeros(dimW), ["real"]*dimW) # initialize model
+    for varidx in range(dimW):
+        model.add_constraint([(varidx, 1)],">=",0)
     # add indicator variables, which are either binary or real, dependent on what relaxed was set to
     indicator_domain = "real" if relaxed else "binary"
     indicators = add_indicator_constraints(model, np.arange(dimW), 
