@@ -380,6 +380,23 @@ class ReachabilityForm:
     def __repr__(self):
         return "ReachabilityForm(initial=%s, target=%s, fail=%s, system=%s)" % (self.initial_label, self.target_label, self.fail_label, self.system)
 
+    def fark_constraints(self, threshold, mode):
+        """returns the right constraint set dependent on the given mode.
+
+        :param threshold: the threshold
+        :type threshold: float
+        :param mode: either 'min' or 'max'
+        :type mode: str
+        :return: either :math:`(C+1) \\times N`-matrix :math:`M_z`, and vector of length :math:`C+1` :math:`rhs_z` or :math:`(N+1) \\times C`-matrix :math:`M_y`, and :math:`N+1`-vector :math:`rhs_y`.
+        :rtype: Tuple[scipy.sparse.dok_matrix, np.ndarray[float]]
+        """ 
+        assert mode in ["min", "max"]
+
+        if mode == "min":
+            return self.fark_z_constraints(threshold)
+        else:
+            return self.fark_y_constraints(threshold)
+
     def fark_z_constraints(self, threshold):
         """
         Returns a matrix :math:`M_z` and a vector :math:`rhs_z` such that for a :math:`N` vector :math:`\mathbf{z}`
