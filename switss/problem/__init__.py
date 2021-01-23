@@ -2,6 +2,6 @@ from .qsheurparams import AllOnesInitializer, Initializer, InverseFrequencyIniti
 from .problemform import ProblemFormulation
 from .subsystem import Subsystem
 from .problemresult import ProblemResult
-from .formulations import add_indicator_constraints, compute_upper_bound, construct_MILP, project_from_indicators
+from .formulations import add_indicator_constraints, compute_upper_bound, construct_MILP
 from .qsheur import QSHeur
 from .milpexact import MILPExact

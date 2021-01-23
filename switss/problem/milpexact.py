@@ -1,4 +1,4 @@
-from . import ProblemFormulation, ProblemResult, Subsystem, AllOnesInitializer, construct_MILP, project_from_indicators
+from . import ProblemFormulation, ProblemResult, Subsystem, AllOnesInitializer, construct_MILP
 from switss.solver import SolverResult
 from switss.utils import InvertibleDict
 
@@ -55,13 +55,13 @@ class MILPExact(ProblemFormulation):
             "solver" : self.solver
         }
 
-    def _solveiter(self, reach_form, threshold, mode, groups, timeout=None, fixed_values=dict()):
-        model, indicators = construct_MILP(reach_form, 
-                                           threshold, 
-                                           mode=mode, 
-                                           labels=groups, 
-                                           relaxed=False, 
-                                           upper_bound_solver=self.solver)
+    def _solveiter(self, reach_form, threshold, mode, labels, timeout=None, fixed_values=dict()):
+        model, _ = construct_MILP(reach_form, 
+                                  threshold, 
+                                  mode=mode, 
+                                  labels=labels, 
+                                  relaxed=False, 
+                                  upper_bound_solver=self.solver)
         
         if model is None:
             yield ProblemResult("infeasible", None, None, None)
@@ -70,93 +70,7 @@ class MILPExact(ProblemFormulation):
             if result.status != "optimal":
                 yield ProblemResult(result.status, None, None, None)
             else:
-                projected = project_from_indicators(result.result_vector, indicators)
-                witness = Subsystem(reach_form, projected, mode)
-                yield ProblemResult("success", witness, result.value, projected)
-        
-        # if mode == "min":
-        #     return self._solve_min(reach_form, 
-        #                            threshold, 
-        #                            mode,
-        #                            groups, 
-        #                            timeout=timeout, 
-        #                            fixed_values=fixed_values)
-        # else:
-        #     return self._solve_max(reach_form, 
-        #                            threshold,
-        #                            mode, 
-        #                            groups, 
-        #                            timeout=timeout, 
-        #                            fixed_values=fixed_values)
-
-    def _solve_min(self, reach_form, threshold, mode, groups, timeout=None, fixed_values=dict()):
-        """Runs MILPExact using the Farkas z-polytope."""
-        fark_matr,fark_rhs = reach_form.fark_z_constraints(threshold)
-        milp_result = MILPExact.__min_nonzero_groups(fark_matr,
-                                                     fark_rhs,
-                                                     groups,
-                                                     upper_bound=1,
-                                                     solver=self.solver,
-                                                     timeout=timeout,
-                                                     fixed_values=fixed_values)
-        if milp_result.status != "optimal":
-            yield ProblemResult(milp_result.status, None, None, None)
-        else:
-            witness = Subsystem(reach_form, milp_result.result_vector, "min")
-            yield ProblemResult("success",
-                                witness,
-                                milp_result.value,
-                                milp_result.result_vector)
-
-
-    def _solve_max(self, reach_form, threshold, mode, groups, timeout=None, fixed_values=dict()):
-        """Runs MILPExact using the Farkas y-polytope."""
-        fark_matr,fark_rhs = reach_form.fark_y_constraints(threshold)
-        milp_result = MILPExact.__min_nonzero_groups(fark_matr,
-                                                     fark_rhs,
-                                                     groups,
-                                                     upper_bound=None,
-                                                     solver=self.solver,
-                                                     timeout=timeout,
-                                                     fixed_values=fixed_values)
-        if milp_result.status != "optimal":
-            yield ProblemResult(milp_result.status, None, None, None)
-        else:
-            witness = Subsystem(reach_form, milp_result.result_vector, "max")
-            yield ProblemResult("success",
-                                witness,
-                                milp_result.value,
-                                milp_result.result_vector)
-
-    @staticmethod
-    def __min_nonzero_groups(matrix,
-                             rhs,
-                             groups,
-                             upper_bound = None,
-                             solver = "cbc",
-                             timeout=None,
-                             fixed_values=dict()):
-        C,N = matrix.shape
-        min_nonzero_milp, indicator_var_to_vargroup_idx = ProblemFormulation._groups_program(
-            matrix, 
-            rhs, 
-            groups, 
-            upper_bound, 
-            indicator_type="binary", 
-            fixed_values=fixed_values)
-
-        if min_nonzero_milp is None:
-            return SolverResult("infeasible", None, None)
-
-        objective = AllOnesInitializer(indicator_var_to_vargroup_idx).initialize()
-        min_nonzero_milp.set_objective_function(objective)
-        milp_result = min_nonzero_milp.solve(solver,timeout=timeout)
-
-        result_projected = ProblemFormulation._project_from_binary_indicators(
-            milp_result.result_vector,
-            N,
-            indicator_var_to_vargroup_idx)
-
-        return SolverResult(milp_result.status,
-                            result_projected,
-                            milp_result.value)
+                certsize = ProblemFormulation._certificate_size(reach_form, mode)
+                certificate = result.result_vector[:certsize]
+                witness = Subsystem(reach_form, certificate, mode)
+                yield ProblemResult("success", witness, result.value, certificate)

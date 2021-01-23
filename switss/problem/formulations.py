@@ -74,35 +74,12 @@ def add_indicator_constraints(model, variables, upper_bound, labels=None, indica
     if indicator_domain != "binary":
         for indicator_var in indicator_to_group.keys():
             model.add_constraint([(indicator_var, 1)], ">=", 0)
-            model.add_constraint([(indicator_var, 1)], "<=", 0)
+            model.add_constraint([(indicator_var, 1)], "<=", 1)
 
     return indicator_to_group
 
-def project_from_indicators(result_vector,
-                            # projected_length,
-                            indicator_to_group):
-    projected_length = min(indicator_to_group.keys())
-    result_projected = np.zeros(projected_length)
-    handled_vars = dict()
-    
-    for (indicator, group) in indicator_to_group.items():
-        if result_vector[indicator] == 1:
-            for var_idx in group:
-                result_projected[var_idx] = result_vector[var_idx]
-                handled_vars[var_idx] = True
-        else:
-            for var_idx in group:
-                result_projected[var_idx] = 0
-                handled_vars[var_idx] = True
 
-    for n in range(projected_length):
-        if n not in handled_vars.keys() or not handled_vars[n]:
-            result_projected[n] = result_vector[n]
-
-    return result_projected
-
-
-def construct_MILP(rf, threshold, mode="min", labels=None, relaxed=False, upper_bound_solver="cbc"):
+def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_solver="cbc"):
     """
     constructs a MILP in the following form:
 
@@ -154,6 +131,3 @@ def construct_MILP(rf, threshold, mode="min", labels=None, relaxed=False, upper_
     objective = AllOnesInitializer(indicators).initialize()
     model.set_objective_function(objective)
     return model, indicators
-
-def construct_qsheur_LP(mode="min"):
-    pass
