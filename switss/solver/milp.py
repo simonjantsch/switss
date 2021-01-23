@@ -139,6 +139,8 @@ class MILP:
         :type sense: str
         :param rhs: Right side of the equation, i.e. a number.
         :type rhs: float
+        :return: name of the added constraint
+        :rtype: str
         """        
         assert sense in ["<=", "=", ">="]
         assert rhs == float(rhs), "Right hand side is not a number: rhs=%s" % rhs 
@@ -149,9 +151,20 @@ class MILP:
                   "=" : pulp.LpConstraintEQ, 
                   ">=" : pulp.LpConstraintGE }[sense]
 
-        constraint = pulp.LpConstraint(name="c%d" % self.__constraint_iter, e=lhs, sense=sense, rhs=rhs)
+        name = "c%d" % self.__constraint_iter
+        constraint = pulp.LpConstraint(name=name, e=lhs, sense=sense, rhs=rhs)
         self.__pulpmodel += constraint
         self.__constraint_iter += 1
+        
+        return name
+
+    def remove_constraint(self, name):
+        """removes a given constraint from the model.
+
+        :param name: the name of the constraint
+        :type name: str
+        """        
+        self.__pulpmodel.constraints.pop(name)
 
     def add_variables(self, *domains):
         """Adds a list of variables to this MILP. Each element in `domains` must be either `integer`, `binary` or `real`.
