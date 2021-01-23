@@ -1,4 +1,4 @@
-from . import ProblemFormulation, ProblemResult, Subsystem, AllOnesInitializer
+from . import ProblemFormulation, ProblemResult, Subsystem, AllOnesInitializer, construct_MILP, project_from_indicators
 from switss.solver import SolverResult
 from switss.utils import InvertibleDict
 
@@ -56,20 +56,38 @@ class MILPExact(ProblemFormulation):
         }
 
     def _solveiter(self, reach_form, threshold, mode, groups, timeout=None, fixed_values=dict()):
-        if mode == "min":
-            return self._solve_min(reach_form, 
-                                   threshold, 
-                                   mode,
-                                   groups, 
-                                   timeout=timeout, 
-                                   fixed_values=fixed_values)
+        model, indicators = construct_MILP(reach_form, 
+                                           threshold, 
+                                           mode=mode, 
+                                           labels=groups, 
+                                           relaxed=False, 
+                                           upper_bound_solver=self.solver)
+        
+        if model is None:
+            yield ProblemResult("infeasible", None, None, None)
         else:
-            return self._solve_max(reach_form, 
-                                   threshold,
-                                   mode, 
-                                   groups, 
-                                   timeout=timeout, 
-                                   fixed_values=fixed_values)
+            result = model.solve(solver=self.solver, timeout=timeout)
+            if result.status != "optimal":
+                yield ProblemResult(result.status, None, None, None)
+            else:
+                projected = project_from_indicators(result.result_vector, indicators)
+                witness = Subsystem(reach_form, projected, mode)
+                yield ProblemResult("success", witness, result.value, projected)
+        
+        # if mode == "min":
+        #     return self._solve_min(reach_form, 
+        #                            threshold, 
+        #                            mode,
+        #                            groups, 
+        #                            timeout=timeout, 
+        #                            fixed_values=fixed_values)
+        # else:
+        #     return self._solve_max(reach_form, 
+        #                            threshold,
+        #                            mode, 
+        #                            groups, 
+        #                            timeout=timeout, 
+        #                            fixed_values=fixed_values)
 
     def _solve_min(self, reach_form, threshold, mode, groups, timeout=None, fixed_values=dict()):
         """Runs MILPExact using the Farkas z-polytope."""
