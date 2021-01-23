@@ -41,6 +41,8 @@ class ReachabilityForm:
         self.__P = system.P[:system.C-2, :system.N-2]
         self.__system = system
         self.initial = next(iter(system.states_by_label[initial_label]))
+        self.target = next(iter(system.states_by_label[target_label]))
+        self.fail = next(iter(system.states_by_label[fail_label]))
         self.target_label = target_label
         self.fail_label = fail_label
         self.initial_label = initial_label
