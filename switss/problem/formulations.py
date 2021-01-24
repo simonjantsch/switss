@@ -4,6 +4,23 @@ from . import AllOnesInitializer
 from switss.utils import InvertibleDict
 import numpy as np
 
+def certificate_size(rf, mode):
+    """returns the certificate dimension w.r.t. a given mode and RF
+
+    :param rf: the RF
+    :type rf: model.ReachabilityForm
+    :param mode: either 'min' or 'max'
+    :type mode: str
+    :return: certificate dimension
+    :rtype: int
+    """
+    assert mode in ["min", "max"]
+    C, N = rf.system.P.shape
+    if mode == "min":
+        return N-2
+    else:
+        return C-2
+
 def compute_upper_bound(matr, rhs, solver="cbc"):
     """
     computes upper bound :math:`K` for LPs/MILPs. Solves the LP
@@ -22,11 +39,11 @@ def compute_upper_bound(matr, rhs, solver="cbc"):
     :return: the optimal value :math:`K` and status of LP
     :rtype: Tuple[str, float]
     """
-    _, dimW = matr.shape
-    upper_obj = np.ones(dimW)
+    _, certsize = matr.shape
+    upper_obj = np.ones(certsize)
     upper_bound_LP = LP.from_coefficients(matr, rhs, upper_obj, objective="max")
 
-    for idx in range(dimW):
+    for idx in range(certsize):
         upper_bound_LP.add_constraint([(idx, 1)], ">=", 0)
 
     lp_result = upper_bound_LP.solve(solver=solver)
@@ -34,7 +51,40 @@ def compute_upper_bound(matr, rhs, solver="cbc"):
     return lp_result.status, lp_result.value
 
 
-def add_indicator_constraints(model, variables, upper_bound, labels=None, indicator_domain="real"):
+def groups_from_labels(rf, mode, labels=None):
+    """computes variable groups from a given mode and a set of labels.
+    if the labels are 'None', then returns the identity mapping.
+
+    :param rf: the RF
+    :type rf: model.ReachabilityForm
+    :param mode: either 'min' or 'max'
+    :type mode: str
+    :param labels: labels that group states, defaults to None
+    :type labels: List[str], optional
+    :return: the state/state-action-pair groupings
+    :rtype: InvertibleDict[int, Set[int]] 
+    """    
+    assert mode in ["min", "max"]
+    if labels is None:
+        return InvertibleDict({ idx: {idx} for idx in range(certificate_size(rf, mode))})
+    elif mode == "min":
+        groups = {}
+        for label in labels:
+            states = rf.system.states_by_label[label]
+            groups[label] = states
+        return InvertibleDict(groups)
+    else:
+        groups = InvertibleDict({})
+        for label in labels:
+            states = rf.system.states_by_label[label]
+            for state in states:
+                actions = rf.system.actions_by_state[state]
+                for action in actions:
+                    sap = rf.system.index_by_state_action[(state, action)]
+                    groups.add(label, sap)
+        return groups
+
+def add_indicator_constraints(model, variables, upper_bound, mode, groups, indicator_domain="real"):
     """
     adds new variables and constraints of the form 
 
@@ -50,25 +100,22 @@ def add_indicator_constraints(model, variables, upper_bound, labels=None, indica
     :type variables: Iterable[int]
     :param upper_bound: value for :math:`K`
     :type upper_bound: float
-    :param labels: mapping :math:`ambda` grouping subsets of variables :math:`V` together, defaults to None
-    :type labels: Dict[\*, Set[int]], optional
+    :param mode: either 'min' or 'max'
+    :type mode: str
+    :param groups: mapping :math:`\Lambda` grouping subsets of variables :math:`V` together
+    :type groups: Dict[\*, Set[int]]
     :param indicator_domain: domain of every :math:`\sigma(l)`, defaults to "real"
     :type indicator_domain: str, optional
     :return: the mapping of new indicator variables (:math:`\sigma(l)`) to their corresponding sets of variables (the set that contains all :math:`\mathbf{x}(v)` where :math:`l \in\Lambda(v)`).
     :rtype: utils.InvertibleDict[int, Set[int]]
-    """    
+    """
+
     indicator_to_group = {}
-    if labels is None:
-        for var in variables:
-            indicator_var = model.add_variables(indicator_domain)
-            indicator_to_group[indicator_var] = { var }
+    for _, group in groups.items():
+        indicator_var = model.add_variables(indicator_domain)
+        indicator_to_group[indicator_var] = group
+        for var in group:
             model.add_constraint([(var, 1), (indicator_var, -upper_bound)], "<=", 0)
-    else:
-        for _, group in labels.items():
-            indicator_var = model.add_variables(indicator_domain)
-            indicator_to_group[indicator_var] = group
-            for var in group:
-                model.add_constraint([(var, 1), (indicator_var, -upper_bound)], "<=", 0)
     indicator_to_group = InvertibleDict(indicator_to_group)
 
     if indicator_domain != "binary":
@@ -106,10 +153,10 @@ def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_
     :type upper_bound_solver: str, optional
     :return: the resulting MILP. If the upper bound calculation fails, returns (None, None)
     :rtype: Tuple[solver.MILP, Dict[int,Set[int]]]
-    """    
-    
+    """
     # construct constraining polytope matrices according to chosen mode
     fark_matr, fark_rhs = rf.fark_constraints(threshold, mode)
+    
     # compute the upper bound K
     if mode == "min":
         upper_bound = 1. 
@@ -118,15 +165,19 @@ def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_
         if status != "optimal":
             return None, None
     
+    # obtain variable groups from labels
+    groups = groups_from_labels(rf, mode, labels=labels)
+    
     # construct MILP
-    _, dimW = fark_matr.shape # height vs. width
-    model = MILP.from_coefficients(fark_matr, fark_rhs, np.zeros(dimW), ["real"]*dimW) # initialize model
-    for varidx in range(dimW):
-        model.add_constraint([(varidx, 1)],">=",0)
+    certsize = certificate_size(rf, mode)
+    model = MILP.from_coefficients(fark_matr, fark_rhs, np.zeros(certsize), ["real"]*certsize) # initialize model
+    for varidx in range(certsize):
+        model.add_constraint([(varidx, 1)], ">=", 0)
+        model.add_constraint([(varidx, 1)], "<=", upper_bound) # isn't this constraint unnecessary?
     # add indicator variables, which are either binary or real, dependent on what relaxed was set to
     indicator_domain = "real" if relaxed else "binary"
-    indicators = add_indicator_constraints(model, np.arange(dimW), 
-                                           upper_bound, labels=labels, 
+    indicators = add_indicator_constraints(model, np.arange(certsize), 
+                                           upper_bound, mode, groups, 
                                            indicator_domain=indicator_domain)
     # make objective function opt=(0,...,0, 1,...,1) where the (0,..,0) part
     # corresponds to the x-variables and the (1,..,1) part to the indicators 

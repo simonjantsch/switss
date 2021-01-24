@@ -1,5 +1,5 @@
 from . import ProblemFormulation, ProblemResult, Subsystem
-from . import AllOnesInitializer, InverseResultUpdater, construct_MILP
+from . import AllOnesInitializer, InverseResultUpdater, construct_MILP, certificate_size
 from switss.utils import InvertibleDict
 from switss.solver import LP
 import numpy as np
@@ -79,7 +79,7 @@ class QSHeur(ProblemFormulation):
             "updatertype" : self.updatertype.__name__
         }
 
-    def _solveiter(self, reach_form, threshold, mode, labels, timeout=None, fixed_values=dict()):
+    def _solveiter(self, reach_form, threshold, mode, labels, timeout=None):
         """Runs the QSheuristic using the Farkas (y- or z-) polytope
         depending on the value in mode."""
         model, indicators = construct_MILP(reach_form, 
@@ -92,7 +92,7 @@ class QSHeur(ProblemFormulation):
             yield ProblemResult("infeasible", None, None, None)
             return
         
-        certsize = ProblemFormulation._certificate_size(reach_form, mode)
+        certsize = certificate_size(reach_form, mode)
         initializer = self.initializertype(reachability_form=reach_form, mode=mode, indicator_to_group=indicators)
         updater = self.updatertype(reachability_form=reach_form, mode=mode, indicator_to_group=indicators)
         current_objective = initializer.initialize()

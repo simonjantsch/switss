@@ -19,8 +19,7 @@ class ProblemFormulation:
               threshold, 
               mode, 
               labels=None, 
-              timeout=None, 
-              fixed_values=dict()):
+              timeout=None):
         """Searches for small subsystems for a given reachability form
         such that the probability of reaching the target state is above
         a given threshold: 
@@ -50,16 +49,14 @@ class ProblemFormulation:
                                         threshold, 
                                         mode,
                                         labels=labels,
-                                        timeout=timeout,
-                                        fixed_values=fixed_values), maxlen=1).pop()
+                                        timeout=timeout), maxlen=1).pop()
 
     def solveiter(self, 
                   reachability_form, 
                   threshold, 
                   mode, 
                   labels=None, 
-                  timeout=None, 
-                  fixed_values=dict()):
+                  timeout=None):
         """Searches for small subsystems for a given reachability form
         such that the probability of reaching the target state is above
         a given threshold: 
@@ -92,8 +89,7 @@ class ProblemFormulation:
                                threshold,
                                mode, 
                                labels=labels, 
-                               timeout=timeout, 
-                               fixed_values=fixed_values)
+                               timeout=timeout)
 
     @abstractmethod
     def _solveiter(self, 
@@ -101,8 +97,7 @@ class ProblemFormulation:
                    threshold, 
                    mode, 
                    labels, 
-                   timeout=None, 
-                   fixed_values=dict()):
+                   timeout=None):
         pass
 
     def __repr__(self):
@@ -115,13 +110,4 @@ class ProblemFormulation:
         is dependent on respective class and instance.
         """        
         pass
-
-    @staticmethod
-    def _certificate_size(reach_form, mode):
-        assert mode in ["min", "max"]
-        C, N = reach_form.system.P.shape
-        if mode == "min":
-            return N-2
-        else:
-            return C-2
 

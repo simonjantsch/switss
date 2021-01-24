@@ -1,4 +1,4 @@
-from . import ProblemFormulation, ProblemResult, Subsystem, AllOnesInitializer, construct_MILP
+from . import ProblemFormulation, ProblemResult, Subsystem, AllOnesInitializer, construct_MILP, certificate_size
 from switss.solver import SolverResult
 from switss.utils import InvertibleDict
 
@@ -55,7 +55,7 @@ class MILPExact(ProblemFormulation):
             "solver" : self.solver
         }
 
-    def _solveiter(self, reach_form, threshold, mode, labels, timeout=None, fixed_values=dict()):
+    def _solveiter(self, reach_form, threshold, mode, labels, timeout=None):
         model, _ = construct_MILP(reach_form, 
                                   threshold, 
                                   mode=mode, 
@@ -70,7 +70,7 @@ class MILPExact(ProblemFormulation):
             if result.status != "optimal":
                 yield ProblemResult(result.status, None, None, None)
             else:
-                certsize = ProblemFormulation._certificate_size(reach_form, mode)
+                certsize = certificate_size(reach_form, mode)
                 certificate = result.result_vector[:certsize]
                 witness = Subsystem(reach_form, certificate, mode)
                 yield ProblemResult("success", witness, result.value, certificate)
