@@ -13,7 +13,7 @@ class BnBProblem(bnb.Problem):
                  labels : List[str],
                  thr : float, 
                  mode : str, 
-                 solver="cbc":
+                 solver="cbc"):
         
         assert mode == "min"
 
@@ -134,7 +134,7 @@ class ColumnGeneration(ProblemFormulation):
         }
 
     def _solveiter(self, reach_form, threshold, mode, labels, timeout=None):
-        prob = BnBProblem(reach_form, labels, threshold, mode, self.solver, heur_cb)
+        prob = BnBProblem(reach_form, labels, threshold, mode, self.solver)
         results = bnb.solve(prob)
         print( results.objective, results.bound )
         yield results
