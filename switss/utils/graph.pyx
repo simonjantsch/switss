@@ -230,6 +230,7 @@ cdef class Graph:
                 stack += [ (subgraph, mappings + [to_sup]) for subgraph,to_sup in sgs ]
         return ret, mec_counter-1
 
+
     def reachable(self, fromset, direction, blocklist=set()):
         assert len(fromset) > 0
         assert direction in ["forward", "backward"]

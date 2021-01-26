@@ -1,8 +1,12 @@
 ## this file returns MILPs/LPs as follows:
+from switss.model import ReachabilityForm
 from switss.solver import MILP, LP
+from switss.utils import InvertibleDict, Graph
 from . import AllOnesInitializer
-from switss.utils import InvertibleDict
+
 import numpy as np
+from scipy.sparse import dok_matrix
+from bidict import bidict
 
 def certificate_size(rf, mode):
     """returns the certificate dimension w.r.t. a given mode and RF
@@ -152,7 +156,7 @@ def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_
         defaults to "cbc"
     :type upper_bound_solver: str, optional
     :return: the resulting MILP. If the upper bound calculation fails, returns (None, None)
-    :rtype: Tuple[solver.MILP, Dict[int,Set[int]]]
+    :rtype: Tuple[solver.MILP, utils.InvertibleDict[int, Set[int]]]
     """
     # construct constraining polytope matrices according to chosen mode
     fark_matr, fark_rhs = rf.fark_constraints(threshold, mode)
@@ -184,3 +188,46 @@ def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_
     objective = AllOnesInitializer(indicators).initialize()
     model.set_objective_function(objective)
     return model, indicators
+
+
+def construct_indicator_graph(rf : ReachabilityForm, mode : str, indicators, indicator_var_to_idx):
+    assert mode in ["min", "max"]
+    # P only encodes reachability -- we don't care about probabilities
+    indicator_count = len(indicator_var_to_idx.keys())
+    P = dok_matrix((indicator_count, indicator_count)) 
+    for state in indicators.inv.keys():
+        # iterate over all states
+        for succ, action, _ in rf.system.successors(state): 
+            # check if successor is fail or target -- if so, ignore. there is no fitting indicator!
+            if succ >= rf.system.N-2:
+                continue 
+            # and corresponding actions (and successor-states)
+            if mode == "min": 
+                # in 'min'-mode, all indicators of the state reach all indicators of the successors 
+                indicators_state = indicators.inv[state]
+                indicators_succ  = indicators.inv[succ]
+                for indicator_state in indicators_state:
+                    indstateidx = indicator_var_to_idx[indicator_state]
+                    for indicator_succ in indicators_succ:
+                        indsuccidx = indicator_var_to_idx[indicator_succ]
+                        P[indstateidx, indsuccidx] = 1
+            else: 
+                # in 'max'-mode, all indicators of the current state-action-pair reach all 
+                # state-action-pairs of the succeeding state
+                sap = rf.system.index_by_state_action[(state, action)]
+                indicator_sap = indicators.inv[sap]
+                for succ_action in rf.system.actions_by_state[succ]:
+                    succ_sap = rf.system.index_by_state_action[(succ, succ_action)]
+                    indicators_succ_sap  = indicators.inv[succ_sap]
+                    for indicator_sap in indicators_state:
+                        indsapidx = indicator_var_to_idx[indicator_sap]
+                        for indicator_succ_sap in indicators_succ_sap:
+                            indsuccsapidx = indicator_var_to_idx[indicator_succ_sap]
+                            P[indsapidx, indsuccsapidx] = 1
+    index_by_state_action = bidict({ (idx,0) : idx for idx in range(indicator_count) })
+    return Graph(P, index_by_state_action)
+
+
+
+
+

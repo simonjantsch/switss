@@ -41,8 +41,6 @@ class ReachabilityForm:
         self.__P = system.P[:system.C-2, :system.N-2]
         self.__system = system
         self.initial = next(iter(system.states_by_label[initial_label]))
-        self.target = next(iter(system.states_by_label[target_label]))
-        self.fail = next(iter(system.states_by_label[fail_label]))
         self.target_label = target_label
         self.fail_label = fail_label
         self.initial_label = initial_label
@@ -57,6 +55,22 @@ class ReachabilityForm:
         self.__fail_visualization_style = None
         self.set_target_visualization_style()
         self.set_fail_visualization_style()
+
+    @property
+    def target_sap_idx(self):
+        return self.system.C-2
+
+    @property
+    def target_state_idx(self):
+        return self.system.N-2
+
+    @property
+    def fail_sap_idx(self):
+        return self.system.C-1
+
+    @property
+    def fail_state_idx(self):
+        return self.system.N-1
 
     def set_target_visualization_style(self,style=None):
         assert style is None or type(style) == type(self.system.visualization)
