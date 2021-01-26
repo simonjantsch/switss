@@ -1,6 +1,6 @@
 ## this file returns MILPs/LPs as follows:
 from switss.model import ReachabilityForm
-from switss.solver import MILP, LP
+from switss.solver import MILP, LP, GurobiMILP
 from switss.utils import InvertibleDict, Graph
 from . import AllOnesInitializer
 
@@ -130,7 +130,7 @@ def add_indicator_constraints(model, variables, upper_bound, mode, groups, indic
     return indicator_to_group
 
 
-def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_solver="cbc"):
+def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_solver="cbc", modeltype="pulp"):
     """
     constructs a MILP in the following form:
 
@@ -155,9 +155,14 @@ def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_
     :param upper_bound_solver: if the max-form is considered, :math:`K` needs to be computed by a solver, 
         defaults to "cbc"
     :type upper_bound_solver: str, optional
+    :param modeltype: returns either a PuLP or Gurobi-MILP. Needs to be either 'gurobi' or 'pulp'
+    :type modeltype: str
     :return: the resulting MILP. If the upper bound calculation fails, returns (None, None)
     :rtype: Tuple[solver.MILP, utils.InvertibleDict[int, Set[int]]]
     """
+    assert modeltype in ["gurobi", "pulp"]
+    modeltype = { "gurobi": GurobiMILP, "pulp": MILP }[modeltype]
+
     # construct constraining polytope matrices according to chosen mode
     fark_matr, fark_rhs = rf.fark_constraints(threshold, mode)
     
@@ -174,7 +179,7 @@ def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_
     
     # construct MILP
     certsize = certificate_size(rf, mode)
-    model = MILP.from_coefficients(fark_matr, fark_rhs, np.zeros(certsize), ["real"]*certsize) # initialize model
+    model = modeltype.from_coefficients(fark_matr, fark_rhs, np.zeros(certsize), ["real"]*certsize) # initialize model
     for varidx in range(certsize):
         model.add_constraint([(varidx, 1)], ">=", 0)
         model.add_constraint([(varidx, 1)], "<=", upper_bound) # isn't this constraint unnecessary?
