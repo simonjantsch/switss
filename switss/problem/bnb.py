@@ -18,6 +18,7 @@ class BnBProblem(bnb.Problem):
         assert mode == "min"
 
         self._added_constraints = dict()
+        self._solved_result = None
 
         self._mode = mode
         self._solver = solver
@@ -74,15 +75,21 @@ class BnBProblem(bnb.Problem):
 
     def objective(self):
         # print("(objective) indicatorstate", self._indicatorstate)
-        result = self._model.solve(solver=self._solver)
+        if self._solved_result is None:
+            result = self._model.solve(solver=self._solver)
+            self._solved_result = result
         indices = list(self._indicator_to_groups.keys())
-        return (result.result_vector[indices] > 0).sum()
+        return (self._solved_result.result_vector[indices] > 0).sum()
 
     def bound(self):
         # print("(bound) indicatorstate", self._indicatorstate)
-        result = self._model.solve(solver=self._solver)
-        if result.status == "optimal":
-            return result.value
+        if self._solved_result is None:
+            result = self._model.solve(solver=self._solver)
+            self._solved_result = result
+        
+        if self._solved_result.status == "optimal":
+            return self._solved_result.value
+            # return int( result.value + 0.5 )  # -> does this work?
         else:
             return self.infeasible_objective()
 
@@ -104,7 +111,8 @@ class BnBProblem(bnb.Problem):
                 self.__add_constraint(diffidx, valnode)
         
         self._indicatorstate = node.state[0].copy()
-        self._candidates = node.state[1].copy() 
+        self._candidates = node.state[1].copy()
+        self._solved_result = None 
 
     def branch(self):
         if len( self._candidates ) == 0:
@@ -155,6 +163,6 @@ class ColumnGeneration(ProblemFormulation):
 
     def _solveiter(self, reach_form, threshold, mode, labels, timeout=None):
         prob = BnBProblem(reach_form, labels, threshold, mode, self.solver)
-        results = bnb.solve(prob)
+        results = bnb.solve(prob, queue_strategy="bound")
         print( results.objective, results.bound )
         yield results
