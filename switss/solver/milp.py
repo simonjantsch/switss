@@ -4,6 +4,12 @@ from scipy.sparse import dok_matrix
 import pulp
 import numpy as np
 
+try:
+    import gurobipy as gp
+    from gurobipy import GRB
+except:
+    print("if gurobi should be used, gurobipy needs to be installed")
+
 class MILP:
     """
     A MILP can either be initialized through a specification of coefficient matrices and -vectors 
@@ -325,14 +331,21 @@ class GurobiMILP(MILP):
         :param objective: Whether the problem should minimize or maximize ("min" or "max"), defaults to "min"
         :type objective: str, optional
         """        
-        import gurobipy as gp
-        from gurobipy import GRB
 
         assert objective in ["min", "max"], "objective must be either 'min' or 'max'"
         self.__model = gp.Model()
         self.__objective = { "min": GRB.MINIMIZE, "max": GRB.MAXIMIZE }[objective]
         self.__variables = [] 
+        self.__constr_name_mapping = dict()
         self.__constraint_iter = 0
+
+        self.__model.setParam("MIPGap", 0)
+        self.__model.setParam("MIPGapAbs", 0)
+        self.__model.setParam("FeasibilityTol", 1e-9)
+        self.__model.setParam("IntFeasTol", 1e-9)
+        self.__model.setParam("NumericFocus", 1e-9)
+        self.__model.setParam('OutputFlag', 0)
+
 
     def solve(self, **kwargs):
         self.__model.optimize()
@@ -341,27 +354,25 @@ class GurobiMILP(MILP):
                         GRB.LOADED: "notsolved",
                         GRB.INFEASIBLE: "infeasible", 
                         GRB.UNBOUNDED: "unbounded" }
-        
+                        
         status = "undefined"
         if self.__model.status in status_dict:
             status = status_dict[self.__model.status]
         
-        result_vector = np.array([var.x for var in self.__model.getVars()])
-        value = self.__model.objVal
-
-        return SolverResult(status, result_vector, value)
+        if status == "optimal":    
+            result_vector = np.array([var.x for var in self.__variables])
+            value = self.__model.objVal
+            return SolverResult(status, result_vector, value)
+        else:
+            return SolverResult(status, None, None)
 
     def _assert_expression(self, expression):
         for idx,(var,coeff) in enumerate(expression):
             assert var >= 0 and var < len(self.__variables), "Variable %s does not exist (@index=%d)." % (var, idx)
             assert coeff == float(coeff), "Coefficient coeff=%s is not a number (@index=%d)." % (coeff, idx)
 
-    def _expr_to_pulp(self, expression):
-        for var, coeff in expression:
-            yield self.__variables[var], coeff
-
     def _eval_pulp_expr(self, expression):
-        return sum([ var*coeff for var, coeff in expression ])
+        return sum([ self.__variables[var]*coeff for var, coeff in expression ])
 
     def set_objective_function(self, expression):
         """Sets the objective function of the form
@@ -378,7 +389,7 @@ class GurobiMILP(MILP):
         """        
         self._assert_expression(expression)
         self.__model.setObjective( 
-            self._eval_pulp_expr( self._expr_to_pulp(expression) ), 
+            self._eval_pulp_expr( expression ), 
             self.__objective 
         )
         
@@ -408,13 +419,15 @@ class GurobiMILP(MILP):
         name = "c%d" % self.__constraint_iter
         self.__constraint_iter += 1
 
+        newconstr = None
         if sense == "<=":
-            self.__model.addConstr(self._eval_pulp_expr(self._expr_to_pulp(lhs)) <= rhs, name)
+            newconstr = self.__model.addConstr(self._eval_pulp_expr( lhs ) <= rhs, name)
         elif sense == "=":
-            self.__model.addConstr(self._eval_pulp_expr(self._expr_to_pulp(lhs)) == rhs, name)
+            newconstr = self.__model.addConstr(self._eval_pulp_expr( lhs ) == rhs, name)
         else:
-            self.__model.addConstr(self._eval_pulp_expr(self._expr_to_pulp(lhs)) >= rhs, name)
+            newconstr = self.__model.addConstr(self._eval_pulp_expr( lhs ) >= rhs, name)
         
+        self.__constr_name_mapping[name] = newconstr 
         return name
 
     def remove_constraint(self, name):
@@ -422,8 +435,8 @@ class GurobiMILP(MILP):
 
         :param name: the name of the constraint
         :type name: str
-        """        
-        self.__model.remove(name)
+        """
+        self.__model.remove(self.__constr_name_mapping[name])
 
     def add_variables(self, *domains):
         """Adds a list of variables to this MILP. Each element in `domains` must be either `integer`, `binary` or `real`.
@@ -435,7 +448,7 @@ class GurobiMILP(MILP):
         for domain in domains:
             assert domain in ["integer", "real", "binary"]
             cat = { "binary": GRB.BINARY,
-                    "real": GRB.REAL,
+                    "real": GRB.CONTINUOUS,
                     "integer": GRB.INTEGER }[domain]
 
             varidx = len(self.__variables)

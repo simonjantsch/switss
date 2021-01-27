@@ -17,13 +17,16 @@ class BnBProblem(bnb.Problem):
         
         assert mode == "min"
 
+        self._added_constraints = dict()
+
         self._mode = mode
         self._solver = solver
         self._thr = thr
         self._rf = rf
         self._model, self._indicator_to_groups = construct_MILP(rf, thr, mode, 
                                                                 labels=labels, relaxed=True, 
-                                                                upper_bound_solver=solver)
+                                                                upper_bound_solver=solver,
+                                                                modeltype="gurobi" if solver=="gurobi" else "pulp")
 
         self._indicator_var_to_idx = bidict({ idx: i for i, idx in enumerate(self._indicator_to_groups.keys()) })
 
@@ -35,13 +38,12 @@ class BnBProblem(bnb.Problem):
         for indicatorvar in self._indicator_to_groups.inv[self._rf.initial]:
             indicatoridx = self._indicator_var_to_idx[indicatorvar]
             self._indicatorstate[indicatoridx] = 1
+            self.__add_constraint(indicatoridx, 1)
         
         self._candidates = set()
         for indicatorvar in self._indicator_to_groups.inv[self._rf.initial]:
             indicatoridx = self._indicator_var_to_idx[indicatorvar]
             self.__add_successor_candidates(indicatoridx)
-
-        self._added_constraints = set()
 
         self._reaching_target = set()
         for pred, _, _ in self._rf.system.predecessors( self._rf.target_state_idx ):
@@ -55,39 +57,54 @@ class BnBProblem(bnb.Problem):
             if self._indicatorstate[succ] == -1:
                 self._candidates.add(succ)
 
+    def __remove_constraint(self, indicatoridx):
+        # print("removing constraint %d"  % indicatoridx)
+        constr = self._added_constraints[indicatoridx]
+        self._model.remove_constraint(constr)
+        del self._added_constraints[indicatoridx]
+
     def __add_constraint(self, indicatoridx, val):
+        # print("adding constraint %d:=%g"  % (indicatoridx,val))
         indicatorvar = self._indicator_var_to_idx.inv[indicatoridx]
-        return self._model.add_constraint([(indicatorvar, 1)], "=", val) 
+        constr = self._model.add_constraint([(indicatorvar, 1)], "=", val) 
+        self._added_constraints[indicatoridx] = constr
 
     def sense(self):
         return bnb.minimize
 
     def objective(self):
-        result = self._model.solve(self._solver)
+        # print("(objective) indicatorstate", self._indicatorstate)
+        result = self._model.solve(solver=self._solver)
         indices = list(self._indicator_to_groups.keys())
         return (result.result_vector[indices] > 0).sum()
 
     def bound(self):
-        result = self._model.solve(self._solver)
-        return result.value
-    
+        # print("(bound) indicatorstate", self._indicatorstate)
+        result = self._model.solve(solver=self._solver)
+        if result.status == "optimal":
+            return result.value
+        else:
+            return self.infeasible_objective()
+
     def save_state(self, node):
         node.state = self._indicatorstate.copy(), self._candidates.copy()
         
     def load_state(self, node):
-        # remove old constraints from model
-        for constr in self._added_constraints:
-            self._model.remove_constraint(constr)
-
+        # check where node's state and current's state deviate
+        diffindices, = (node.state[0] != self._indicatorstate).nonzero()
+        for diffidx in diffindices:
+            valnode = node.state[0][diffidx]
+            valcur  = self._indicatorstate[diffidx]
+            if valcur != -1 and valnode != -1:
+                self.__remove_constraint(diffidx)
+                self.__add_constraint(diffidx, valnode)
+            elif valcur != -1 and valnode == -1:
+                self.__remove_constraint(diffidx)
+            elif valcur == -1 and valnode != -1:
+                self.__add_constraint(diffidx, valnode)
+        
         self._indicatorstate = node.state[0].copy()
         self._candidates = node.state[1].copy() 
-
-        # add new constraints
-        self._added_constraints = set()
-        for ind in (self._indicatorstate != -1).nonzero()[0]:
-            val = self._indicatorstate[ind]
-            constr = self.__add_constraint(ind, val)
-            self._added_constraints.add(constr)
 
     def branch(self):
         if len( self._candidates ) == 0:
@@ -119,6 +136,9 @@ class BnBProblem(bnb.Problem):
         self.__add_successor_candidates(chosen_indicator)
         self.save_state(child1)
         yield child1
+
+        # this becomes important in "load_state"
+        self._indicatorstate[chosen_indicator] = -1
 
 class ColumnGeneration(ProblemFormulation):
     def __init__(self, solver="cbc"):
