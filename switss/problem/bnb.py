@@ -78,6 +78,7 @@ class BnBProblem(bnb.Problem):
         if self._solved_result is None:
             result = self._model.solve(solver=self._solver)
             self._solved_result = result
+
         indices = list(self._indicator_to_groups.keys())
         return (self._solved_result.result_vector[indices] > 0).sum()
 
@@ -89,7 +90,6 @@ class BnBProblem(bnb.Problem):
         
         if self._solved_result.status == "optimal":
             return self._solved_result.value
-            # return int( result.value + 0.5 )  # -> does this work?
         else:
             return self.infeasible_objective()
 
@@ -112,14 +112,29 @@ class BnBProblem(bnb.Problem):
         
         self._indicatorstate = node.state[0].copy()
         self._candidates = node.state[1].copy()
-        self._solved_result = None 
+        self._solved_result = None
+
+    def __choose_candidate_indicator(self):
+        # otherwise, select indicator that is most likely to be 1
+        # (according to the relaxation)
+        # also don't branch on variables that are set to 0 or 1 in the relaxed solution
+        bestindicatoridx, bestindicatorval = None, None
+        for indicatoridx in self._candidates:
+            val = self._solved_result.result_vector[self._indicator_var_to_idx.inv[indicatoridx]]
+            if val == 0 or val == 1:
+                continue
+            if bestindicatoridx is None or abs(bestindicatorval - 1) > abs(val - 1):
+                bestindicatoridx = indicatoridx
+                bestindicatorval = val
+
+        return bestindicatoridx
 
     def branch(self):
-        if len( self._candidates ) == 0:
+        chosen_indicator = self.__choose_candidate_indicator()
+        if chosen_indicator is None:
             return
 
-        # chose a random canidate
-        chosen_indicator = self._candidates.pop()
+        self._candidates.remove(chosen_indicator)
 
         # case 1: set candidate to 0 (if possible)
         disabled_indicators = self._indicatorstate == 0
