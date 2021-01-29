@@ -220,11 +220,11 @@ def construct_indicator_graph(rf : ReachabilityForm, mode : str, indicators, ind
                 # in 'max'-mode, all indicators of the current state-action-pair reach all 
                 # state-action-pairs of the succeeding state
                 sap = rf.system.index_by_state_action[(state, action)]
-                indicator_sap = indicators.inv[sap]
+                indicators_sap = indicators.inv[sap]
                 for succ_action in rf.system.actions_by_state[succ]:
                     succ_sap = rf.system.index_by_state_action[(succ, succ_action)]
                     indicators_succ_sap  = indicators.inv[succ_sap]
-                    for indicator_sap in indicators_state:
+                    for indicator_sap in indicators_sap:
                         indsapidx = indicator_var_to_idx[indicator_sap]
                         for indicator_succ_sap in indicators_succ_sap:
                             indsuccsapidx = indicator_var_to_idx[indicator_succ_sap]

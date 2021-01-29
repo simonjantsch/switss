@@ -16,7 +16,7 @@ class BnBProblem(bnb.Problem):
                  mode : str, 
                  solver="cbc"):
         
-        assert mode == "min"
+        assert mode in ["min", "max"]
 
         self._added_constraints = dict()
         self._solved_result = None
