@@ -1,4 +1,5 @@
-from . import ProblemFormulation, construct_MILP, certificate_size, construct_indicator_graph
+from . import ProblemFormulation, ProblemResult, Subsystem, construct_MILP, certificate_size, construct_indicator_graph
+from switss.solver import SolverResult
 from switss.model import ReachabilityForm
 from typing import Set, Dict, List
 
@@ -19,6 +20,7 @@ class BnBProblem(bnb.Problem):
 
         self._added_constraints = dict()
         self._solved_result = None
+        self._incumbent = SolverResult("undefined", None, float("inf"))
 
         self._mode = mode
         self._solver = solver
@@ -79,8 +81,17 @@ class BnBProblem(bnb.Problem):
             result = self._model.solve(solver=self._solver)
             self._solved_result = result
 
+        # construct solution from LP relaxation
         indices = list(self._indicator_to_groups.keys())
-        return (self._solved_result.result_vector[indices] > 0).sum()
+        solution = self._solved_result.result_vector.copy()
+        solution[indices] = solution[indices] > 0
+        val = solution[indices].sum()
+
+        # check if solution is the new incumbent
+        if val < self._incumbent.value:
+            self._incumbent = SolverResult( "optimal", solution, val )
+        return val
+
 
     def bound(self):
         # print("(bound) indicatorstate", self._indicatorstate)
@@ -178,6 +189,13 @@ class ColumnGeneration(ProblemFormulation):
 
     def _solveiter(self, reach_form, threshold, mode, labels, timeout=None):
         prob = BnBProblem(reach_form, labels, threshold, mode, self.solver)
-        results = bnb.solve(prob, queue_strategy="bound")
-        print( results.objective, results.bound )
-        yield results
+        bnb.solve(prob, queue_strategy="bound")
+        
+        incumbent = prob._incumbent 
+        if incumbent.status != "optimal":
+            yield ProblemResult(incumbent.status, None, None, None)
+        else:
+            certsize = certificate_size(reach_form, mode)
+            certificate = incumbent.result_vector[:certsize]
+            witness = Subsystem(reach_form, certificate, mode)
+            yield ProblemResult("success", witness, incumbent.value, certificate)
