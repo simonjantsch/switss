@@ -53,7 +53,7 @@ class MILP:
         objective = { "min" : pulp.LpMinimize, "max" : pulp.LpMaximize }[objective]
         self.__pulpmodel = pulp.LpProblem("",objective)
         self.__variables = [] 
-        self.__constraint_iter = 0
+        self.__constraints = []
         self.__set_objective_function = False
 
     def solve(self, solver="cbc",timeout=None):
@@ -93,9 +93,10 @@ class MILP:
                     -2:"unbounded", 
                     -3:"undefined"}[self.__pulpmodel.status]
         result_vector = np.array([var.value() for var in self.__variables])
+        dual_result_vector = np.array([ constr.pi for constr in self.__constraints ])
         value = self.__pulpmodel.objective.value()
 
-        return SolverResult(status, result_vector, value)
+        return SolverResult(status, result_vector, dual_result_vector, value)
 
     def _assert_expression(self, expression):
         for idx,(var,coeff) in enumerate(expression):
@@ -155,20 +156,21 @@ class MILP:
                   "=" : pulp.LpConstraintEQ, 
                   ">=" : pulp.LpConstraintGE }[sense]
 
-        name = "c%d" % self.__constraint_iter
+        constridx = len( self.__constraints )
+        name = "c%d" % constridx
         constraint = pulp.LpConstraint(name=name, e=lhs, sense=sense, rhs=rhs)
         self.__pulpmodel += constraint
-        self.__constraint_iter += 1
+        self.__constraints.append(constraint)
         
-        return name
+        return constridx
 
-    def remove_constraint(self, name):
+    def remove_constraint(self, constridx):
         """removes a given constraint from the model.
 
-        :param name: the name of the constraint
-        :type name: str
+        :param constridx: the name of the constraint
+        :type constridx: str
         """        
-        self.__pulpmodel.constraints.pop(name)
+        self.__pulpmodel.constraints.pop(constridx)
 
     def add_variables(self, *domains):
         """Adds a list of variables to this MILP. Each element in `domains` must be either `integer`, `binary` or `real`.
@@ -323,7 +325,6 @@ class LP(MILP):
         return MILP.add_variables(self, *["real"]*count)
 
 
-
 class GurobiMILP(MILP):
     def __init__(self, objective="min"):
         """Initializes an empty MILP.
@@ -336,8 +337,7 @@ class GurobiMILP(MILP):
         self.__model = gp.Model()
         self.__objective = { "min": GRB.MINIMIZE, "max": GRB.MAXIMIZE }[objective]
         self.__variables = [] 
-        self.__constr_name_mapping = dict()
-        self.__constraint_iter = 0
+        self.__constraints = [] # collection of (LinExpr, float, Constr) pairs
 
         self.__model.setParam("MIPGap", 0)
         self.__model.setParam("MIPGapAbs", 0)
@@ -361,10 +361,13 @@ class GurobiMILP(MILP):
         
         if status == "optimal":    
             result_vector = np.array([var.x for var in self.__variables])
+            dual_result_vector = np.array([
+                constr.pi if constr is not None else float("nan") for constr in self.__constraints
+            ])
             value = self.__model.objVal
-            return SolverResult(status, result_vector, value)
+            return SolverResult(status, result_vector, dual_result_vector, value)
         else:
-            return SolverResult(status, None, None)
+            return SolverResult(status, None, None, None)
 
     def _assert_expression(self, expression):
         for idx,(var,coeff) in enumerate(expression):
@@ -409,34 +412,42 @@ class GurobiMILP(MILP):
         :type sense: str
         :param rhs: Right side of the equation, i.e. a number.
         :type rhs: float
-        :return: name of the added constraint
-        :rtype: str
+        :return: index of the added constraint
+        :rtype: int
         """        
         assert sense in ["<=", "=", ">="]
         assert rhs == float(rhs), "Right hand side is not a number: rhs=%s" % rhs 
         self._assert_expression(lhs)
 
-        name = "c%d" % self.__constraint_iter
-        self.__constraint_iter += 1
+        name = "c%d" % len( self.__constraints )
 
         newconstr = None
+        linexpr = self._eval_pulp_expr( lhs )
         if sense == "<=":
-            newconstr = self.__model.addConstr(self._eval_pulp_expr( lhs ) <= rhs, name)
+            newconstr = self.__model.addConstr(linexpr <= rhs, name)
         elif sense == "=":
-            newconstr = self.__model.addConstr(self._eval_pulp_expr( lhs ) == rhs, name)
+            newconstr = self.__model.addConstr(linexpr == rhs, name)
         else:
-            newconstr = self.__model.addConstr(self._eval_pulp_expr( lhs ) >= rhs, name)
+            newconstr = self.__model.addConstr(linexpr >= rhs, name)
         
-        self.__constr_name_mapping[name] = newconstr 
-        return name
+        constridx = len(self.__constraints)
+        self.__constraints.append(newconstr) 
+        return constridx
 
-    def remove_constraint(self, name):
+
+    def add_to_constraint(self, constridx, coeff, varidx):
+        constr = self.__constraints[constridx]
+        self.__model.chgCoeff(constr, self.__variables[varidx], coeff)
+
+    def remove_constraint(self, constridx):
         """removes a given constraint from the model.
 
         :param name: the name of the constraint
         :type name: str
         """
-        self.__model.remove(self.__constr_name_mapping[name])
+        self.__model.remove(self.__constraints[constridx])
+        self.__constraints[constridx] = None
+
 
     def add_variables(self, *domains):
         """Adds a list of variables to this MILP. Each element in `domains` must be either `integer`, `binary` or `real`.
@@ -461,6 +472,7 @@ class GurobiMILP(MILP):
             else:
                 l.append(varidx)
         return l
+
 
     @classmethod
     def from_coefficients(cls, A, b, opt, domains, sense="<=", objective="min"):

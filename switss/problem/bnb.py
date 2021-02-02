@@ -1,4 +1,10 @@
-from . import ProblemFormulation, ProblemResult, Subsystem, construct_MILP, certificate_size, construct_indicator_graph
+from . import ProblemFormulation, \
+              ProblemResult, \
+              Subsystem, \
+              construct_MILP, \
+              certificate_size, \
+              construct_indicator_graph, \
+              construct_RMP
 from switss.solver import SolverResult
 from switss.model import ReachabilityForm
 from typing import Set, Dict, List
@@ -20,7 +26,7 @@ class BnBProblem(bnb.Problem):
 
         self._added_constraints = dict()
         self._solved_result = None
-        self._incumbent = SolverResult("undefined", None, float("inf"))
+        self._incumbent = SolverResult("undefined", None, None, float("inf"))
 
         self._mode = mode
         self._solver = solver
@@ -41,7 +47,7 @@ class BnBProblem(bnb.Problem):
         for indicatorvar in self._indicator_to_groups.inv[self._rf.initial]:
             indicatoridx = self._indicator_var_to_idx[indicatorvar]
             self._indicatorstate[indicatoridx] = 1
-            self.__add_constraint(indicatoridx, 1)
+            self.__add_constraint(indicatorvar, 1)
         
         self._candidates = set()
         for indicatorvar in self._indicator_to_groups.inv[self._rf.initial]:
@@ -60,17 +66,16 @@ class BnBProblem(bnb.Problem):
             if self._indicatorstate[succ] == -1:
                 self._candidates.add(succ)
 
-    def __remove_constraint(self, indicatoridx):
+    def __remove_constraint(self, var):
         # print("removing constraint %d"  % indicatoridx)
-        constr = self._added_constraints[indicatoridx]
+        constr = self._added_constraints[var]
         self._model.remove_constraint(constr)
-        del self._added_constraints[indicatoridx]
+        del self._added_constraints[var]
 
-    def __add_constraint(self, indicatoridx, val):
+    def __add_constraint(self, var, val):
         # print("adding constraint %d:=%g"  % (indicatoridx,val))
-        indicatorvar = self._indicator_var_to_idx.inv[indicatoridx]
-        constr = self._model.add_constraint([(indicatorvar, 1)], "=", val) 
-        self._added_constraints[indicatoridx] = constr
+        constr = self._model.add_constraint([(var, 1)], "=", val) 
+        self._added_constraints[var] = constr
 
     def sense(self):
         return bnb.minimize
@@ -89,9 +94,8 @@ class BnBProblem(bnb.Problem):
 
         # check if solution is the new incumbent
         if val < self._incumbent.value:
-            self._incumbent = SolverResult( "optimal", solution, val )
+            self._incumbent = SolverResult( "optimal", solution, None, val )
         return val
-
 
     def bound(self):
         # print("(bound) indicatorstate", self._indicatorstate)
@@ -113,13 +117,14 @@ class BnBProblem(bnb.Problem):
         for diffidx in diffindices:
             valnode = node.state[0][diffidx]
             valcur  = self._indicatorstate[diffidx]
+            vardiffidx = self._indicator_var_to_idx.inv[diffidx]
             if valcur != -1 and valnode != -1:
-                self.__remove_constraint(diffidx)
-                self.__add_constraint(diffidx, valnode)
+                self.__remove_constraint(vardiffidx)
+                self.__add_constraint(vardiffidx, valnode)
             elif valcur != -1 and valnode == -1:
-                self.__remove_constraint(diffidx)
+                self.__remove_constraint(vardiffidx)
             elif valcur == -1 and valnode != -1:
-                self.__add_constraint(diffidx, valnode)
+                self.__add_constraint(vardiffidx, valnode)
         
         self._indicatorstate = node.state[0].copy()
         self._candidates = node.state[1].copy()
@@ -174,10 +179,96 @@ class BnBProblem(bnb.Problem):
         # this becomes important in "load_state"
         self._indicatorstate[chosen_indicator] = -1
 
-class ColumnGeneration(ProblemFormulation):
-    def __init__(self, solver="cbc"):
+class BnPProblem(BnBProblem):
+    def __init__(self, 
+                 rf : ReachabilityForm, 
+                 labels : List[str],
+                 thr : float, 
+                 mode : str, 
+                 solver="cbc"):
+        super().__init__(rf, labels, thr, mode, solver=solver)
+        # model -> cg form
+        # initialize P = { p } and add variable
+        p = np.ones(self._indicatorstate.shape)
+        lambda_p = self._model.add_variables("real")
+        # self._P = { self.__p_to_id(p): lambda_p } # dictionary mapping lambda-variables to p-vectors
+
+        # add non-negativity-constraint
+        self._model.add_constraint([(lambda_p, 1)], ">=", 0)
+        # add convexity-constraint 
+        # sum_{p in P} lambda_p = 1
+        self._convexity_constraint = self._model.add_constraint([(lambda_p, 1)], "=", 1)
+        # add linear-combination-constraint 
+        # sigma(l) = sum_{p in P} lambda_p p(l) 
+        # <=> sigma(l) - sum_{p in P} lambda_p p(l) = 0
+        self._lincomb_constraints = []
+        for indicatoridx in range(self._indicatorstate.shape[0]):
+            indicatorvar = self._indicator_var_to_idx.inv[indicatoridx]
+            constr = self._model.add_constraint([(indicatorvar, 1), (lambda_p, -p[indicatoridx])], "=", 0)
+            self._lincomb_constraints.append( constr )
+
+    
+    def __p_to_id(self, p):
+        return "".join(map(str, p))
+
+
+    def __id_to_p(self, id):
+        return np.array([int(c) for c in id])
+
+
+    def add_column(self, p):
+        lambda_p = self._model.add_variables("real")
+        # add non-zero-constraint
+        self._model.add_constraint([(lambda_p, 1)], ">=", 0)
+        # add to convexity-constraint
+        self._model.add_to_constraint(self._convexity_constraint, 1, lambda_p)
+        # add to linear-combination-constraint
+        for idx, constr in enumerate(self._lincomb_constraints):
+            self._model.add_to_constraint(constr, -p[idx], lambda_p)
+        # add variable to variable set
+        return lambda_p
+
+
+    def solve_subproblem(self, result):
+        delta = result.dual_result_vector[self._convexity_constraint]
+        gamma = result.dual_result_vector[self._lincomb_constraints]
+        # print(delta, gamma, len(gamma))
+        # return a system that fulfils the definition of P!
+        p = 1*(gamma < 0)
+        # print(" ".join(map(str,p)))
+        diff = delta - gamma.dot(p)
+        print(diff)
+        if diff > 0:
+            return p
+        else:
+            return None 
+
+    
+    def column_generation(self):
+        while True:
+            result = self._model.solve(solver=self._solver)
+            if result.status == "optimal":
+                subproblem_result = self.solve_subproblem(result)
+                if subproblem_result is None:
+                    return result
+                else:
+                    var = self.add_column(subproblem_result)
+            else:
+                return None
+
+
+    def bound(self):
+        if self._solved_result is None:
+            self._solved_result = self.column_generation()
+            
+        return super().bound()
+
+
+class BnBFormulation(ProblemFormulation):
+    def __init__(self, solver="cbc", branch_and_price=False):
         super().__init__()
         self.solver = solver
+        self.bnp = branch_and_price
 
     @property
     def details(self):
@@ -188,7 +279,8 @@ class ColumnGeneration(ProblemFormulation):
         }
 
     def _solveiter(self, reach_form, threshold, mode, labels, timeout=None):
-        prob = BnBProblem(reach_form, labels, threshold, mode, self.solver)
+        problemcls = BnPProblem if self.bnp else BnBProblem  
+        prob = problemcls(reach_form, labels, threshold, mode, self.solver)
         bnb.solve(prob, queue_strategy="bound")
         
         incumbent = prob._incumbent 

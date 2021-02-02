@@ -12,7 +12,8 @@ from .formulations import add_indicator_constraints, \
                           compute_upper_bound, \
                           construct_MILP, \
                           certificate_size, \
-                          construct_indicator_graph
+                          construct_indicator_graph, \
+                          construct_RMP
 from .qsheur import QSHeur
 from .milpexact import MILPExact
-from .bnb import ColumnGeneration
+from .bnb import BnBFormulation

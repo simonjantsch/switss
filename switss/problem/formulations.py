@@ -130,6 +130,20 @@ def add_indicator_constraints(model, variables, upper_bound, mode, groups, indic
     return indicator_to_group
 
 
+def construct_RMP(rf, threshold, mode, Pinit, modeltype="pulp"):
+    assert mode in ["min", "max"]
+    assert modeltype in ["gurobi", "pulp"]
+    modeltype = { "gurobi": GurobiMILP, "pulp": MILP }[modeltype]
+    fark_matr, fark_rhs = rf.fark_constraints(threshold, mode)
+    certsize = certificate_size(rf, mode)
+    model = modeltype.from_coefficients(fark_matr, fark_rhs, np.zeros(certsize), ["real"]*certsize) # initialize model
+    constraints = []
+    
+    
+    
+    return model, constraints
+
+
 def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_solver="cbc", modeltype="pulp"):
     """
     constructs a MILP in the following form:
