@@ -17,4 +17,3 @@ from .formulations import add_indicator_constraints, \
                           construct_RMP
 from .qsheur import QSHeur
 from .milpexact import MILPExact
-from .bnb import BnBFormulation
