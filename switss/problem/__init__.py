@@ -4,7 +4,8 @@ from .qsheurparams import AllOnesInitializer, \
                           InverseReachabilityInitializer, \
                           InverseResultUpdater, \
                           Updater, \
-                          InverseResultFixedZerosUpdater
+                          InverseResultFixedZerosUpdater, \
+                          InverseCombinedInitializer
 from .problemform import ProblemFormulation
 from .subsystem import Subsystem
 from .problemresult import ProblemResult
