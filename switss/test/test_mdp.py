@@ -6,8 +6,13 @@ from .example_models import example_mdps, toy_mdp2
 import tempfile
 
 mdps = example_mdps()
-lp_solvers = ["cbc","gurobi","cplex","glpk"]
-milp_solvers = ["cbc","gurobi","cplex"]
+free_lp_solvers = ["cbc","glpk"]
+free_milp_solvers = ["cbc"]
+all_lp_solvers = ["cbc","gurobi","cplex","glpk"]
+all_milp_solvers = ["cbc","gurobi","cplex"]
+
+lp_solvers = free_lp_solvers
+milp_solvers = free_milp_solvers
 
 def test_read_write():
     for mdp in mdps:

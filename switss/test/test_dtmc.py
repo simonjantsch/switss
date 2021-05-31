@@ -7,9 +7,13 @@ import tempfile
 import itertools
 
 dtmcs = example_dtmcs()
-lp_solvers = ["cbc","gurobi","cplex","glpk"]
-solvers = lp_solvers
-milp_solvers = ["cbc","gurobi","cplex"]
+free_lp_solvers = ["cbc","glpk"]
+all_lp_solvers = ["cbc","glpk","cplex","gurobi"]
+free_milp_solvers = ["cbc"]
+all_milp_solvers = ["cbc","gurobi","cplex"]
+
+solvers = free_lp_solvers
+milp_solvers = free_milp_solvers
 
 def test_read_write():
     for dtmc in dtmcs:
