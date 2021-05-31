@@ -10,7 +10,15 @@ from collections.abc import Iterable
 import json as json
 from pathlib import Path
 
-def run(reachability_form, method, from_thr=1e-3, to_thr=1, step=1e-3, debug=False, json_dir=None, timeout=None):
+def run(reachability_form, 
+        method, 
+        mode,
+        from_thr=1e-3, 
+        to_thr=1, 
+        step=1e-3, 
+        debug=False, 
+        json_dir=None, 
+        timeout=None):
     """Runs a benchmark on a given reachability form. The benchmark consists of running the method on the 
     reachability form for varying thresholds. Returns a dictionary which contains result of the specified test. 
     `from_thr` and `to_thr` specify the smallest and greatest  threshold respectively. `step` specifies the 
@@ -40,6 +48,8 @@ def run(reachability_form, method, from_thr=1e-3, to_thr=1, step=1e-3, debug=Fal
     :type reachability_form: model.ReachabilityForm
     :param method: A problem formulation that is evalutated in this benchmark.
     :type method: problem.ProblemFormulation
+    :param mode: The polytope(s) that should be used, either "min" or "max"
+    :type mode: List[str] or str
     :param from_thr: Smallest threshold, defaults to 1e-3
     :type from_thr: float, optional
     :param to_thr: Greatest threshold, defaults to 1
@@ -57,11 +67,15 @@ def run(reachability_form, method, from_thr=1e-3, to_thr=1, step=1e-3, debug=Fal
     
     if isinstance(method, Iterable):
         ret = []
-        for idx, m in enumerate(method):
+        for idx,(me,mo) in enumerate(zip(method,mode)):
             if debug:
                 print("="*50)
                 print("running benchmark %s/%s" % (idx+1, len(method)))
-            data = run(reachability_form, m, from_thr, to_thr, step, debug,json_dir,timeout=timeout)
+            data = run(reachability_form, 
+                       me, mo, from_thr, 
+                       to_thr, step, 
+                       debug, json_dir,
+                       timeout=timeout)
             ret.append(data)
         return ret
 
@@ -87,7 +101,7 @@ def run(reachability_form, method, from_thr=1e-3, to_thr=1, step=1e-3, debug=Fal
         starttime_wall = time.perf_counter()
         starttime_proc = time.process_time()
         wall_times, proc_times, statecounts = [], [], []
-        for result in method.solveiter(reachability_form, thr,timeout=timeout):
+        for result in method.solveiter(reachability_form, thr, mode, timeout=timeout):
             if result.status != "success":
                 if debug:
                     print("threshold %d infeasible or method timeout. result status =%s" % (thr,result.status))
@@ -110,7 +124,17 @@ def run(reachability_form, method, from_thr=1e-3, to_thr=1, step=1e-3, debug=Fal
     print_json(json_dir,data)
     return data
 
-def render(run, mode="laststates-thr", ax=None, title=None, normalize=True, sol_range=None, custom_label=None, plot_no=1, e_mode=False, markersize=6, linewidth=1):
+def render(run, 
+           mode="laststates-thr", 
+           ax=None, 
+           title=None, 
+           normalize=True, 
+           sol_range=None, 
+           custom_label=None, 
+           plot_no=1, 
+           e_mode=False, 
+           markersize=6, 
+           linewidth=1):
     """Renders a benchmark run via matplotlib. `mode` specifies the type of the
     resulting plot, i.e. statecount vs. threshold ('states-thr', plots all intermediate results), only
     the last resulting statecount vs. threshold ('laststates-thr', plots only the last result), time
