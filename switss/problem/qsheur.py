@@ -1,5 +1,5 @@
 from . import ProblemFormulation, ProblemResult, Subsystem
-from . import AllOnesInitializer, InverseResultUpdater
+from . import AllOnesInitializer, InverseResultUpdater, construct_MILP, certificate_size
 from switss.utils import InvertibleDict
 from switss.solver import LP
 import numpy as np
@@ -42,7 +42,6 @@ class QSHeur(ProblemFormulation):
     for the z-form.
     """
     def __init__(self,
-                 mode,
                  iterations = 3,
                  initializertype = AllOnesInitializer,
                  updatertype = InverseResultUpdater,
@@ -62,9 +61,7 @@ class QSHeur(ProblemFormulation):
         :type solver: str, optional
         """        
         super().__init__()
-        assert mode in ["min","max"]
 
-        self.mode = mode
         self.iterations = iterations
         self.solver = solver
         self.updatertype = updatertype
@@ -76,118 +73,44 @@ class QSHeur(ProblemFormulation):
         and "updatertype"."""
         return {
             "type" : "QSHeur",
-            "mode" : self.mode,
             "solver" : self.solver,
             "iterations" : self.iterations,
             "initializertype" : self.initializertype.__name__,
             "updatertype" : self.updatertype.__name__
         }
 
-    def _solveiter(self, reach_form, threshold,labels,timeout=None):
+    def _solveiter(self, reach_form, threshold, mode, labels, timeout=None):
         """Runs the QSheuristic using the Farkas (y- or z-) polytope
         depending on the value in mode."""
-        if self.mode == "min":
-            return self._solve_min(reach_form, threshold, labels,timeout=timeout)
-        else:
-            return self._solve_max(reach_form, threshold, labels,timeout=timeout)
-
-    def _solve_min(self, reach_form, threshold, labels, timeout=None):
-        """Runs the QSheuristic using the Farkas z-polytope of a given
-        reachability form for a given threshold."""
-        C,N = reach_form.system.P.shape
-
-        fark_matr,fark_rhs = reach_form.fark_z_constraints(threshold)
-
-        if labels is None:
-            var_groups = InvertibleDict({ i : set([i]) for i in range(N-2)})
-        else:
-            var_groups = ProblemFormulation._var_groups_from_labels(reach_form, labels, "min")
-
-        heur_lp, indicator_to_group = ProblemFormulation._var_groups_program(
-            fark_matr,fark_rhs,var_groups,upper_bound=1,indicator_type="real")
-
-        if heur_lp == None:
-            yield ProblemResult("infeasible",None,None,None)
+        model, indicators = construct_MILP(reach_form, 
+                                           threshold, 
+                                           mode=mode, 
+                                           labels=labels, 
+                                           relaxed=True, 
+                                           upper_bound_solver=self.solver)
+        if model is None:
+            yield ProblemResult("infeasible", None, None, None)
             return
-
-        intitializer = self.initializertype(
-            reachability_form=reach_form, mode=self.mode, indicator_to_group=indicator_to_group)
-        updater = self.updatertype(reachability_form=reach_form, mode=self.mode, indicator_to_group=indicator_to_group)
-        current_objective = intitializer.initialize()
-
-        # iteratively solves the corresponding LP, and computes the next
-        # objective function from the result of the previous round
-        # according to the given update function
+        
+        certsize = certificate_size(reach_form, mode)
+        initializer = self.initializertype(reachability_form=reach_form, mode=mode, indicator_to_group=indicators)
+        updater = self.updatertype(reachability_form=reach_form, mode=mode, indicator_to_group=indicators)
+        current_objective = initializer.initialize()
         for i in range(self.iterations):
-
-            heur_lp.set_objective_function(current_objective)
-
-            heur_result = heur_lp.solve(self.solver,timeout=timeout)
-
-            if heur_result.status == "optimal":
-                certificate = heur_result.result_vector[:N-2]
-                witness = Subsystem(reach_form, certificate, "min")
-
-                indicator_weights = heur_result.result_vector[N-2:]
+            model.set_objective_function(current_objective)
+            result = model.solve(self.solver, timeout=timeout)
+            if result.status == "optimal":
+                certificate = result.result_vector[:certsize]
+                witness = Subsystem(reach_form, certificate, mode)
+                indicator_weights = result.result_vector[certsize:]
                 no_nonzero_groups = len([i for i in indicator_weights if i > 0])
                 yield ProblemResult("success", witness, no_nonzero_groups, certificate)
 
-                current_objective = updater.update(heur_result.result_vector)
-                new_constraints = updater.constraints(heur_result.result_vector)
+                current_objective = updater.update(result.result_vector)
+                new_constraints = updater.constraints(result.result_vector)
                 for constraint in new_constraints:
-                    heur_lp.add_constraint(*constraint)
+                    model.add_constraint(*constraint)
             else:
                 # failed to optimize LP
-                yield ProblemResult(heur_result.status, None,None,None)
-                break
-
-    def _solve_max(self, reach_form, threshold, labels, timeout=None):
-        """Runs the QSheuristic using the Farkas y-polytope of a given reachability form for a given threshold."""
-        C,N = reach_form.system.P.shape
-
-        fark_matr,fark_rhs = reach_form.fark_y_constraints(threshold)
-
-        if labels is None:
-            var_groups = InvertibleDict({ i : set([i]) for i in range(C-2)})
-        else:
-            var_groups = ProblemFormulation._var_groups_from_labels(reach_form,labels,"max")
-
-        heur_lp, indicator_to_group = ProblemFormulation._var_groups_program(
-            fark_matr,fark_rhs,var_groups,upper_bound=None,indicator_type="real")
-
-        if heur_lp == None:
-            yield ProblemResult("infeasible",None,None,None)
-            return
-
-        intitializer = self.initializertype(reachability_form=reach_form, mode=self.mode, indicator_to_group=indicator_to_group)
-        updater = self.updatertype(reachability_form=reach_form, mode=self.mode, indicator_to_group=indicator_to_group)
-        current_objective = intitializer.initialize()
-
-        # iteratively solves the corresponding LP, and computes the
-        # next objective function
-        # from the result of the previous round according to the given
-        # update function
-        for i in range(0,self.iterations):
-            heur_lp.set_objective_function(current_objective)
-
-            heur_result = heur_lp.solve(self.solver,timeout=timeout)
-
-            if heur_result.status == "optimal":
-                # for the max-form, the resulting vector will be
-                # (C-2)-dimensional, carrying values for state-action pairs.
-                certificate = heur_result.result_vector[:C-2]
-                witness = Subsystem(reach_form, certificate, "max")
-
-                indicator_weights = heur_result.result_vector[C-2:]
-                no_nonzero_groups = len([i for i in indicator_weights if i > 0])
-
-                yield ProblemResult("success", witness, no_nonzero_groups, certificate)
-
-                current_objective = updater.update(heur_result.result_vector)
-                new_constraints = updater.constraints(heur_result.result_vector)
-                for constraint in new_constraints:
-                    heur_lp.add_constraint(*constraint)
-            else:
-                # failed to optimize LP
-                yield ProblemResult(heur_result.status, None,None,None)
+                yield ProblemResult(result.status, None, None, None)
                 break

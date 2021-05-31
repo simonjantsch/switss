@@ -56,6 +56,22 @@ class ReachabilityForm:
         self.set_target_visualization_style()
         self.set_fail_visualization_style()
 
+    @property
+    def target_sap_idx(self):
+        return self.system.C-2
+
+    @property
+    def target_state_idx(self):
+        return self.system.N-2
+
+    @property
+    def fail_sap_idx(self):
+        return self.system.C-1
+
+    @property
+    def fail_state_idx(self):
+        return self.system.N-1
+
     def set_target_visualization_style(self,style=None):
         assert style is None or type(style) == type(self.system.visualization)
 
@@ -377,6 +393,23 @@ class ReachabilityForm:
 
     def __repr__(self):
         return "ReachabilityForm(initial=%s, target=%s, fail=%s, system=%s)" % (self.initial_label, self.target_label, self.fail_label, self.system)
+
+    def fark_constraints(self, threshold, mode):
+        """returns the right constraint set dependent on the given mode.
+
+        :param threshold: the threshold
+        :type threshold: float
+        :param mode: either 'min' or 'max'
+        :type mode: str
+        :return: either :math:`(C+1) \\times N`-matrix :math:`M_z`, and vector of length :math:`C+1` :math:`rhs_z` or :math:`(N+1) \\times C`-matrix :math:`M_y`, and :math:`N+1`-vector :math:`rhs_y`.
+        :rtype: Tuple[scipy.sparse.dok_matrix, np.ndarray[float]]
+        """ 
+        assert mode in ["min", "max"]
+
+        if mode == "min":
+            return self.fark_z_constraints(threshold)
+        else:
+            return self.fark_y_constraints(threshold)
 
     def fark_z_constraints(self, threshold):
         """

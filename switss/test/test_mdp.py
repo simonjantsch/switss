@@ -6,6 +6,7 @@ from .example_models import example_mdps, toy_mdp2
 import tempfile
 
 mdps = example_mdps()
+
 free_lp_solvers = ["cbc","glpk"]
 free_milp_solvers = ["cbc"]
 all_lp_solvers = ["cbc","gurobi","cplex","glpk"]
@@ -43,32 +44,18 @@ def test_mec_free():
         rf ,_,_ = ReachabilityForm.reduce(mdp,"init","target")
         rf._check_mec_freeness()
 
-        # rf ,_,_ = ReachabilityForm.reduce(mdp,"init","target")
-        # new_label_to_states = rf.system.states_by_label
-        # for st in rf.system.labels_by_state.keys():
-        #     if st in new_label_to_states["fail"]:
-        #         new_label_to_states.add("target",st)
-        # target_or_fail_mdp = MDP(
-        #     rf.system.P,rf.system.index_by_state_action,{},new_label_to_states)
-        # target_or_fail_rf ,_,_ = ReachabilityForm.reduce(target_or_fail_mdp,"init","target")
-        # assert (target_or_fail_rf.pr_min() == 1).all()
-
 def test_minimal_witnesses():
     # only test the first 2 examples, as the others are too large
     for mdp in mdps[:1]:
         reach_form ,_,_ = ReachabilityForm.reduce(mdp,"init","target")
-        min_instances = [ MILPExact("min",solver) for solver in milp_solvers ]
-        max_instances = [ MILPExact("max",solver) for solver in milp_solvers ]
+        instances = [ MILPExact(solver) for solver in milp_solvers ]
         for threshold in [0.1, 0.2, 0.3, 0.4, 0.5, 0.66, 0.7, 0.88, 0.9, 0.999, 1,0.9999999999]:
             print(mdp)
             print(threshold)
-            min_results = []
-            for instance in min_instances:
-                min_results.append(instance.solve(reach_form,threshold))
-
-            max_results = []
-            for instance in max_instances:
-                max_results.append(instance.solve(reach_form,threshold))
+            max_results, min_results = [], []
+            for instance in instances:
+                min_results.append(instance.solve(reach_form,threshold, "min"))
+                max_results.append(instance.solve(reach_form,threshold, "max"))
 
             # either the status of all results is optimal, or of none of them
             # and this should hold for min and max
@@ -90,16 +77,12 @@ def test_minimal_witnesses():
 def test_label_based_exact_min():
     ex_mdp = toy_mdp2()
     reach_form ,_,_ = ReachabilityForm.reduce(ex_mdp,"init","target")
-    min_instances = [ MILPExact("min",solver) for solver in milp_solvers ]
-    max_instances = [ MILPExact("max",solver) for solver in milp_solvers ]
+    instances = [ MILPExact(solver) for solver in milp_solvers ]
     for threshold in [0.0001, 0.1, 0.2, 0.3, 0.4, 0.5, 0.66, 0.7, 0.88, 0.9, 0.999, 1,0.9999999999]:
         min_results, max_results = [],[]
-        for instance in min_instances:
-            min_results.append(instance.solve(
-                reach_form,threshold,labels=["blue"]))
-        for instance in max_instances:
-            max_results.append(instance.solve(
-                reach_form,threshold,labels=["blue"]))
+        for instance in instances:
+            min_results.append(instance.solve(reach_form,threshold,"min",labels=["blue"]))
+            max_results.append(instance.solve(reach_form,threshold,"max",labels=["blue"]))
         # either the status of all results is optimal, or of none of them
         min_positive_results = [result for result in min_results if result.status == "optimal"]
         assert len(min_positive_results) == len(min_results) or len(min_positive_results) == 0
@@ -188,18 +171,15 @@ def test_heuristics():
 
     for mdp in mdps:
         reach_form ,_,_ = ReachabilityForm.reduce(mdp,"init","target")
-        min_instances = [ QSHeur("min",iterations=3,initializertype=init,solver=solver)\
-                          for (solver,init) in zip(lp_solvers,initializers) ]
-        max_instances = [ QSHeur("max",iterations=3,initializertype=init,solver=solver)\
-                          for (solver,init) in zip(lp_solvers,initializers) ]
+        instances = [ QSHeur(iterations=3,initializertype=init,solver=solver) \
+                      for (solver,init) in zip(lp_solvers,initializers) ]
         for threshold in [0.1, 0.2, 0.3, 0.4, 0.5, 0.66, 0.7, 0.88, 0.9, 0.999, 1,0.9999999999]:
             print(mdp)
             print(threshold)
             max_results, min_results = [], []
-            for instance in min_instances:
-                min_results.append(instance.solve(reach_form,threshold))
-            for instance in max_instances:
-                max_results.append(instance.solve(reach_form,threshold))
+            for instance in instances:
+                min_results.append(instance.solve(reach_form,threshold,"min"))
+                max_results.append(instance.solve(reach_form,threshold,"max"))
             # either the status of all results is optimal, or of none of them
             min_positive_results = [result for result in min_results if result.status == "optimal"]
             assert len(min_positive_results) == len(min_results) or len(min_positive_results) == 0

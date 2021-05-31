@@ -1,1 +1,1 @@
-from .certificates import check_farkas_certificate, generate_farkas_certificate
+from .certificates import check_farkas_certificate, generate_farkas_certificate, find_interior_point
