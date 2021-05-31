@@ -240,3 +240,32 @@ class InverseFrequencyInitializer(Initializer):
             ret.append((group, np.min([1e9,1/expected_val_sum]) if expected_val_sum > 0 else 1e8))
 
         return ret
+
+
+class InverseCombinedInitializer(Initializer):
+    def __init__(self, reachability_form, mode, indicator_to_group, solver="cbc"):
+        super(InverseCombinedInitializer, self).__init__(reachability_form, mode, indicator_to_group)
+        self.solver = solver
+
+        self.E = None
+        if self.mode == "min":
+            # if mode is min, each variable in a group corresponds to a state
+            E_x = self.reachability_form.max_y_state(solver=self.solver)
+            Pr_x = self.reachability_form.max_z_state(solver=self.solver)
+            self.V = E_x*Pr_x
+        else:
+            # if mode is max, each variable in a group corresponds to a state-action pair index
+            E_x_a = self.reachability_form.max_y_state_action(solver=self.solver)
+            Pr_x_a = self.reachability_form.max_z_state_action(solver=self.solver)
+            self.V = E_x_a*Pr_x_a
+
+
+    def initialize(self):
+        ret = []
+
+        for group in self.groups:
+            variables = self.indicator_to_group[group]
+            expected_val_sum = sum([self.V[var] for var in variables])
+            ret.append((group, np.min([1e9,1/expected_val_sum]) if expected_val_sum > 0 else 1e8))
+
+        return ret

@@ -4,6 +4,12 @@ from scipy.sparse import dok_matrix
 import pulp
 import numpy as np
 
+try:
+    import gurobipy as gp
+    from gurobipy import GRB
+except:
+    print("if gurobi should be used, gurobipy needs to be installed")
+
 class MILP:
     """
     A MILP can either be initialized through a specification of coefficient matrices and -vectors 
@@ -37,8 +43,6 @@ class MILP:
         result = milp.solve(solver="cbc")
         print(result)
     """
-
-    
     def __init__(self, objective="min"):
         """Initializes an empty MILP.
         
@@ -49,7 +53,7 @@ class MILP:
         objective = { "min" : pulp.LpMinimize, "max" : pulp.LpMaximize }[objective]
         self.__pulpmodel = pulp.LpProblem("",objective)
         self.__variables = [] 
-        self.__constraint_iter = 0
+        self.__constraints = []
         self.__set_objective_function = False
 
     def solve(self, solver="cbc",timeout=None):
@@ -74,7 +78,7 @@ class MILP:
         elif solver == "cbc":
             cbc_options = ["--integerT","0"]
             self.__pulpmodel.setSolver(
-                pulp.PULP_CBC_CMD(fracGap=1e-9,maxSeconds=timeout,options=cbc_options))
+                pulp.PULP_CBC_CMD(gapRel=1e-9,timeLimit=timeout,options=cbc_options))
         elif solver == "glpk":
             glpk_options = ["--tmlim",str(timeout)] if timeout != None else []
             self.__pulpmodel.setSolver(pulp.GLPK_CMD(options=glpk_options))
@@ -89,9 +93,10 @@ class MILP:
                     -2:"unbounded", 
                     -3:"undefined"}[self.__pulpmodel.status]
         result_vector = np.array([var.value() for var in self.__variables])
+        dual_result_vector = np.array([ constr.pi for constr in self.__constraints ])
         value = self.__pulpmodel.objective.value()
 
-        return SolverResult(status, result_vector, value)
+        return SolverResult(status, result_vector, dual_result_vector, value)
 
     def _assert_expression(self, expression):
         for idx,(var,coeff) in enumerate(expression):
@@ -139,6 +144,8 @@ class MILP:
         :type sense: str
         :param rhs: Right side of the equation, i.e. a number.
         :type rhs: float
+        :return: name of the added constraint
+        :rtype: str
         """        
         assert sense in ["<=", "=", ">="]
         assert rhs == float(rhs), "Right hand side is not a number: rhs=%s" % rhs 
@@ -149,9 +156,21 @@ class MILP:
                   "=" : pulp.LpConstraintEQ, 
                   ">=" : pulp.LpConstraintGE }[sense]
 
-        constraint = pulp.LpConstraint(name="c%d" % self.__constraint_iter, e=lhs, sense=sense, rhs=rhs)
+        constridx = len( self.__constraints )
+        name = "c%d" % constridx
+        constraint = pulp.LpConstraint(name=name, e=lhs, sense=sense, rhs=rhs)
         self.__pulpmodel += constraint
-        self.__constraint_iter += 1
+        self.__constraints.append(constraint)
+        
+        return constridx
+
+    def remove_constraint(self, constridx):
+        """removes a given constraint from the model.
+
+        :param constridx: the name of the constraint
+        :type constridx: str
+        """        
+        self.__pulpmodel.constraints.pop(constridx)
 
     def add_variables(self, *domains):
         """Adds a list of variables to this MILP. Each element in `domains` must be either `integer`, `binary` or `real`.
@@ -304,3 +323,213 @@ class LP(MILP):
         :rtype: either List[int] or int.
         """        
         return MILP.add_variables(self, *["real"]*count)
+
+
+class GurobiMILP(MILP):
+    def __init__(self, objective="min"):
+        """Initializes an empty MILP.
+        
+        :param objective: Whether the problem should minimize or maximize ("min" or "max"), defaults to "min"
+        :type objective: str, optional
+        """        
+
+        assert objective in ["min", "max"], "objective must be either 'min' or 'max'"
+        self.__model = gp.Model()
+        self.__objective = { "min": GRB.MINIMIZE, "max": GRB.MAXIMIZE }[objective]
+        self.__variables = [] 
+        self.__constraints = [] # collection of (LinExpr, float, Constr) pairs
+
+        self.__model.setParam("MIPGap", 0)
+        self.__model.setParam("MIPGapAbs", 0)
+        self.__model.setParam("FeasibilityTol", 1e-9)
+        self.__model.setParam("IntFeasTol", 1e-9)
+        self.__model.setParam("NumericFocus", 1e-9)
+        self.__model.setParam('OutputFlag', 0)
+
+
+    def solve(self, **kwargs):
+        self.__model.optimize()
+        
+        status_dict = { GRB.OPTIMAL: "optimal",
+                        GRB.LOADED: "notsolved",
+                        GRB.INFEASIBLE: "infeasible", 
+                        GRB.UNBOUNDED: "unbounded" }
+                        
+        status = "undefined"
+        if self.__model.status in status_dict:
+            status = status_dict[self.__model.status]
+        
+        if status == "optimal":    
+            result_vector = np.array([var.x for var in self.__variables])
+            dual_result_vector = np.array([
+                constr.pi if constr is not None else float("nan") for constr in self.__constraints
+            ])
+            value = self.__model.objVal
+            return SolverResult(status, result_vector, dual_result_vector, value)
+        else:
+            return SolverResult(status, None, None, None)
+
+    def _assert_expression(self, expression):
+        for idx,(var,coeff) in enumerate(expression):
+            assert var >= 0 and var < len(self.__variables), "Variable %s does not exist (@index=%d)." % (var, idx)
+            assert coeff == float(coeff), "Coefficient coeff=%s is not a number (@index=%d)." % (coeff, idx)
+
+    def _eval_pulp_expr(self, expression):
+        return sum([ self.__variables[var]*coeff for var, coeff in expression ])
+
+    def set_objective_function(self, expression):
+        """Sets the objective function of the form
+
+        .. math::
+            
+            \sum_j \sigma_j x_j
+
+        where :math:`\sigma_j` indicates a coefficient and :math:`x_j` a variable.
+        
+        :param expression: Sum is given as a list of variable/coefficient pairs. Each pair has the coefficient on the
+            right and the variable on the left.
+        :type expression: List[Tuple[int,float]]
+        """        
+        self._assert_expression(expression)
+        self.__model.setObjective( 
+            self._eval_pulp_expr( expression ), 
+            self.__objective 
+        )
+        
+    def add_constraint(self, lhs, sense, rhs):
+        """Adds a constraint of the form
+
+        .. math::
+
+            \sum_{j} a_j x_j \circ b
+        
+        where :math:`\circ \in \{ \leq, =, \geq \}`, :math:`a_j` indicates a coefficient and :math:`x_j` a variable.
+        
+        :param lhs: Left side of the equation, given as a list of variable/coefficient pairs. Each pair has the coefficient on the
+            right and the variable on the left.
+        :type lhs: List[Tuple[int,float]]
+        :param sense: Type of equation, i.e. "<=", ">=" or "=".
+        :type sense: str
+        :param rhs: Right side of the equation, i.e. a number.
+        :type rhs: float
+        :return: index of the added constraint
+        :rtype: int
+        """        
+        assert sense in ["<=", "=", ">="]
+        assert rhs == float(rhs), "Right hand side is not a number: rhs=%s" % rhs 
+        self._assert_expression(lhs)
+
+        name = "c%d" % len( self.__constraints )
+
+        newconstr = None
+        linexpr = self._eval_pulp_expr( lhs )
+        if sense == "<=":
+            newconstr = self.__model.addConstr(linexpr <= rhs, name)
+        elif sense == "=":
+            newconstr = self.__model.addConstr(linexpr == rhs, name)
+        else:
+            newconstr = self.__model.addConstr(linexpr >= rhs, name)
+        
+        constridx = len(self.__constraints)
+        self.__constraints.append(newconstr) 
+        return constridx
+
+
+    def add_to_constraint(self, constridx, coeff, varidx):
+        constr = self.__constraints[constridx]
+        self.__model.chgCoeff(constr, self.__variables[varidx], coeff)
+
+    def remove_constraint(self, constridx):
+        """removes a given constraint from the model.
+
+        :param name: the name of the constraint
+        :type name: str
+        """
+        self.__model.remove(self.__constraints[constridx])
+        self.__constraints[constridx] = None
+
+
+    def add_variables(self, *domains):
+        """Adds a list of variables to this MILP. Each element in `domains` must be either `integer`, `binary` or `real`.
+        
+        :return: Index or indices of new variables.
+        :rtype: either List[int] or int.
+        """        
+        l = []
+        for domain in domains:
+            assert domain in ["integer", "real", "binary"]
+            cat = { "binary": GRB.BINARY,
+                    "real": GRB.CONTINUOUS,
+                    "integer": GRB.INTEGER }[domain]
+
+            varidx = len(self.__variables)
+            varname = "x%d" % varidx
+            var = self.__model.addVar(vtype=cat, name=varname)
+            self.__variables.append(var)
+
+            if len(domains) == 1:
+                return varidx
+            else:
+                l.append(varidx)
+        return l
+
+
+    @classmethod
+    def from_coefficients(cls, A, b, opt, domains, sense="<=", objective="min"):
+        """Returns a Mixed Integer Linear Programming (MILP) formulation of a problem
+        
+        .. math::
+
+            \min_x/\max_x\ \sigma^T x \quad \\text{ s.t. } \quad Ax \circ b, \ x_i \in \mathbb{D}_i,\ \\forall i=1,\dots,N
+
+        where :math:`\circ \in \{ \leq, \geq \}`, :math:`N` is the number of variables and :math:`M`
+        the number of linear constraints. :math:`\mathbb{D}_i` indicates
+        the domain of each variable. If `A`, `b` and `opt` are not given as a `scipy.sparse.dok_matrix`, 
+        they are transformed into that form automatically.
+        
+        :param A: Matrix for inequality conditions  (:math:`A`).
+        :type A: :math:`M \\times N`-Matrix
+        :param b: Vector for inequality conditions  (:math:`b`).
+        :type b: :math:`M \\times 1`-Matrix
+        :param opt: Weights for individual variables in x (:math:`\sigma`). If None, no objective function will be set.
+        :type opt: :math:`N \\times 1`-Matrix
+        :param domains: Array of strings, e.g. ["real", "integer", "integer", "binary", ...] which indicates the domain for each variable.
+        :type domains: List[str]
+        :param sense: "<=" or ">=", defaults to "<="
+        :type sense: str, optional
+        :param objective: "min" or "max", defaults to "min"
+        :type objective: str, optional
+        :return: The resulting MILP.
+        :rtype: solver.MILP
+        """
+
+        A = cast_dok_matrix(A).tocsr()
+        b = cast_dok_matrix(b)
+
+        opt = cast_dok_matrix(opt)
+
+        model = GurobiMILP(objective=objective)
+
+        # initialize problem
+        # this adds the variables and the objective function (which is opt^T*x, i.e. sum_{i=1}^N opt[i]*x[i])
+        model.add_variables(*[domains[idx] for idx in range(A.shape[1])])
+        model.set_objective_function([(idx, opt[idx,0]) for idx in range(A.shape[1])])
+        
+        # this takes quite a lot of time since accessing the rows is inefficient, even for csr-formats.
+        # maybe find a way to compute Ax <= b faster.
+        # now: add linear constraints: Ax <= b.
+
+        for constridx in range(A.shape[0]):
+            # calculates A[constridx,:]^T * x
+            row = A.getrow(constridx)
+            lhs = [0]*len(row.indices)
+            # print(row)
+            for i,j,d in zip(range(len(row.indices)), row.indices, row.data):
+                lhs[i] = (j, float(d))
+            # adds constraint: A[constridx,:]^T * x <= b[constridx]
+            model.add_constraint(lhs, sense, b[constridx,0])
+
+        return model
+
+    def __repr__(self):
+        return str(self.__model)
