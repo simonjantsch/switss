@@ -207,19 +207,7 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound=None,timeo
 
     decomp, labeling, interface = quotient(G,partition)
 
-    ## hack to get better partition for brp
-
-    new_partition = []
-    for p in decomp.get_vertices():
-        p_sucs = decomp.get_out_neighbors(decomp.vertex(p))
-        new_p_states = [q for q in G.get_vertices()
-                        if (labeling[q] == p) and (not interface[q]) or (labeling[q] in p_sucs and interface[p])]
-        new_partition.append(new_p_states)
-
-    decomp, labeling, interface = quotient(G,new_partition)
-    ##
-
-    gt.graph_draw(G, output="input.pdf",output_size=(1500,1500),vertex_text=dist_from_init,vertex_fill_color=labeling,edge_text=edge_probs,vertex_size=3)
+    ## gt.graph_draw(G, output="input.pdf",output_size=(1500,1500),vertex_text=dist_from_init,vertex_fill_color=labeling,edge_text=edge_probs,vertex_size=3)
 
     # compute an order by which to process the quotient
     rev_top_order = np.flipud(gt.topological_sort(decomp))
