@@ -260,7 +260,9 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound=None,timeo
 
         # enumerate relevant subsystems of part_view
         bdd, p_expr = compute_subsys_bdd(part_view)
+        no_of_models = 0
         for model in bdd.pick_iter(p_expr):
+            no_of_models += 1
             if timeout != None:
                 if time.perf_counter() - start_time > timeout:
                     return -1
@@ -310,6 +312,7 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound=None,timeo
 
             free_mem(subsys_points,no_new_points)
 
+        print("***no of models after BDD filter: {}***".format(no_of_models))
         if no_sucs == 0:
             free_mem(suc_points_c[0],1)
             free(suc_points_c)
