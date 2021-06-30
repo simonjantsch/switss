@@ -198,7 +198,7 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound=None,timeo
     G = underlying_graph_graphtool(rf.P)
 
     dist_from_init = gt.shortest_distance(G,source=G.vertex(rf.initial))
-    print(dist_from_init.a)
+    ## print(dist_from_init.a)
 
     edge_probs = G.new_ep("double")
     for e in G.edges():
@@ -295,11 +295,11 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound=None,timeo
                                           subsys_points,
                                           dist_from_init.a)
 
-            print("no_new_points :" + str(no_new_points))
+            print("***no_new_points :" + str(no_new_points) + " ***")
 
             # sort all the new points by their 'no_states' and add to k_points
             for i in range(no_new_points):
-                print_point(subsys_points[i])
+                ## print_point(subsys_points[i])
                 k = subsys_points[i].no_states
                 probs = subsys_points[i].probs
                 inp_array = np.zeros(inp_dim,dtype='d')
@@ -312,7 +312,7 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound=None,timeo
 
             free_mem(subsys_points,no_new_points)
 
-        print("***no of models after BDD filter: {}***".format(no_of_models))
+        print("***no of models after BDD filter: {} ***".format(no_of_models))
         if no_sucs == 0:
             free_mem(suc_points_c[0],1)
             free(suc_points_c)
@@ -338,7 +338,7 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound=None,timeo
             k_vertices = dict()
             conv_hull = None
 
-            print(k_points)
+            ## print(k_points)
 
             for k in sorted(k_points.keys()):
                 # add projections onto all axes
@@ -385,8 +385,8 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound=None,timeo
 
                 partition_points[part_id].extend([fip(p,k) for p in k_points[k]])
 
-        print("\npartition " + str(part_id) + " points: \n" + str(partition_points[part_id]))
-        print("partition " + str(part_id) + " no-points: \n" + str(len(partition_points[part_id])) + "\n")
+        ## print("\npartition " + str(part_id) + " points: \n" + str(partition_points[part_id]))
+        ## print("partition " + str(part_id) + " no-points: \n" + str(len(partition_points[part_id])) + "\n")
 
     return min([p["states"] for p in partition_points[rev_top_order[-1]]])
 
@@ -395,7 +395,6 @@ def arreqclose_in_list(myarr, list_arrays):
     return next((True for elem in list_arrays
                  if elem.size == myarr.size and np.allclose(elem, myarr,atol=1e-10)), False)
 
-# reimplement this using some sound is-close-check
 @cython.boundscheck(False)
 @cython.wraparound(False)
 cdef bint arreqclose_in_list2(double[:] myarr,
@@ -527,10 +526,6 @@ cdef int handle_subsys(int[:] states,
         for j in range(no_states):
             if is_in[states[j]]:
                 min_dist_from_init = min(min_dist_from_init,dist_from_init[states[j]])
-
-        print("min_dist_from_init:" + str(min_dist_from_init))
-        print("tot_no_states:" + str(tot_no_states))
-        print("known_upper_bound:" + str(known_upper_bound))
 
         if (tot_no_states + min_dist_from_init) > known_upper_bound:
             excl_by_states = excl_by_states + 1
