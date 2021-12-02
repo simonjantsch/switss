@@ -39,8 +39,6 @@ class MILPExact(ProblemFormulation):
     def __init__(self, solver="cbc"):
         """Instantiates a MILPExact instance from a given mode ("min" or "max") and a solver.
 
-        :param mode: The mode, either "min" or "max"
-        :type mode: str
         :param solver: Solver the should be used, defaults to "cbc"
         :type solver: str, optional
         """

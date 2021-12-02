@@ -49,8 +49,6 @@ class QSHeur(ProblemFormulation):
         """Instantiates a QSHeur from a given mode, a number of iterations and a initializer as well as 
         a updater.
 
-        :param mode: Either "min" or "max"
-        :type mode: str
         :param iterations: Number of repeated LP instances, defaults to 3
         :type iterations: int, optional
         :param initializertype: The used initialization-method, defaults to AllOnesInitializer

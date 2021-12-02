@@ -130,6 +130,7 @@ def add_indicator_constraints(model, variables, upper_bound, mode, groups, indic
     return indicator_to_group
 
 
+#TODO remove this?
 def construct_RMP(rf, threshold, mode, Pinit, modeltype="pulp"):
     assert mode in ["min", "max"]
     assert modeltype in ["gurobi", "pulp"]
@@ -180,6 +181,9 @@ def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_
     # construct constraining polytope matrices according to chosen mode
     fark_matr, fark_rhs = rf.fark_constraints(threshold, mode)
     
+    # TODO: only compute upper bound if there are no non-proper end components, otherwise the upper-bound LP is unbounded
+    # add an option to use indicator constraints or known upper bound for non-relaxed setting with proper ECs
+
     # compute the upper bound K
     if mode == "min":
         upper_bound = 1. 
@@ -196,7 +200,7 @@ def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_
     model = modeltype.from_coefficients(fark_matr, fark_rhs, np.zeros(certsize), ["real"]*certsize) # initialize model
     for varidx in range(certsize):
         model.add_constraint([(varidx, 1)], ">=", 0)
-        model.add_constraint([(varidx, 1)], "<=", upper_bound) # isn't this constraint unnecessary?
+        model.add_constraint([(varidx, 1)], "<=", upper_bound)
     # add indicator variables, which are either binary or real, dependent on what relaxed was set to
     indicator_domain = "real" if relaxed else "binary"
     indicators = add_indicator_constraints(model, np.arange(certsize), 
@@ -208,7 +212,7 @@ def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_
     model.set_objective_function(objective)
     return model, indicators
 
-
+#TODO remove this?
 def construct_indicator_graph(rf : ReachabilityForm, mode : str, indicators, indicator_var_to_idx):
     assert mode in ["min", "max"]
     # P only encodes reachability -- we don't care about probabilities

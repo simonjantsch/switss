@@ -8,7 +8,7 @@ try:
     import gurobipy as gp
     from gurobipy import GRB
 except:
-    print("if gurobi should be used, gurobipy needs to be installed")
+    print("milp.py: gurobipy is not installed. Please install it if you intend to use it.")
 
 class MILP:
     """

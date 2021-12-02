@@ -18,7 +18,7 @@ class AbstractMDP(ABC):
     reachability sets, rendering of MDPs/DTMCs as graphviz digraphs, loading from .pm-files and 
     loading/storing from/to .lab,.tra files. 
     """    
-    def __init__(self, P, index_by_state_action, label_to_actions={}, label_to_states={}, vis_config=None):
+    def __init__(self, P, index_by_state_action, label_to_actions={}, label_to_states={}, vis_config=None, reward_vector=None):
         """Instantiates an AbstractMDP from a transition matrix, a bidirectional
         mapping from state-action pairs to corresponding transition matrix entries and labelings for states and actions.
 
@@ -26,6 +26,8 @@ class AbstractMDP(ABC):
         :type P: Either 2d-list, numpy.matrix, numpy.array or scipy.sparse.spmatrix
         :param index_by_state_action: A bijection of state-action pairs :math:`(s,a) \in \mathcal{M}_{S_{\\text{all}}}` 
             to indices :math:`i=0,\dots,C_{S_{\\text{all}}}-1` and vice versa.
+        :param reward_vector: A vector containing a nonnegative reward per state
+        :type reward_vector: Dict[int,int]
         :type index_by_state_action: Dict[Tuple[int,int],int]
         :param label_to_actions: Mapping from labels to sets of state-action pairs.
         :type label_to_actions: Dict[str,Set[Tuple[int,int]]]
@@ -42,6 +44,7 @@ class AbstractMDP(ABC):
         self.C, self.N = self.P.shape
         # transform mapping into bidict if neccessary (applying bidict to bidict doesn't change anything)
         self.index_by_state_action = bidict(index_by_state_action)
+        self.reward_vector = reward_vector
         if isinstance(label_to_actions,InvertibleDict):
             self.__label_to_actions_invertible = label_to_actions
         else:
@@ -62,6 +65,8 @@ class AbstractMDP(ABC):
         
         * :math:`0 \leq P_{(i,j)} \leq 1 \quad \\forall (i,j) \in \{1,\dots,C\} \\times \{1,\dots,N\}`
         
+        * :math:`reward_vector[i] \geq 0 \quad \\forall i \in \{1,\dots,N\}`
+
         """
         # make sure all rows of P sum to one
         for idx,s in enumerate(self.P.sum(axis=1)):  
@@ -69,6 +74,11 @@ class AbstractMDP(ABC):
         # make sure that all values x are 0<=x<=1
         for (i,j), p in self.P.items():
             assert p >= 0 and p <= 1, "P[%d,%d]=%f, violating 0<=%f<=1." % (i,j,p,p)
+
+        #make sure rewards are nonnegative
+        if self.reward_vector != None:
+            for i in range(self.N):
+                assert self.reward_vector[i] >= 0, "reward_vector[%d] = %d is negative." % (i,reward_vector[i])
 
     @property
     def states_by_label(self):
@@ -119,6 +129,17 @@ class AbstractMDP(ABC):
                 state,action = self.index_by_state_action.inv[idx]
                 self.__available_actions.add(state, action)
         return self.__available_actions
+
+    def add_label(self,state,label):
+        """Adds a label to a given state.
+        
+        :param state: a state
+        :type state: int
+        :param label: a label
+        :type label: str
+        """
+        self.__label_to_states_invertible.add(label,state)
+
 
     def reachable_mask(self, from_set, mode, blocklist=set()):
         """Computes an :math:`N_{S_{\\text{all}}}`-dimensional vector which has a True-entry (False otherwise) for
@@ -218,6 +239,18 @@ class AbstractMDP(ABC):
             else:
                 assert False, "Prism call to create model failed."
         
+    @classmethod
+    def from_stormpy(cls, stormpy_model):
+        """Transforms a stormpy model into a switss model.
+
+        :param stormpy_model: the stormpy model
+        :type stormpy_model: stormpy.storage.SparseModel
+        :return: Instance of the class this function is called from.
+        :rtype: [This Class]
+        """
+        res = cls.from_stormpy_model(stormpy_model)
+        return cls(**res)
+
     @abstractmethod
     def save(self, filepath):
         """Saves the .tra and .lab-file according to the given filepath.

@@ -277,7 +277,7 @@ cdef class Graph:
                         instack[neighidx] = 1
                         stack = push(stack, neighidx)
 
-        ret = np.zeros(self.nodecount, dtype=np.bool)
+        ret = np.zeros(self.nodecount, dtype=bool)
         for i in range(self.nodecount):
             ret[i] = reachablemask[i]
 

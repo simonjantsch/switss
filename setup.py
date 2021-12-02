@@ -19,5 +19,6 @@ setup(
         "numpy",
         "bidict",
         "pulp",
+        "cython"
     ]
 )

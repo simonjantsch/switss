@@ -8,7 +8,7 @@ from ..prism import prism
 from ..utils import color_from_hash, VisualizationConfig
 
 class MDP(AbstractMDP):
-    def __init__(self, P, index_by_state_action, label_to_actions={}, label_to_states={}, vis_config=None):
+    def __init__(self, P, index_by_state_action, label_to_actions={}, label_to_states={}, vis_config=None, reward_vector=None):
         """Instantiates a MDP from a transition matrix, a bidirectional
         mapping from state-action pairs to corresponding transition matrix entries and labelings for states and actions.
 
@@ -17,6 +17,8 @@ class MDP(AbstractMDP):
         :param index_by_state_action: A bijection of state-action pairs :math:`(s,a) \in \mathcal{M}_{S_{\\text{all}}}` 
             to indices :math:`i=0,\dots,C_{S_{\\text{all}}}-1` and vice versa.
         :type index_by_state_action: Dict[Tuple[int,int],int]
+        :param reward_vector: A vector containing a nonnegative reward per state
+        :type reward_vector: Dict[int,int]
         :param label_to_actions: Mapping from labels to sets of state-action pairs.
         :type label_to_actions: Dict[str,Set[Tuple[int,int]]]
         :param label_to_states: Mapping from labels to sets of states.
@@ -28,7 +30,7 @@ class MDP(AbstractMDP):
         if vis_config is None:
             vis_config = VisualizationConfig()
 
-        super().__init__(P, index_by_state_action, label_to_actions, label_to_states,vis_config)
+        super().__init__(P, index_by_state_action, label_to_actions, label_to_states,vis_config, reward_vector)
 
 
     def digraph(self, state_map = None, trans_map = None, action_map = None):
@@ -176,4 +178,38 @@ class MDP(AbstractMDP):
                     max_index += 1
                 P[index,dest] = prob
 
+        return { "P" : P, "index_by_state_action" : index_by_state_action, "label_to_actions" : label_to_actions }
+
+
+    @classmethod
+    def from_stormpy_model(cls,stormpy_model):
+        
+        #assert stormpy_model.model_type == "ModelType.MDP"
+
+        P = dok_matrix((1,1))
+        index_by_state_action = bidict()
+        label_to_actions = defaultdict(set)
+        C = stormpy_model.nr_choices
+        N = stormpy_model.nr_states
+
+        print(C)
+        print(N)
+        P.resize((C,N))
+
+        max_index = 0
+        for state in stormpy_model.states:
+            sid = state.id
+            for action in state.actions:
+                aid = action.id
+                if (sid,aid) in index_by_state_action:
+                    index = index_by_state_action[(sid,aid)]
+                else:
+                    index = max_index
+                    index_by_state_action[(sid,aid)] = max_index
+                    max_index += 1
+
+                for transition in action.transitions:
+                    P[index,transition.column] = transition.value()
+
+        print(P)
         return { "P" : P, "index_by_state_action" : index_by_state_action, "label_to_actions" : label_to_actions }
