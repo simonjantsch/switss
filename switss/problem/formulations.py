@@ -184,13 +184,18 @@ def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_
     # TODO: only compute upper bound if there are no non-proper end components, otherwise the upper-bound LP is unbounded
     # add an option to use indicator constraints or known upper bound for non-relaxed setting with proper ECs
 
-    # compute the upper bound K
+    nr_mec_states = sum(rf.mec_states)
+
     if mode == "min":
         upper_bound = 1. 
-    else:
+    elif nr_mec_states == 0:
         status, upper_bound = compute_upper_bound(fark_matr, fark_rhs, solver=upper_bound_solver)
         if status != "optimal":
             return None, None
+    elif not relaxed:
+        print("warning: not yet supporting exact minimization of max-properties if proper end compoents are present.")
+        return None,None
+
     
     # obtain variable groups from labels
     groups = groups_from_labels(rf, mode, labels=labels)

@@ -34,6 +34,7 @@ class ReachabilityForm:
         :param ignore_consistency_checks: If set to False, checks consistency of given model (i.e. if the properties are satisfied),
             defaults to False
         :type ignore_consistency_checks: bool, optional
+        :type ignore_consistency_checks: bool, optional
         """        
         if not ignore_consistency_checks:
             ReachabilityForm.assert_consistency(system, initial_label, target_label, fail_label)
@@ -50,6 +51,10 @@ class ReachabilityForm:
         
         self.__A = self._reach_form_id_matrix() - self.__P
         self.__to_target = system.P.getcol(system.N-2).todense()[:system.C-2]
+
+        system_mecs, nr_of_system_mecs = system.maximal_end_components()
+        self.__mec_states = system_mecs[:system.N-2]
+        print(self.__mec_states)
         
         self.__target_visualization_style = None
         self.__fail_visualization_style = None
@@ -126,6 +131,14 @@ class ReachabilityForm:
         """
         return self.__to_target
 
+    @property
+    def mec_states(self):
+        """
+        Returns a vector of length :math:`N` which contains a one for each state that is contained in a proper end component.
+        """
+        return self.__mec_states
+
+
     @staticmethod
     def assert_consistency(system, initial_label, target_label="rf_target", fail_label="rf_fail"):
         """Checks whether a system fulfills the reachability form properties.
@@ -162,7 +175,7 @@ class ReachabilityForm:
             assert state == colidx, "State %s must be at index %s but is at %s" % (name, colidx, state)
 
         # fail_mask has a 1 only at the fail state and zeros otherwise
-        fail_mask = np.zeros(system.N,dtype=np.bool)
+        fail_mask = np.zeros(system.N,dtype=bool)
         fail_mask[fail] = True 
 
         # check that every state is reachable
@@ -259,7 +272,7 @@ class ReachabilityForm:
         to_target = np.zeros(new_C)
 
         # mask for faster access
-        target_mask = np.zeros(system.N, dtype=np.bool)
+        target_mask = np.zeros(system.N, dtype=bool)
         for t in target_states:
             target_mask[t] = 1
 
@@ -437,20 +450,26 @@ class ReachabilityForm:
         delta[self.initial] = 1
 
         fark_z_matr = vstack((self.A,-delta))
+
+        nr_mec_states = sum(self.__mec_states)
+        if nr_mec_states > 0:
+            fark_z_matr = vstack((fark_z_matr,self._reach_form_mec_matrix))
+            rhs = vstack((rhs,np.ones(nr_mec_states)))
+
         return fark_z_matr, rhs
 
     def fark_y_constraints(self, threshold):
         """ 
         Returns a matrix :math:`M_y` and a vector :math:`rhs_y` such that for a :math:`C` vector :math:`\mathbf{y}`
 
-        .. math::
+p        .. math::
 
             M_y\, \mathbf{y} \leq rhs_y \quad \\text{  iff  } \quad
             \mathbf{y} \, \mathbf{A} \leq \delta_{\\texttt{init}} \land \mathbf{b} \, \mathbf{y} \geq \lambda
             \quad \\text{  iff  } \quad
             \mathbf{y} \in \mathcal{P}^{\\text{max}}(\lambda)
 
-        where :math:`\lambda` is the threshold. The vector :math:`\delta_{\\texttt{init}}` is 1 for the initial state, and otherwise 0.
+        where :math:`\lambda` is the threshold, :math:'\mathbf{A}' is the system matrix and :math:`\mathbf{b}` is to_target. The vector :math:`\delta_{\\texttt{init}}` is 1 for the initial state, and otherwise 0.
 
         :param threshold: The threshold :math:`\lambda` for which the Farkas y-constraints should be constructed
         :type threshold: Float
@@ -478,6 +497,20 @@ class ReachabilityForm:
             I[i,state] = 1
 
         return I
+
+    def _reach_form_mec_matrix(self):
+        """Computes a matrix which contains a dirac row vector for each state included in a proper end component."""
+        nr_ec_states = sum(self.__mec_states)
+        C,N = self.__P.shape
+        MEC_mtr = dok_matrix((nr_ec_states,N))
+
+        index = 0
+        for i in range(0,N):
+            if __mec_states(i) == True:
+                MEC_mtr[index,i] = 1
+                index += 1
+
+        return MEC_mtr
 
     def max_z_state(self,solver="cbc"):
         """
