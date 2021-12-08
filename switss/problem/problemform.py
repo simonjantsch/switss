@@ -3,6 +3,7 @@ from bidict import bidict
 from collections import deque
 import numpy as np
 
+from ..model import RewardReachabilityForm
 from ..solver import MILP,LP
 from ..utils import InvertibleDict
 
@@ -83,7 +84,9 @@ class ProblemFormulation:
         :return: The resulting subsystem.
         :rtype: problem.Subsystem
         """
-        assert (threshold >= 0) and (threshold <= 1)
+        assert (threshold >= 0)
+        if not isinstance(reachability_form,RewardReachabilityForm):
+             assert (threshold <= 1)
         assert mode in ["min","max"]
         return self._solveiter(reachability_form, 
                                threshold,

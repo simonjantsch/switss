@@ -204,6 +204,10 @@ cdef class Graph:
             components,compcount = graph.strongly_connected_components()
             
             if compcount == 1:
+                if mappings == []:
+                    #all states belong to the same end component
+                    return np.ones(self.nodecount),1
+
                 # make sure that every node has at least one outgoing edge (one action that can be enabled for states in the MDP)
                 ignore_this_graph = False
                 for i in range(graph.get_nodecount()):

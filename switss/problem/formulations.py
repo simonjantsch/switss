@@ -119,13 +119,17 @@ def add_indicator_constraints(model, variables, upper_bound, mode, groups, indic
         indicator_var = model.add_variables(indicator_domain)
         indicator_to_group[indicator_var] = group
         for var in group:
-            model.add_constraint([(var, 1), (indicator_var, -upper_bound)], "<=", 0)
+            if upper_bound is not None:
+                model.add_constraint([(var, 1), (indicator_var, -upper_bound)], "<=", 0)
+            else:
+                model.add_constraint([(var, 1), (indicator_var, -1)], "<=", 0)
     indicator_to_group = InvertibleDict(indicator_to_group)
 
     if indicator_domain != "binary":
         for indicator_var in indicator_to_group.keys():
             model.add_constraint([(indicator_var, 1)], ">=", 0)
-            model.add_constraint([(indicator_var, 1)], "<=", 1)
+            if upper_bound is not None:
+                model.add_constraint([(indicator_var, 1)], "<=", 1)
 
     return indicator_to_group
 
@@ -181,14 +185,15 @@ def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_
     # construct constraining polytope matrices according to chosen mode
     fark_matr, fark_rhs = rf.fark_constraints(threshold, mode)
     
-    # TODO: only compute upper bound if there are no non-proper end components, otherwise the upper-bound LP is unbounded
-    # add an option to use indicator constraints or known upper bound for non-relaxed setting with proper ECs
+    # TODO: add an option to use indicator constraints for non-relaxed setting with MAX and proper ECs
 
-    nr_mec_states = sum(rf.mec_states)
+    nr_of_mecs = rf.nr_of_mecs
 
-    if mode == "min":
-        upper_bound = 1. 
-    elif nr_mec_states == 0:
+    upper_bound = None
+
+    if mode == "min" and isinstance(rf,ReachabilityForm):
+        upper_bound = 1
+    elif nr_of_mecs == 0:
         status, upper_bound = compute_upper_bound(fark_matr, fark_rhs, solver=upper_bound_solver)
         if status != "optimal":
             return None, None
@@ -205,7 +210,13 @@ def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_
     model = modeltype.from_coefficients(fark_matr, fark_rhs, np.zeros(certsize), ["real"]*certsize) # initialize model
     for varidx in range(certsize):
         model.add_constraint([(varidx, 1)], ">=", 0)
-        model.add_constraint([(varidx, 1)], "<=", upper_bound)
+        if upper_bound is not None:
+            model.add_constraint([(varidx, 1)], "<=", upper_bound)
+        if mode == "min" and rf.nr_of_mecs > 0:
+            if rf.mec_states[varidx] > 0:
+                model.add_constraint([(varidx,1)], "=" , 0)
+
+
     # add indicator variables, which are either binary or real, dependent on what relaxed was set to
     indicator_domain = "real" if relaxed else "binary"
     indicators = add_indicator_constraints(model, np.arange(certsize), 

@@ -182,23 +182,30 @@ class MDP(AbstractMDP):
 
 
     @classmethod
-    def from_stormpy_model(cls,stormpy_model):
+    def from_stormpy_model(cls,stormpy_model, choice_model = False):
         
-        #assert stormpy_model.model_type == "ModelType.MDP"
+        if choice_model:
+            return cls.choice_model_from_stormpy(stormpy_model)
 
         P = dok_matrix((1,1))
         index_by_state_action = bidict()
         label_to_actions = defaultdict(set)
+        label_to_states = defaultdict(set)
         C = stormpy_model.nr_choices
         N = stormpy_model.nr_states
-
-        print(C)
-        print(N)
         P.resize((C,N))
+
+        stormpy_state_labeling = stormpy_model.labeling
+        stormpy_action_labeling = stormpy_model.choice_labeling
 
         max_index = 0
         for state in stormpy_model.states:
             sid = state.id
+
+            statelabels = stormpy_state_labeling.get_labels_of_state(sid)
+            for slabel in statelabels:
+                label_to_states[slabel].add(sid)
+
             for action in state.actions:
                 aid = action.id
                 if (sid,aid) in index_by_state_action:
@@ -208,8 +215,65 @@ class MDP(AbstractMDP):
                     index_by_state_action[(sid,aid)] = max_index
                     max_index += 1
 
+                stormpy_cid = stormpy_model.get_choice_index(sid,aid)
+                actionlabels = stormpy_action_labeling.get_labels_of_choice(stormpy_cid)
+                for alabel in actionlabels:
+                    label_to_actions[alabel].add((sid,aid))
+
                 for transition in action.transitions:
                     P[index,transition.column] = transition.value()
 
-        print(P)
-        return { "P" : P, "index_by_state_action" : index_by_state_action, "label_to_actions" : label_to_actions }
+        return { "P" : P, "index_by_state_action" : index_by_state_action, "label_to_actions" : label_to_actions, "label_to_states" : label_to_states }
+
+    @classmethod
+    def choice_model_from_stormpy(cls,stormpy_model):
+        """Transforms a stormpy model into a switss choice model. The first N states correspond to the states of the stormpy model, while the second C states correspond to the choices of the stormpy model.  
+        
+        :param tra_file_path: filepath to .tra-file
+        :type tra_file_path: str
+        :return: a bidict that contains mappings from state-action pairs to an index set :math:`\{0,\dots,C\}` and a transition matrix  
+        :rtype: Tuple[scipy.sparse.dok_matrix, bidict.bidict]
+        """
+        P = dok_matrix((1,1))
+        index_by_state_action = bidict()
+        label_to_actions = defaultdict(set)
+        label_to_states = defaultdict(set)
+        C = stormpy_model.nr_choices
+        N = stormpy_model.nr_states
+        P.resize((C + C,N + C))
+
+        stormpy_state_labeling = stormpy_model.labeling
+        stormpy_action_labeling = stormpy_model.choice_labeling
+
+        max_index = 0
+        for state in stormpy_model.states:
+            sid = state.id
+
+            statelabels = stormpy_state_labeling.get_labels_of_state(sid)
+            label_to_states["state"].add(sid)
+            for slabel in statelabels:
+                label_to_states[slabel].add(sid)
+
+            for action in state.actions:
+                aid = action.id
+                if (sid,aid) in index_by_state_action:
+                    index = index_by_state_action[(sid,aid)]
+                else:
+                    index = max_index
+                    index_by_state_action[(sid,aid)] = max_index
+                    index_by_state_action[(N+max_index,C+max_index)] = C + max_index
+                    max_index += 1
+
+                stormpy_cid = stormpy_model.get_choice_index(sid,aid)
+                actionlabels = stormpy_action_labeling.get_labels_of_choice(stormpy_cid)
+                for alabel in actionlabels:
+                    label_to_states[alabel].add(N+max_index)
+                label_to_states["choice"].add(N+max_index)
+
+                for transition in action.transitions:
+                    P[C+index,transition.column] = transition.value()
+
+                P[index,N+index] = 1
+
+        return { "P" : P, "index_by_state_action" : index_by_state_action, "label_to_actions" : label_to_actions, "label_to_states" : label_to_states }
+        

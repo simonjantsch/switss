@@ -3,12 +3,17 @@ from switss.model.reachability_form import ReachabilityForm
 from switss.problem.qsheur import QSHeur
 
 import stormpy.examples.files
+import stormpy
 
 program = stormpy.parse_prism_program(stormpy.examples.files.prism_mdp_maze)
 
-model = stormpy.build_model(program)
+options = stormpy.BuilderOptions()
+options.set_build_choice_labels(True)
+
+model = stormpy.build_sparse_model_with_options(program,options)
 
 switss_mdp = MDP.from_stormpy(model)
+choice_mdp = MDP.from_stormpy(model,choice_model=True)
 
 N = switss_mdp.N
 

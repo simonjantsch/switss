@@ -1,18 +1,45 @@
 from . import AbstractMDP,MDP,ReachabilityForm
 
-class RewardReachabilityForm:
+import copy as copy
+import numpy as np
+from scipy.sparse import dok_matrix,hstack,vstack
+from ..utils import InvertibleDict, cast_dok_matrix, DTMCVisualizationConfig, VisualizationConfig
+from ..solver.milp import LP
 
+
+class RewardReachabilityForm:
 
     def __init__(self, reachability_form, reward_vector):
 
-        self.target_label = reachability_form.target_label
         self.__reach_form = reachability_form
         self.reward_vector = reward_vector
+
+        self.__system = reachability_form.system
+        self.__P = reachability_form.system.P[:self.__system.C-2, :self.__system.N-2]
+        self.__A = reachability_form.A
+
+
+        self.target_label = reachability_form.target_label
+        self.initial_label = reachability_form.initial_label
+        self.initial = reachability_form.initial
+
+    @property
+    def system(self):
+        """The underlying system (instance of model.AbstractMDP)"""
+        return self.__system
+
+    @property
+    def A(self):
+        return self.__A
+
+    @property
+    def nr_of_mecs(self):
+        return 0
 
     @classmethod
     def fromsystem(cls, system, initial_label, target_label="rrf_target",ignore_consistency_checks=False):
         if not ignore_consistency_checks:
-            RewardReachabilityForm.assert_consistency(system, initial_label, target_label)
+            RewardReachabilityForm.assert_system_consistency(system, initial_label, target_label)
 
         # add a dummy fail state, which is required for reachability form
         N = system.P.N
@@ -24,17 +51,43 @@ class RewardReachabilityForm:
         system.add_label(N, "rf_fail")
 
         # initialize underlying reachability form
-        return cls(ReachabilityForm(system, initial_label, target_label,"rf_fail",ignore_consistency_checks), system.reward_vector)
+        return cls(ReachabilityForm(system, initial_label, target_label,"rf_fail",ignore_consistency_checks), system.reward_vector[:-2])
 
 
     @staticmethod
-    def reduce(system, initial_label, target_label, new_target_label="rrf_target", debug=False):
+    def reduce(system, initial_label, target_label, new_target_label="rrf_target", debug=False, ignore_consistency_checks=False):
 
         reach_form, to_rf_cols, to_rf_rows = ReachabilityForm.reduce(system, initial_label, target_label)
-        return RewardReachabilityForm.fromsystem(reach_form), to_rf_cols, to_rf_rows
+        RewardReachabilityForm.assert_reachform_consistency(reach_form)
+
+        return RewardReachabilityForm(reach_form, reach_form.system.reward_vector[:-2]), to_rf_cols, to_rf_rows
 
     @staticmethod
-    def assert_consistency(system, initial_label, target_label="rf_target"):
+    def assert_reachform_consistency(reachform):
+        """Checks whether a reachability form fulfills the required properties to be the underlying RF of a reward reachability form.
+
+        :param reachform: The Reachability form
+        :type system: model.ReachabilityForm
+        """
+        assert isinstance(reachform, ReachabilityForm)
+        assert reachform.system.reward_vector is not None
+
+        fail_mask = np.zeros(reachform.system.N,dtype=bool)
+        fail_mask[reachform.fail_state_idx] = True
+
+        bwd_mask = reachform.system.reachable_mask({reachform.fail_state_idx},"backward")
+        assert (bwd_mask == fail_mask).all(), "The fail state is reachable in a RF when trying to define a reward reachability form"
+        
+        target_mask = np.zeros(reachform.system.N,dtype=bool)
+        target_mask[reachform.target_state_idx] = True
+
+        _,nr_of_mecs = reachform.system.maximal_end_components()
+
+        assert (nr_of_mecs == 2), "there is some proper end component apart from the target and fail state"
+
+
+    @staticmethod
+    def assert_system_consistency(system, initial_label, target_label="rf_target"):
         """Checks whether a system fulfills the reward reachability form properties.
 
         :param system: The system
@@ -45,8 +98,8 @@ class RewardReachabilityForm:
         :type target_label: str, optional
         """
         assert isinstance(system, AbstractMDP)
-        assert (system.reward_vector != None)
-        assert len({initial_label, target_label}) == 2, "Initial label, target label and fail label must be pairwise distinct"
+        assert system.reward_vector is not None
+        assert len({initial_label, target_label}) == 2, "Initial label and target label must be distinct"
 
         # check that there is exactly 1 target and initial state resp.
         states = []
@@ -58,7 +111,7 @@ class RewardReachabilityForm:
             states.append(labeledstates.pop())
         init,target = states
         
-        # check that fail and target state only map to themselves
+        # check that target state only maps to itself
         for state,name,rowidx,colidx in [(target,"target",system.C-1,system.N-1)]:
             successors = list(system.successors(state))
             assert len(successors) == 1 and successors[0][0] == state, "State %s must only one action and successor; itself" % name
@@ -68,11 +121,10 @@ class RewardReachabilityForm:
             assert state == colidx, "State %s must be at index %s but is at %s" % (name, colidx, state)
 
         # check that every state is reachable
-        # the fail state doesn't need to be reachable
         fwd_mask = system.reachable_mask({init},"forward")
         assert (fwd_mask).all(), "Not every state is reachable from %s in system %s" % (initial_label, system)
 
-        # check that every state except fail reaches goal
+        # check that every state reaches goal
         bwd_mask = system.reachable_mask({target},"backward")
         assert (bwd_mask).all(), "Not every state reaches %s in system %s" % (target_label, system)
 
@@ -81,9 +133,9 @@ class RewardReachabilityForm:
         target_mask = np.zeros(system.N,dtype=np.bool)
         target_mask[target] = True
         mec_mask = system.maximal_end_components()
-        assert (target_mask = mec_mask), "there is some proper end component apart from the target state"
+        assert (target_mask == mec_mask), "there is some proper end component apart from the target state"
 
-        def fark_constraints(self, threshold, mode):
+    def fark_constraints(self, threshold, mode):
         """returns the right constraint set dependent on the given mode.
 
         :param threshold: the threshold
@@ -120,7 +172,7 @@ class RewardReachabilityForm:
         """
         C,N = self.__P.shape
 
-        rhs = self.reward_vector.A1.copy()
+        rhs = self.reward_vector.copy()
         rhs.resize(C+1)
         rhs[C] = -threshold
 
@@ -159,3 +211,132 @@ class RewardReachabilityForm:
         fark_y_matr = hstack((self.A,-b)).T
         return fark_y_matr, rhs
 
+    def max_z_state(self,solver="cbc"):
+        """
+        Returns a solution to the LP        
+
+        .. math::
+
+            \max \, \sum_{s} \mathbf{x}(s) \quad \\text{ subject to } \quad \mathbf{x} \in \mathcal{P}^{\\text{min}}(0)
+            
+        The solution vector corresponds to the minimal reward, i.e. 
+        :math:`\mathbf{x}^*(s) = \mathbf{ExRew}^{\\text{min}}_s(\diamond \\text{goal})` for all :math:`s \in S`.
+
+        :param solver: Solver that should be used, defaults to "cbc"
+        :type solver: str, optional
+        :return: Result vector
+        :rtype: np.ndarray[float]
+        """        
+        C,N = self.__P.shape
+        matr, rhs = self.fark_z_constraints(0)
+        opt = np.ones(N)
+        max_z_lp = LP.from_coefficients(
+            matr,rhs,opt,sense="<=",objective="max")
+
+        for st_idx in range(N):
+            max_z_lp.add_constraint([(st_idx,1)],">=",0)
+
+        result = max_z_lp.solve(solver=solver)
+        return result.result_vector
+
+    def max_z_state_action(self,solver="cbc"):
+        """
+        Let :math:`\mathbf{x}` be a solution vector to `max_z_state`. This function then returns a 
+        :math:`C` vector :math:`\mathbf{v}` such that
+
+        .. math::
+
+            \mathbf{v}((s,a)) = rew(s) + \sum_{d \in S } \mathbf{P}((s,a),d) \mathbf{x}(d)
+
+        for all :math:`(s,a) \in \mathcal{M}`.
+
+        :param solver: [description], defaults to "cbc"
+        :type solver: str, optional
+        :return: Result vector
+        :rtype: np.ndarray[float]
+        """        
+
+        max_z_vec = self.max_z_state(solver=solver)
+        return self.__P.dot(max_z_vec) + self.reward_vector
+
+    def max_y_state_action(self,solver="cbc"):
+        """
+        Returns a solution to the LP        
+
+        .. math::
+
+            \max \, \mathbf{rew} \, \mathbf{x} \quad \\text{ subject to } \quad \mathbf{x} \in \mathcal{P}^{\\text{max}}(0)
+            
+        :param solver: Solver that should be used, defaults to "cbc"
+        :type solver: str, optional
+        :return: Result vector
+        :rtype: np.ndarray[float]
+        """
+        C,N = self.__P.shape
+
+        matr, rhs = self.fark_y_constraints(0)
+        max_y_lp = LP.from_coefficients(
+            matr,rhs,self.to_target,sense="<=",objective="max")
+
+        for sap_idx in range(C):
+            max_y_lp.add_constraint([(sap_idx,1)],">=",0)
+
+        result = max_y_lp.solve(solver=solver)
+        return result.result_vector
+
+    def max_y_state(self,solver="cbc"):
+        """
+        Let :math:`\mathbf{x}` be a solution vector to `max_y_state_action`. This function then returns a 
+        :math:`N` vector :math:`\mathbf{v}` such that
+
+        .. math::
+
+            \mathbf{v}(s) = \sum_{a \in \\text{Act}(s)} \mathbf{x}((s,a))
+
+        for all :math:`s \in S`.
+
+        :param solver: Solver that should be used, defaults to "cbc"
+        :type solver: str, optional
+        :return: Result vector
+        :rtype: np.ndarray[float]
+        """        
+        C,N = self.__P.shape
+        max_y_vec = self.max_y_state_action(solver=solver)
+        max_y_states = np.zeros(N)
+        max_y_states[self.initial] = 1
+        for sap_idx in range(C):
+            (st,act) = self.__index_by_state_action.inv[sap_idx]
+            max_y_states[st] = max_y_states[st] + max_y_vec[sap_idx]
+        return max_y_states
+
+    def rew_min(self,solver="cbc"):
+        """Computes an :math:`N` vector :math:`\mathbf{x}` such that 
+        :math:`\mathbf{x}(s) = \mathbf{ExpRew}^{\\text{min}}_s(\diamond \\text{goal})` for :math:`s \in S`.
+
+        :param solver: Solver that should be used, defaults to "cbc"
+        :type solver: str, optional
+        :return: Result vector
+        :rtype: np.ndarray[float]
+        """        
+        return self.max_z_state(solver=solver)
+
+    def rew_max(self,solver="cbc"):
+        """Computes an :math:`N` vector :math:`\mathbf{x}` such that :math:`\mathbf{x}(s) = 
+        \mathbf{ExpRew}^{\\text{max}}_s(\diamond \\text{goal})` for :math:`s \in S`.
+
+        :param solver: Solver that should be used, defaults to "cbc"
+        :type solver: str, optional
+        :return: Result vector
+        :rtype: np.ndarray[float]
+        """
+        C,N = self.__P.shape
+
+        opt = np.ones(N)
+        pr_max_z_lp = LP.from_coefficients(
+            self.A, self.reward_vector , opt, sense=">=", objective="min")
+
+        for st_idx in range(N):
+            pr_max_z_lp.add_constraint([(st_idx,1)],">=",0)
+
+        result = pr_max_z_lp.solve(solver=solver)
+        return result.result_vector

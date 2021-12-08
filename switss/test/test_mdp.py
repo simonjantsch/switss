@@ -1,4 +1,4 @@
-from switss.model import MDP, ReachabilityForm
+from switss.model import MDP, ReachabilityForm, RewardReachabilityForm
 from switss.problem import MILPExact, QSHeur
 from switss.certification import generate_farkas_certificate,check_farkas_certificate
 import switss.problem.qsheurparams as qsparam
@@ -45,8 +45,8 @@ def test_mec_free():
         rf._check_mec_freeness()
 
 def test_minimal_witnesses():
-    # only test the first 2 examples, as the others are too large
-    for mdp in mdps[:1]:
+    # only test the first 3 examples, as the others are too large
+    for mdp in mdps[:2]:
         reach_form ,_,_ = ReachabilityForm.reduce(mdp,"init","target")
         instances = [ MILPExact(solver) for solver in milp_solvers ]
         for threshold in [0.1, 0.2, 0.3, 0.4, 0.5, 0.66, 0.7, 0.88, 0.9, 0.999, 1,0.9999999999]:
@@ -136,8 +136,12 @@ def test_prmin_prmax():
         for solver in lp_solvers:
             m_z_st = reach_form.max_z_state(solver=solver)
             m_z_st_act = reach_form.max_z_state_action(solver=solver)
-            m_y_st_act = reach_form.max_y_state_action(solver=solver)
-            m_y_st = reach_form.max_y_state(solver=solver)
+
+            nr_of_mecs = mdp.maximal_end_components()
+
+            if reach_form.nr_of_mecs == 0:
+                m_y_st_act = reach_form.max_y_state_action(solver=solver)
+                m_y_st = reach_form.max_y_state(solver=solver)
 
             for vec in [m_z_st,m_z_st_act,m_y_st,m_y_st_act]:
                 assert (vec >= -1e-8).all()
@@ -194,3 +198,69 @@ def test_heuristics():
                     ss_reach_form = r.subsystem.reachability_form
                     super_reach_form = r.subsystem.supersys_reachability_form
                     ss_model = r.subsystem.model
+
+def test_rewards_heur():
+    initializers = [qsparam.AllOnesInitializer,
+                    qsparam.InverseReachabilityInitializer,
+                    qsparam.InverseFrequencyInitializer]
+
+    for mdp in mdps:
+        
+        reach_form ,_,_ = ReachabilityForm.reduce(mdp,"init","rewtarget")
+        if reach_form.nr_of_mecs > 0:
+            return
+
+        reward_reach_form,_,_ = RewardReachabilityForm.reduce(mdp,"init","rewtarget")
+
+        instances = [ QSHeur(iterations=3,initializertype=init,solver=solver) \
+                      for (solver,init) in zip(lp_solvers,initializers) ]
+        for threshold in [0.1, 0.2, 0.3, 0.4, 0.5, 0.66, 0.7, 0.88, 0.9, 0.999, 1,0.9999999999]:
+            print(mdp)
+            print(threshold)
+            max_results, min_results = [], []
+            for instance in instances:
+                min_results.append(instance.solve(reward_reach_form,threshold,"min"))
+                max_results.append(instance.solve(reward_reach_form,threshold,"max"))
+            # either the status of all results is optimal, or of none of them
+            min_positive_results = [result for result in min_results if result.status == "optimal"]
+            assert len(min_positive_results) == len(min_results) or len(min_positive_results) == 0
+            max_positive_results = [result for result in max_results if result.status == "optimal"]
+            assert len(max_positive_results) == len(max_results) or len(max_positive_results) == 0
+
+            # test the construction of the resulting subsystems
+            for r in min_results + max_results:
+                if r.status == "optimal":
+                    assert r.value >= 0
+                    ss_mask = r.subsystem.subsystem_mask
+                    ss_reward_reach_form = r.subsystem.reachability_form
+                    super_reward_reach_form = r.subsystem.supersys_reachability_form
+                    ss_model = r.subsystem.model
+
+def test_rewards_exact():
+    for mdp in mdps[:1]:
+        reach_form ,_,_ = RewardReachabilityForm.reduce(mdp,"init","rewtarget")
+        instances = [ MILPExact(solver) for solver in milp_solvers ]
+        for threshold in [0.1,2,5,10]:
+            print(mdp)
+            print(threshold)
+            max_results, min_results = [], []
+            for instance in instances:
+                min_results.append(instance.solve(reach_form,threshold, "min"))
+                max_results.append(instance.solve(reach_form,threshold, "max"))
+
+            # either the status of all results is optimal, or of none of them
+            # and this should hold for min and max
+            min_positive_results = [result for result in min_results if result.status == "optimal"]
+            assert len(min_positive_results) == len(min_results) or len(min_positive_results) == 0
+
+            max_positive_results = [result for result in max_results if result.status == "optimal"]
+            assert len(max_positive_results) == len(max_results) or len(max_positive_results) == 0
+
+            if min_results[0].status == "optimal":
+                assert len(set([result.status for result in min_results])) == 1
+                assert max_results[0].status == "optimal"
+                assert len(set([result.status for result in max_results])) == 1
+                assert max_results[0].value <= min_results[0].value
+            elif max_results[0].status == "optimal":
+                assert max_results[0].status == "optimal"
+                assert len(set([result.status for result in max_results])) == 1

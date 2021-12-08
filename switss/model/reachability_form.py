@@ -54,7 +54,7 @@ class ReachabilityForm:
 
         system_mecs, nr_of_system_mecs = system.maximal_end_components()
         self.__mec_states = system_mecs[:system.N-2]
-        print(self.__mec_states)
+        self.__nr_of_mecs = int(nr_of_system_mecs - 2)
         
         self.__target_visualization_style = None
         self.__fail_visualization_style = None
@@ -106,6 +106,11 @@ class ReachabilityForm:
         self.__fail_visualization_style = style
 
     @property
+    def system(self):
+        """The underlying system (instance of model.AbstractMDP)"""
+        return self.__system
+
+    @property
     def A(self):
         """
         Returns a :math:`C \\times N` matrix :math:`\mathbf{A}` where 
@@ -134,9 +139,16 @@ class ReachabilityForm:
     @property
     def mec_states(self):
         """
-        Returns a vector of length :math:`N` which contains a one for each state that is contained in a proper end component.
+        Returns a vector of length :math:`N` which contains a non-zero value for each state that is contained in a proper end component.
         """
         return self.__mec_states
+
+    @property
+    def nr_of_mecs(self):
+        """
+        Returns the number of proper end components (excluding goal and fail).
+        """
+        return self.__nr_of_mecs
 
 
     @staticmethod
@@ -309,11 +321,6 @@ class ReachabilityForm:
 
         return rf, to_rf_cols, to_rf_rows
 
-    @property
-    def system(self):
-        """The underlying system (instance of model.AbstractMDP)"""
-        return self.__system
-
     @staticmethod
     def __initialize_system(P, index_by_state_action, to_target, mapping, configuration, target_label, fail_label):
         C,N = P.shape
@@ -323,7 +330,14 @@ class ReachabilityForm:
         index_by_state_action_compl = index_by_state_action.copy()
         index_by_state_action_compl[(target_state,0)] = C
         index_by_state_action_compl[(fail_state,0)] = C+1
-    
+
+        if configuration.reward_vector is not None:
+            reward_vector = np.zeros(C+2)
+            reward_vector[C] = 0
+            reward_vector[C+1] = 0
+        else:
+            reward_vector = None
+
         
         # copy labels from configuration (i.e. a system)
         # mapping defines which state-action pairs in the system map to which state-action pairs in the r.f.
@@ -338,6 +352,12 @@ class ReachabilityForm:
             actionlabels = configuration.labels_by_action[(sys_stateidx,sys_actionidx)]
             for l in actionlabels:
                 label_to_actions[l].add((stateidx,actionidx))
+
+            if configuration.reward_vector is not None:
+                # initialize new reward vector
+                sys_idx = configuration.index_by_state_action[(sys_stateidx,sys_actionidx)]
+                reward_vector[idx] = configuration.reward_vector[sys_idx]
+
         label_to_states[fail_label].add(fail_state)
         label_to_states[target_label].add(target_state)
 
@@ -360,7 +380,8 @@ class ReachabilityForm:
                     P=P_compl, 
                     index_by_state_action=index_by_state_action_compl, 
                     label_to_states=label_to_states,
-                    label_to_actions=label_to_actions)
+                    label_to_actions=label_to_actions,
+                    reward_vector=reward_vector)
     
     def __adapt_style(self, state_map, state_action_map, viz_cfg):
         C,N = self.system.C,self.system.N
@@ -451,11 +472,6 @@ class ReachabilityForm:
 
         fark_z_matr = vstack((self.A,-delta))
 
-        nr_mec_states = sum(self.__mec_states)
-        if nr_mec_states > 0:
-            fark_z_matr = vstack((fark_z_matr,self._reach_form_mec_matrix))
-            rhs = vstack((rhs,np.ones(nr_mec_states)))
-
         return fark_z_matr, rhs
 
     def fark_y_constraints(self, threshold):
@@ -497,20 +513,6 @@ p        .. math::
             I[i,state] = 1
 
         return I
-
-    def _reach_form_mec_matrix(self):
-        """Computes a matrix which contains a dirac row vector for each state included in a proper end component."""
-        nr_ec_states = sum(self.__mec_states)
-        C,N = self.__P.shape
-        MEC_mtr = dok_matrix((nr_ec_states,N))
-
-        index = 0
-        for i in range(0,N):
-            if __mec_states(i) == True:
-                MEC_mtr[index,i] = 1
-                index += 1
-
-        return MEC_mtr
 
     def max_z_state(self,solver="cbc"):
         """

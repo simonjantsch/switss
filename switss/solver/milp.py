@@ -225,6 +225,7 @@ class MILP:
         A = cast_dok_matrix(A).tocsr()
         b = cast_dok_matrix(b)
 
+
         opt = cast_dok_matrix(opt)
 
         model = MILP(objective=objective)

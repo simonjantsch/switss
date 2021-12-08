@@ -26,7 +26,7 @@ class AbstractMDP(ABC):
         :type P: Either 2d-list, numpy.matrix, numpy.array or scipy.sparse.spmatrix
         :param index_by_state_action: A bijection of state-action pairs :math:`(s,a) \in \mathcal{M}_{S_{\\text{all}}}` 
             to indices :math:`i=0,\dots,C_{S_{\\text{all}}}-1` and vice versa.
-        :param reward_vector: A vector containing a nonnegative reward per state
+        :param reward_vector: A vector containing a nonnegative reward per state action pair
         :type reward_vector: Dict[int,int]
         :type index_by_state_action: Dict[Tuple[int,int],int]
         :param label_to_actions: Mapping from labels to sets of state-action pairs.
@@ -65,7 +65,7 @@ class AbstractMDP(ABC):
         
         * :math:`0 \leq P_{(i,j)} \leq 1 \quad \\forall (i,j) \in \{1,\dots,C\} \\times \{1,\dots,N\}`
         
-        * :math:`reward_vector[i] \geq 0 \quad \\forall i \in \{1,\dots,N\}`
+        * :math:`reward_vector[i] \geq 0 \quad \\forall i \in \{1,\dots,C\}`
 
         """
         # make sure all rows of P sum to one
@@ -75,9 +75,12 @@ class AbstractMDP(ABC):
         for (i,j), p in self.P.items():
             assert p >= 0 and p <= 1, "P[%d,%d]=%f, violating 0<=%f<=1." % (i,j,p,p)
 
+        print(self.reward_vector)
+        print(self.N)
+
         #make sure rewards are nonnegative
-        if self.reward_vector != None:
-            for i in range(self.N):
+        if self.reward_vector is not None:
+            for i in range(self.C):
                 assert self.reward_vector[i] >= 0, "reward_vector[%d] = %d is negative." % (i,reward_vector[i])
 
     @property
@@ -240,15 +243,17 @@ class AbstractMDP(ABC):
                 assert False, "Prism call to create model failed."
         
     @classmethod
-    def from_stormpy(cls, stormpy_model):
+    def from_stormpy(cls, stormpy_model, choice_model = False):
         """Transforms a stormpy model into a switss model.
 
         :param stormpy_model: the stormpy model
         :type stormpy_model: stormpy.storage.SparseModel
+        :param choice_model: if True, builds the "choice model" corresponding to the stormpy model, whose states correspond to choices of the stormpy model
+        :type choice_model: Boolean
         :return: Instance of the class this function is called from.
         :rtype: [This Class]
         """
-        res = cls.from_stormpy_model(stormpy_model)
+        res = cls.from_stormpy_model(stormpy_model,choice_model)
         return cls(**res)
 
     @abstractmethod

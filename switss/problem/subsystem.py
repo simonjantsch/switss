@@ -4,7 +4,7 @@ from graphviz import Digraph
 from scipy.sparse import dok_matrix
 from collections import defaultdict
 
-from ..model import DTMC, MDP, ReachabilityForm
+from ..model import DTMC, MDP, ReachabilityForm, RewardReachabilityForm
 from ..utils import color_from_hash, InvertibleDict, std_action_map
 
 class Subsystem:
@@ -30,7 +30,7 @@ class Subsystem:
             Setting it to True will cost less time, but may lead to errors later on. Defaults to False
         :type ignore_consistency_checks: bool, optional
         """        
-        assert isinstance(supersystem, ReachabilityForm)
+        assert (isinstance(supersystem, ReachabilityForm) or isinstance(supersystem, RewardReachabilityForm))
         assert certform in ["min","max"]
         D,C,N = certificate.shape[0], supersystem.system.P.shape[0], supersystem.system.P.shape[1]
         # can be read as "certform == max ==> D == C"

@@ -23,6 +23,7 @@ def example_mdps():
     mdps = []
     mdps.append(toy_mdp1())
     mdps.append(toy_mdp2())
+    mdps.append(toy_mdp3())
     mdps.append(MDP.from_prism_model("./examples/datasets/csma2_2.nm",
                                      extra_labels={("target","s1=4&s2=4")}))
     mdps.append(
@@ -43,9 +44,11 @@ def toy_mdp1():
          [0.8, 0.2, 0.0],
          [0.0, 0.0, 1.0]]
 
-    labels = {  "target": {2}, "init"  : {0}}
+    labels = {  "target": {2}, "rewtarget" : {2}, "init"  : {0}}
 
-    return(MDP(P, index_by_state_action, actionlabels, labels))
+    rewards = [0,0,0,0,0]
+
+    return(MDP(P, index_by_state_action, actionlabels, labels, reward_vector= rewards))
 
 def toy_mdp2():
 
@@ -63,13 +66,35 @@ def toy_mdp2():
 
     label_to_states = {    "target" : {6},
                            "fail" : {7},
+                           "rewtarget" : {6,7},
                            "init" : {0},
                            "blue" : {1,2,3},
                            "lightblue"  : {4},
                            "brown" : {5}
                       }
 
-    return MDP(P,index_by_state_action,dict([]),label_to_states)
+    rewards = [7,0.22,1.6,0,0,1,23,11,9]
+
+    return MDP(P,index_by_state_action,dict([]),label_to_states,reward_vector=rewards)
+
+#with a proper end component
+def toy_mdp3():
+    index_by_state_action = {
+        (0, 0): 0, (0, 1): 1, (1, 0): 2, (1, 1): 3, (2, 0): 4}
+    actionlabels = {
+        "A" : { (0,0), (2,0), (1,0) }, "B" : { (1,1), (0,1) } }
+
+    P = [[0.3, 0.0, 0.7],
+         [0.0, 1.0, 0.0],
+         [0.5, 0.3, 0.2],
+         [0.0, 1.0, 0.0],
+         [0.0, 0.0, 1.0]]
+
+    labels = {  "target": {2}, "rewtarget" : {2}, "init"  : {0}}
+
+    rewards = [2,1,0.6,0,0]
+
+    return(MDP(P, index_by_state_action, actionlabels, labels, reward_vector=rewards))
 
 def toy_dtmc1():
     P = [[0.3, 0.7, 0.0, 0.0, 0.0, 0.0, 0.0],
