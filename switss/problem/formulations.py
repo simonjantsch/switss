@@ -186,6 +186,7 @@ def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_
     fark_matr, fark_rhs = rf.fark_constraints(threshold, mode)
     
     # TODO: add an option to use indicator constraints for non-relaxed setting with MAX and proper ECs
+    # TODO: Upper bound for DTMCs should simply by the expected visiting times (pointwise)
 
     nr_of_mecs = rf.nr_of_mecs
 
