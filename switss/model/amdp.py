@@ -75,8 +75,6 @@ class AbstractMDP(ABC):
         for (i,j), p in self.P.items():
             assert p >= 0 and p <= 1, "P[%d,%d]=%f, violating 0<=%f<=1." % (i,j,p,p)
 
-        print(self.reward_vector)
-        print(self.N)
 
         #make sure rewards are nonnegative
         if self.reward_vector is not None:
