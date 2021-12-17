@@ -7,9 +7,8 @@ from bidict import bidict
 import os.path
 import tempfile
 
-from switss.utils import Graph
 from ..prism import parse_label_file, prism_to_tra
-from ..utils import InvertibleDict, cast_dok_matrix
+from ..utils import InvertibleDict, cast_dok_matrix, Graph
 
 
 class AbstractMDP(ABC):

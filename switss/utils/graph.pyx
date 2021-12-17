@@ -6,30 +6,10 @@ import numpy as np
 from scipy.sparse import dok_matrix
 from bidict import bidict
 
+from .treaps cimport TNode, in_treap, free_treap, treap_to_arr, treap_from_arr, add_to_treap
+from .stack cimport IntStack, TreapStack, push, pop, freestack, ts_push, ts_pop, free_tstack
+
 ctypedef (int,int,float) SAPPair
-
-cdef struct Stack:
-    int element
-    Stack* btm
-
-cdef Stack* push(Stack* stack, int element):
-    cdef Stack *snew = <Stack *> malloc(sizeof(Stack))
-    snew[0].element = element
-    snew[0].btm = stack
-    return snew
-
-cdef (Stack*, int) pop(Stack* stack):
-    cdef Stack tmp = stack[0]
-    free(stack)
-    return tmp.btm, tmp.element
-
-cdef void freestack(Stack* stack):
-    cdef Stack *current = stack
-    cdef Stack *tmp = NULL
-    while current != NULL:
-        tmp = current[0].btm
-        free(current)
-        current = tmp
 
 cdef struct Node:
     SAPPair *predecessors
@@ -61,36 +41,6 @@ cdef class Graph:
 
     def get_nodecount(self):
         return self.nodecount
-
-    def subgraph(self, vmask):
-        print("in subgraph")
-        # compute the size of the subgraph (=#vertices)
-        subgraphsize = 0
-        sub_to_sup = bidict()
-        for i in range(self.nodecount):
-            if vmask[i] == 1: 
-                sub_to_sup[subgraphsize] = i
-                subgraphsize += 1
-
-        cdef Node *nodes = <Node *> malloc(subgraphsize*sizeof(Node)) 
-        for i in range(subgraphsize):
-            nodes[i] = Node(NULL,NULL,0,0)
-        sgraph = Graph()
-        sgraph.nodes = nodes
-        sgraph.nodecount = subgraphsize
-
-        cdef SAPPair* successors
-        for i in range(subgraphsize):
-            orig = sub_to_sup[i]
-            removed_actions = set() # ignore all actions which have successors that are not masked
-            for d,a,p in self.successors(orig):
-                if vmask[d] == 0:
-                    removed_actions.add(a)
-            for d,a,p in self.successors(orig):
-                if a not in removed_actions:
-                    sgraph.add_successor(i,a,p,sub_to_sup.inv[d])
-
-        return sgraph, sub_to_sup
 
     cdef void add_successor(self, int fromidx, int action, float prob, int toidx):
         cdef Node* fromnode = &self.nodes[fromidx]
@@ -135,9 +85,9 @@ cdef class Graph:
             ret += "\n"
         return ret
 
-    cdef (int,int,Stack*) strongconnect(self, int v, Stack* stack, TarjanNode* tnodes, 
-                                        int i, int* scs, int scc_counter, int[:] nmask):
-        
+    cdef (int,int,IntStack*) strongconnect(self, int v, IntStack* stack, TarjanNode* tnodes,
+                                           int i, int* sccs, int scc_counter, TNode* treap):
+
         tnodes[v] = TarjanNode(i, i, 1)
         i += 1
         stack = push(stack, v)
@@ -146,116 +96,146 @@ cdef class Graph:
         for succidx in range(node[0].succcount):
             w = node[0].successors[succidx][0] # -> index of successor state
 
-            print("succ node is " + str(w))
-            print("nmask[w] is " + str(nmask[w]))
-
-            if nmask[w] == 0:
+            if not in_treap(treap,w):
                 continue
 
-            print("got here")
-
             if tnodes[w].index == -1:
-                i,scc_counter,stack = self.strongconnect(w,stack,tnodes,i,scs,scc_counter,nmask)
+                i,scc_counter,stack = self.strongconnect(w,stack,tnodes,i,sccs,scc_counter,treap)
                 tnodes[v].lowlink = min(tnodes[v].lowlink,tnodes[w].lowlink)
             elif tnodes[w].onstack:
                 tnodes[v].lowlink = min(tnodes[v].lowlink,tnodes[w].index)
 
-        print("got here2")
-        print("scc_counter")
+
         if tnodes[v].lowlink == tnodes[v].index:
             w = -1
             while w != v:
                 stack, w = pop(stack)
                 tnodes[w].onstack = 0
-                scs[w] = scc_counter
+                sccs[w] = scc_counter
             scc_counter += 1
 
         return i,scc_counter,stack
 
 
-    def strongly_connected_components(self,nmask = None):
-        if nmask is None:
-            nmask = np.ones(self.nodecount,dtype=np.intc)
-            subg_nodes = range(self.nodecount)
-            subg_nodecount = self.nodecount
-        else:
-            subg_nodes = np.ma.array(range(self.nodecount),mask=np.logical_not(nmask)).compressed()
-            subg_nodecount = len(subg_nodes)
+    cdef (int) strongly_connected_components(self, TNode* treap, int* sccs):
 
-        print("subg_nodes:" + str(subg_nodes))
-        print(nmask)
+        cdef int subg_nodescount = treap.size
+        cdef int* subg_arr = <int *> malloc(subg_nodescount * sizeof(int))
+        treap_to_arr(treap,subg_arr)
+        cdef int j = 0
 
         # Implementation of Tarjan's Algorithm (possibly on a subgraph defined by the mask 'nmask')
         # initialize vector containing strongly connected endcomponents
-        cdef int* scs = <int *> malloc(self.nodecount * sizeof(int))
+        j = 0
+        while j < self.nodecount:
+            sccs[j] = 0
+            j += 1
+
         cdef int scc_counter = 1
         cdef int i = 0
 
         # initialize a vector containing meta-data for each node (including nodes not in subgraph, for simplicity)
         cdef TarjanNode* tnodes = <TarjanNode *> malloc(self.nodecount * sizeof(TarjanNode))
-        for i in range(subg_nodecount):
-            tnodes[subg_nodes[i]].index = -1
 
-        cdef Stack *stack = NULL
-        for v in range(subg_nodecount):
-            print("gothere3, v is" + str(v) + ", subg_nodes[v] is" + str(subg_nodes[v]))
+        j = 0
+        while j < subg_nodescount:
+            tnodes[subg_arr[j]].index = -1
+            j += 1
 
-            if tnodes[subg_nodes[v]].index == -1:
-                i,scc_counter,stack = self.strongconnect(subg_nodes[v], stack, tnodes, i, scs, scc_counter, nmask)
+        cdef IntStack *stack = NULL
 
-        # copy into numpy array
-        # scs_arr ranges over nodes in entire graph, rather than subgraph
-        # it assigns value zero to nodes not in subgraph, and positive value to all other nodes
-        scs_arr = np.zeros(self.nodecount)
-        for i in subg_nodes:
-            scs_arr[i] = scs[i]
+        j = 0
+        while j < subg_nodescount:
+            if tnodes[subg_arr[j]].index == -1:
+                i,scc_counter,stack = self.strongconnect(subg_arr[j], stack, tnodes, i, sccs, scc_counter, treap)
+            j += 1
+
         
         # clear everything up
         free(tnodes)
-        free(scs)
+        free(subg_arr)
         freestack(stack)
-        
-        return scs_arr, scc_counter-1
+
+        return scc_counter-1
 
     def maximal_end_components(self):
         ret = np.zeros(self.nodecount)
-        mec_counter = 1
-        # stack contains subgraphs which are represented by node-masks (initialised by the entire graph)
-        stack = [ (np.ones(self.nodecount,dtype=np.intc)) ]
-        while len(stack) > 0:
-            print(len(stack))
-            nmask = stack.pop()
-            print(nmask)
-            components,compcount = self.strongly_connected_components(nmask = nmask)
-            print("computed sccs")
-            print("compcount : " + str(compcount))
-            nodes_subgraph = np.ma.array(range(self.get_nodecount()),mask=np.logical_not(nmask)).compressed()
+        cdef int compcount = 0
+        cdef int mec_counter = 1
+
+        cdef Node *node = NULL
+        cdef int* sccs = <int *> malloc(self.nodecount * sizeof(int))
+
+        # initialize first subgraph by adding all nodes
+        cdef TNode* subg_treap = NULL
+        cdef int subg_nodecount = 0
+        cdef int* subg_arr = NULL
+        cdef int i = 0
+        cdef int j = 0
+        while i < self.nodecount:
+            subg_treap = add_to_treap(subg_treap,i)
+            i += 1
+
+        # stack contains subgraphs which are represented by a set of nodes using treaps
+        cdef TreapStack* treap_stack = NULL
+        treap_stack = ts_push(treap_stack, subg_treap)
+
+        cdef TNode** new_subg_treaps = NULL
+
+        while treap_stack != NULL:
+            treap_stack, subg_treap = ts_pop(treap_stack)
+            j = 0
+            subg_nodecount = subg_treap.size
+            subg_arr = <int*> malloc(subg_nodecount * sizeof(int))
+            treap_to_arr(subg_treap,subg_arr)
             
+            compcount = self.strongly_connected_components(subg_treap,sccs)
+
             if compcount == 1:
                 # make sure that every node has at least one outgoing edge (one action that can be enabled for states in the MDP)
-                ignore_this_graph = False
-                for i in nodes_subgraph:
+                if subg_nodecount == 1:
                     ignore_this_graph = True
-                    for j,_,_ in self.successors(i):
-                        if nmask[j] == 1:
+                    node = &self.nodes[subg_arr[0]]
+                    for succidx in range(node[0].succcount):
+                        w = node[0].successors[succidx][0] # -> index of successor state
+                        if in_treap(subg_treap,w):
                             ignore_this_graph = False
-                    if ignore_this_graph:
-                        break
-                if ignore_this_graph: continue
+                            break
 
-                for i in nodes_subgraph:
-                    ret[i] = mec_counter
+                    if ignore_this_graph: 
+                        free_treap(subg_treap)
+                        continue
+
+                j = 0
+                while j < subg_nodecount:
+                    ret[subg_arr[j]] = mec_counter
+                    j += 1
                 mec_counter += 1
+                free_treap(subg_treap)
             else:
-                print("computing subgraphs")
-                masks = np.zeros((compcount,self.get_nodecount()),dtype=np.intc)
-                print(nodes_subgraph)
-                print(components)
-                print(masks)
-                for i in nodes_subgraph:
-                    masks[int(components[i])-1][i] = 1
-                print("adding to stack")
-                stack += [ masks[i] for i in range(compcount) ]
+                new_subg_treaps = <TNode**> malloc(compcount * sizeof(TNode*))
+                j = 0
+                while j < compcount:
+                    new_subg_treaps[j] = NULL
+                    j += 1
+
+                j = 0
+                while j < subg_nodecount:
+                    i = sccs[subg_arr[j]]-1
+                    new_subg_treaps[i] = add_to_treap(new_subg_treaps[i],subg_arr[j])
+                    j += 1
+
+                j = 0
+                while j < compcount:
+                    treap_stack = ts_push(treap_stack,new_subg_treaps[j])
+                    j += 1
+
+                free_treap(subg_treap)
+
+        free(subg_arr)
+        free_tstack(treap_stack)
+        free(sccs)
+
         return ret, mec_counter-1
 
 
@@ -265,12 +245,18 @@ cdef class Graph:
 
         cdef int* reachablemask = <int *> malloc(self.nodecount * sizeof(int))
         cdef int* instack = <int *> malloc(self.nodecount * sizeof(int))
-        cdef Stack *stack = NULL
+        cdef IntStack *stack = NULL
         cdef int currentidx
         cdef Node *currentnode
         cdef int neighbourcount
         cdef SAPPair* neighbours
         cdef int* blockmask = <int *> malloc(self.nodecount * sizeof(int))
+        cdef int j = 0
+
+        cdef int direction_int = 0
+        if direction == "forward":
+            direction_int = 1
+
 
         # setup reachable mask, blockmask and stack
         for i in range(self.nodecount):
@@ -292,18 +278,20 @@ cdef class Graph:
             reachablemask[currentidx] = 1
 
             if not blockmask[currentidx]:
-                if direction == "forward":
+                if direction_int == 1: # direction == "forward"
                     neighbourcount = currentnode[0].succcount
                     neighbours = currentnode[0].successors
                 else:
                     neighbourcount = currentnode[0].predcount
                     neighbours = currentnode[0].predecessors
 
-                for idx in range(neighbourcount):
-                    neighidx,_,_ = neighbours[idx]
+                j = 0
+                while j < neighbourcount:
+                    neighidx,_,_ = neighbours[j]
                     if not reachablemask[neighidx] and not instack[neighidx]:
                         instack[neighidx] = 1
                         stack = push(stack, neighidx)
+                    j += 1
 
         ret = np.zeros(self.nodecount, dtype=int)
         for i in range(self.nodecount):
