@@ -52,9 +52,10 @@ class ReachabilityForm:
         self.__A = self._reach_form_id_matrix() - self.__P
         self.__to_target = system.P.getcol(system.N-2).todense()[:system.C-2]
 
-        system_mecs, nr_of_system_mecs = system.maximal_end_components()
+        system_mecs, proper_mecs, nr_of_system_mecs = system.maximal_end_components()
         self.__mec_states = system_mecs[:system.N-2]
         self.__nr_of_mecs = int(nr_of_system_mecs - 2)
+        self.__proper_mecs = proper_mecs
         
         self.__target_visualization_style = None
         self.__fail_visualization_style = None
@@ -144,12 +145,25 @@ class ReachabilityForm:
         return self.__mec_states
 
     @property
+    def proper_mecs(self):
+        """
+        Returns a vector which contains a boolean value for each maximal end component and indicates whether it is proper or not.
+        """
+        return self.__proper_mecs
+
+    @property
     def nr_of_mecs(self):
         """
-        Returns the number of proper end components (excluding goal and fail).
+        Returns the number of end components (excluding goal and fail).
         """
         return self.__nr_of_mecs
 
+    @property
+    def nr_of_proper_mecs(self):
+        """
+        Returns the number of proper end components (excluding goal and fail).
+        """
+        return sum(self.__proper_mecs) - 2
 
     @staticmethod
     def assert_consistency(system, initial_label, target_label="rf_target", fail_label="rf_fail"):

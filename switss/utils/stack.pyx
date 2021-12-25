@@ -1,4 +1,13 @@
 from libc.stdlib cimport malloc, free
+from .treaps cimport free_treap, TNode
+
+cdef struct IntStack:
+    int element
+    IntStack* btm
+
+cdef struct TreapStack:
+    TNode* element
+    TreapStack* btm
 
 cdef IntStack* push(IntStack* stack, int element):
     cdef IntStack *snew = <IntStack *> malloc(sizeof(IntStack))

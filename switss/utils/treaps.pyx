@@ -2,6 +2,8 @@
 
 from libc.stdlib cimport malloc, free, rand
 
+import numpy as np
+
 cdef long new_heap_key():
     return rand()
 
@@ -60,14 +62,14 @@ cdef TNode* insert(TNode* treap, TNode* new_node):
         else:
             treap.right = insert(treap.right, new_node)
 
-        treap.size += 1
+        update_size_from_successors(treap)
         return treap
 
     else:
         new_left, new_right = split_treap(treap, new_node.tree_key)
-        new_node.size = treap.size + 1
         new_node.left = new_left
         new_node.right = new_right
+        update_size_from_successors(new_node)
         return new_node
 
 cdef TNode* add_to_treap(TNode* treap, int new_key):
@@ -107,23 +109,39 @@ cdef int fill_array(TNode* treap, int* arr, int idx):
     idx = fill_array(treap.right, arr, idx)
     return idx
 
-
 def test_treap():
     cdef TNode* treap = NULL
+    cdef int* treap_arr = NULL
 
-    for i in range(20):
-        treap = add_to_treap(treap,i)
-        print("treap size:" + str(treap.size))
+    v1 = range(20)
+    v2 = [1,2,5,6,8,8,9,7,99,7]
+    v3 = range(999)
+    v4 = [3*i for i in range(55)]
 
-    print(in_treap(treap,5))
-    print(in_treap(treap,7))
-    print(in_treap(treap,11))
-    print(in_treap(treap,20))
-    print(in_treap(treap,31))
-    print("========")
-    cdef int* arr = <int*> malloc(treap.size * sizeof(int))
-    treap_to_arr(treap,arr)
-    for i in range(treap.size):
-        print(arr[i])
-    free(arr)
-    free_treap(treap)
+    for v in [v1,v2,v3,v4]:
+        treap = NULL
+        for i in v:
+            print("adding " + str(i))
+            treap = add_to_treap(treap,i)
+            print("treap.size: " + str(treap.size))
+
+        assert(treap.size == len(set(v)))
+
+        for i in v:
+            assert(in_treap(treap,i) == 1)
+
+        treap_arr = <int*> malloc(treap.size * sizeof(int))
+        treap_to_arr(treap,treap_arr)
+        nump_arr = np.zeros(treap.size)
+        for i in range(treap.size):
+            nump_arr[i] = treap_arr[i]
+
+        print(set(v))
+        print(set(nump_arr))
+        assert(set(v) == set(nump_arr))
+
+        free(treap_arr)
+        if treap == NULL:
+            print("treap is null")
+        free_treap(treap)
+

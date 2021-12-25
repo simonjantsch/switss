@@ -1,13 +1,14 @@
 #cython: language_level=3
 
-from libc.stdlib cimport malloc, free
+from libc.stdlib cimport malloc, free, srand
+from libc.time cimport time
 from libcpp cimport bool as cbool
 import numpy as np
 from scipy.sparse import dok_matrix
 from bidict import bidict
 
 from .treaps cimport TNode, in_treap, free_treap, treap_to_arr, treap_from_arr, add_to_treap
-from .stack cimport IntStack, TreapStack, push, pop, freestack, ts_push, ts_pop, free_tstack
+from .stack cimport IntStack, TreapStack, push, freestack, ts_push, free_tstack, ts_pop, pop
 
 ctypedef (int,int,float) SAPPair
 
@@ -88,20 +89,33 @@ cdef class Graph:
     cdef (int,int,IntStack*) strongconnect(self, int v, IntStack* stack, TarjanNode* tnodes,
                                            int i, int* sccs, int scc_counter, TNode* treap):
 
+        cdef int w = 0
+        cdef int a = 0
+        cdef TNode* bad_actions_treap = NULL
+
         tnodes[v] = TarjanNode(i, i, 1)
         i += 1
         stack = push(stack, v)
 
         cdef Node *node = &self.nodes[v]
+        # compute actions of v which have a successor that is not in treap, and hence should be ignored
         for succidx in range(node[0].succcount):
             w = node[0].successors[succidx][0] # -> index of successor state
-
+            a = node[0].successors[succidx][1] # -> index of corresponding action
             if not in_treap(treap,w):
+                bad_actions_treap = add_to_treap(bad_actions_treap,a)
+
+        for succidx in range(node[0].succcount):
+            w = node[0].successors[succidx][0] # -> index of successor state
+            a = node[0].successors[succidx][1] # -> index of corresponding action
+
+            if in_treap(bad_actions_treap,a):
                 continue
 
-            if tnodes[w].index == -1:
+            elif tnodes[w].index == -1:
                 i,scc_counter,stack = self.strongconnect(w,stack,tnodes,i,sccs,scc_counter,treap)
                 tnodes[v].lowlink = min(tnodes[v].lowlink,tnodes[w].lowlink)
+
             elif tnodes[w].onstack:
                 tnodes[v].lowlink = min(tnodes[v].lowlink,tnodes[w].index)
 
@@ -114,6 +128,7 @@ cdef class Graph:
                 sccs[w] = scc_counter
             scc_counter += 1
 
+        free_treap(bad_actions_treap)
         return i,scc_counter,stack
 
 
@@ -138,8 +153,9 @@ cdef class Graph:
         cdef TarjanNode* tnodes = <TarjanNode *> malloc(self.nodecount * sizeof(TarjanNode))
 
         j = 0
-        while j < subg_nodescount:
-            tnodes[subg_arr[j]].index = -1
+        while j < self.nodecount:
+            #tnodes[subg_arr[j]].index = -1
+            tnodes[j].index = -1
             j += 1
 
         cdef IntStack *stack = NULL
@@ -159,9 +175,10 @@ cdef class Graph:
         return scc_counter-1
 
     def maximal_end_components(self):
+        srand(time(NULL))
         ret = np.zeros(self.nodecount)
         cdef int compcount = 0
-        cdef int mec_counter = 1
+        cdef int mec_counter = 0
 
         cdef Node *node = NULL
         cdef int* sccs = <int *> malloc(self.nodecount * sizeof(int))
@@ -188,30 +205,26 @@ cdef class Graph:
             subg_nodecount = subg_treap.size
             subg_arr = <int*> malloc(subg_nodecount * sizeof(int))
             treap_to_arr(subg_treap,subg_arr)
+
+            j = 0
+            while j < subg_nodecount:
+                j += 1
             
             compcount = self.strongly_connected_components(subg_treap,sccs)
 
+            j = 0
+            while j < self.nodecount:
+                j += 1
+
+
             if compcount == 1:
-                # make sure that every node has at least one outgoing edge (one action that can be enabled for states in the MDP)
-                if subg_nodecount == 1:
-                    ignore_this_graph = True
-                    node = &self.nodes[subg_arr[0]]
-                    for succidx in range(node[0].succcount):
-                        w = node[0].successors[succidx][0] # -> index of successor state
-                        if in_treap(subg_treap,w):
-                            ignore_this_graph = False
-                            break
-
-                    if ignore_this_graph: 
-                        free_treap(subg_treap)
-                        continue
-
                 j = 0
                 while j < subg_nodecount:
                     ret[subg_arr[j]] = mec_counter
                     j += 1
                 mec_counter += 1
                 free_treap(subg_treap)
+
             else:
                 new_subg_treaps = <TNode**> malloc(compcount * sizeof(TNode*))
                 j = 0
@@ -230,14 +243,45 @@ cdef class Graph:
                     treap_stack = ts_push(treap_stack,new_subg_treaps[j])
                     j += 1
 
+
                 free_treap(subg_treap)
+                free(new_subg_treaps)
 
         free(subg_arr)
         free_tstack(treap_stack)
         free(sccs)
 
-        return ret, mec_counter-1
+        # compute which mecs are proper
+        print(ret)
+        print(mec_counter-1)
+        proper_mecs = np.zeros(mec_counter)
+        for i in range(mec_counter):
+            i_nodes = []
+            for j in range(self.nodecount):
+                if ret[j] == i:
+                    if len(i_nodes) > 0:
+                        break
+                    else:
+                        i_nodes.append(j)
 
+            print("i: " + str(i))
+            print(i_nodes)
+            print(ret)
+            assert len(i_nodes) >= 1
+            if len(i_nodes) > 1:
+                proper_mecs[i] = True
+                continue
+            w = i_nodes[0]
+            print(w)
+            for s,a,p in self.successors(w): # if a prob-1 self loop exists, singleton mecs are proper
+                print(s)
+                print(a)
+                print(p)
+                if (s == w) and (float(p) >= 1-1e-8):
+                    print("entered")
+                    proper_mecs[i] = True
+
+        return ret, proper_mecs, mec_counter
 
     def reachable(self, fromset, direction, blocklist=set()):
         assert len(fromset) > 0

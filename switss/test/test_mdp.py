@@ -36,8 +36,10 @@ def test_mecs():
     for s,a,d,p in SAPpairs:
         P[index_by_state_action[(s,a)],d] = p
     mdp = MDP(P,index_by_state_action)
-    components,mec_count = mdp.maximal_end_components()
-    assert (components == np.array([3., 3., 3., 2., 0., 2., 0., 1.])).all()
+    components,_,mec_count = mdp.maximal_end_components()
+    assert (components[0] == components[1] == components[2])
+    assert (components[3] == components[5])
+    assert(len(set(components)) == 5)
 
 def test_mec_free():
     for mdp in mdps:
@@ -137,13 +139,15 @@ def test_prmin_prmax():
             m_z_st = reach_form.max_z_state(solver=solver)
             m_z_st_act = reach_form.max_z_state_action(solver=solver)
 
-            nr_of_mecs = mdp.maximal_end_components()
+            #_,proper_mecs,nr_of_mecs = mdp.maximal_end_components()
 
-            if reach_form.nr_of_mecs == 0:
+            if reach_form.nr_of_proper_mecs == 0:
                 m_y_st_act = reach_form.max_y_state_action(solver=solver)
                 m_y_st = reach_form.max_y_state(solver=solver)
+                assert (m_y_st_act >= -1e-8).all()
+                assert (m_y_st >= -1e-8).all()
 
-            for vec in [m_z_st,m_z_st_act,m_y_st,m_y_st_act]:
+            for vec in [m_z_st,m_z_st_act]:
                 assert (vec >= -1e-8).all()
 
             for vec in [m_z_st,m_z_st_act]:
@@ -207,7 +211,7 @@ def test_rewards_heur():
     for mdp in mdps:
         
         reach_form ,_,_ = ReachabilityForm.reduce(mdp,"init","rewtarget")
-        if reach_form.nr_of_mecs > 0:
+        if reach_form.nr_of_proper_mecs > 0:
             return
 
         reward_reach_form,_,_ = RewardReachabilityForm.reduce(mdp,"init","rewtarget")

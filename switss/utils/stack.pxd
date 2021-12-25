@@ -1,4 +1,4 @@
-from .treaps cimport TNode, free_treap
+from .treaps cimport TNode
 
 cdef struct IntStack:
     int element

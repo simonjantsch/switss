@@ -129,3 +129,9 @@ def toy_dtmc2():
 
     return(DTMC(P, label_to_states=labels))
 
+def toy_dtmc3():
+    P = [[0.1,0.9,0],
+         [0,0.2,0.8],
+         [0,1,0]]
+
+    return(DTMC(P))
