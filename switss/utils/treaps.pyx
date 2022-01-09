@@ -1,8 +1,9 @@
 #cython: language_level=3
 
-from libc.stdlib cimport malloc, free, rand
+from libc.stdlib cimport malloc, free, rand, srand
 
 import numpy as np
+import random
 
 cdef long new_heap_key():
     return rand()
@@ -33,6 +34,10 @@ cdef (int) in_treap(TNode* treap, int key):
 cdef (TNode*, TNode*) split_treap(TNode* treap, int key):
     if treap == NULL:
         return NULL, NULL
+
+    elif key == treap.tree_key:
+        return treap.left, treap.right
+
     elif key < treap.tree_key:
         rec_left, rec_right = split_treap(treap.left, key)
         treap.left = rec_right
@@ -109,7 +114,10 @@ cdef int fill_array(TNode* treap, int* arr, int idx):
     idx = fill_array(treap.right, arr, idx)
     return idx
 
-def test_treap():
+
+
+def treap_test_specificseed(seed):
+    srand(seed)
     cdef TNode* treap = NULL
     cdef int* treap_arr = NULL
 
@@ -145,3 +153,12 @@ def test_treap():
             print("treap is null")
         free_treap(treap)
 
+
+def treap_testcases():
+    problematic_seeds = [394]
+    random_seeds = []
+    for i in range(20):
+        random_seeds.append(random.randint(0, 1000))
+
+    for seed in problematic_seeds + random_seeds:
+        treap_test_specificseed(seed)

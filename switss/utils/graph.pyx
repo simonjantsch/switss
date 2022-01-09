@@ -132,6 +132,7 @@ cdef class Graph:
         return i,scc_counter,stack
 
 
+    # Implementation of Tarjan's Algorithm (possibly on a subgraph defined by the state-set 'treap')
     cdef (int) strongly_connected_components(self, TNode* treap, int* sccs):
 
         cdef int subg_nodescount = treap.size
@@ -139,7 +140,6 @@ cdef class Graph:
         treap_to_arr(treap,subg_arr)
         cdef int j = 0
 
-        # Implementation of Tarjan's Algorithm (possibly on a subgraph defined by the mask 'nmask')
         # initialize vector containing strongly connected endcomponents
         j = 0
         while j < self.nodecount:
@@ -154,7 +154,6 @@ cdef class Graph:
 
         j = 0
         while j < self.nodecount:
-            #tnodes[subg_arr[j]].index = -1
             tnodes[j].index = -1
             j += 1
 
@@ -174,6 +173,10 @@ cdef class Graph:
 
         return scc_counter-1
 
+    # computes the maximal end components of a graph. r
+    # returns a triple (mecs,p_mecs,nr_mecs) where mecs is a vector containing for each state the mec-index it belongs to,
+    # p_mecs is a Boolean vector which contains "True" for in position i iff the mec with index i is proper, and nr_mecs is the total
+    # number of mecs
     def maximal_end_components(self):
         srand(time(NULL))
         ret = np.zeros(self.nodecount)
@@ -252,8 +255,6 @@ cdef class Graph:
         free(sccs)
 
         # compute which mecs are proper
-        print(ret)
-        print(mec_counter-1)
         proper_mecs = np.zeros(mec_counter)
         for i in range(mec_counter):
             i_nodes = []
@@ -264,21 +265,13 @@ cdef class Graph:
                     else:
                         i_nodes.append(j)
 
-            print("i: " + str(i))
-            print(i_nodes)
-            print(ret)
-            assert len(i_nodes) >= 1
+            #assert len(i_nodes) >= 1
             if len(i_nodes) > 1:
                 proper_mecs[i] = True
                 continue
             w = i_nodes[0]
-            print(w)
             for s,a,p in self.successors(w): # if a prob-1 self loop exists, singleton mecs are proper
-                print(s)
-                print(a)
-                print(p)
-                if (s == w) and (float(p) >= 1-1e-8):
-                    print("entered")
+                if (s == w) and (float(p) >= 1-1e-20):
                     proper_mecs[i] = True
 
         return ret, proper_mecs, mec_counter

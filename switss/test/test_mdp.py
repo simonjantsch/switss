@@ -2,7 +2,7 @@ from switss.model import MDP, ReachabilityForm, RewardReachabilityForm
 from switss.problem import MILPExact, QSHeur
 from switss.certification import generate_farkas_certificate,check_farkas_certificate
 import switss.problem.qsheurparams as qsparam
-from .example_models import example_mdps, toy_mdp2
+from .example_models import example_mdps, toy_mdp2, toy_mdp1, toy_mdp3
 import tempfile
 
 mdps = example_mdps()
@@ -42,13 +42,13 @@ def test_mecs():
     assert(len(set(components)) == 5)
 
 def test_mec_free():
-    for mdp in mdps:
+    for mdp in mdps[:-1]:
         rf ,_,_ = ReachabilityForm.reduce(mdp,"init","target")
         rf._check_mec_freeness()
 
 def test_minimal_witnesses():
     # only test the first 3 examples, as the others are too large
-    for mdp in mdps[:2]:
+    for mdp in [toy_mdp1(),toy_mdp2(),toy_mdp3()]:
         reach_form ,_,_ = ReachabilityForm.reduce(mdp,"init","target")
         instances = [ MILPExact(solver) for solver in milp_solvers ]
         for threshold in [0.1, 0.2, 0.3, 0.4, 0.5, 0.66, 0.7, 0.88, 0.9, 0.999, 1,0.9999999999]:
@@ -209,10 +209,13 @@ def test_rewards_heur():
                     qsparam.InverseFrequencyInitializer]
 
     for mdp in mdps:
-        
+        if mdp.reward_vector is None:
+            continue
+
         reach_form ,_,_ = ReachabilityForm.reduce(mdp,"init","rewtarget")
-        if reach_form.nr_of_proper_mecs > 0:
-            return
+
+        if not reach_form.is_ec_free:
+            continue
 
         reward_reach_form,_,_ = RewardReachabilityForm.reduce(mdp,"init","rewtarget")
 
