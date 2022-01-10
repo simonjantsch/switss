@@ -179,9 +179,11 @@ cdef class Graph:
     # number of mecs
     def maximal_end_components(self):
         srand(time(NULL))
-        ret = np.zeros(self.nodecount,int)
+        ret = np.zeros(self.nodecount,dtype=np.dtype("i"))
+        cdef int[:] ret_view  = ret
         cdef int compcount = 0
         cdef int mec_counter = 0
+        cdef TNode* singleton_mecs_treap = NULL
 
         cdef Node *node = NULL
         cdef int* sccs = <int *> malloc(self.nodecount * sizeof(int))
@@ -223,8 +225,10 @@ cdef class Graph:
             if compcount == 1:
                 j = 0
                 while j < subg_nodecount:
-                    ret[subg_arr[j]] = int(mec_counter)
+                    ret_view[subg_arr[j]] = mec_counter
                     j += 1
+                if subg_nodecount == 1:
+                    singleton_mecs_treap = add_to_treap(singleton_mecs_treap,mec_counter)
                 mec_counter += 1
                 free_treap(subg_treap)
 
@@ -255,24 +259,38 @@ cdef class Graph:
         free(sccs)
 
         # compute which mecs are proper
-        proper_mecs = np.zeros(mec_counter)
-        for i in range(mec_counter):
-            i_nodes = []
-            for j in range(self.nodecount):
-                if ret[j] == int(i):
-                    if len(i_nodes) > 0:
-                        break
-                    else:
-                        i_nodes.append(j)
+        proper_mecs = np.zeros(mec_counter,dtype=np.dtype("i"))
+        cdef int[:] proper_mecs_view = proper_mecs
 
-            #assert len(i_nodes) >= 1
-            if len(i_nodes) > 1:
-                proper_mecs[i] = True
+        cdef TNode* all_actions_treap = NULL
+        cdef TNode* non_selfloop_actions_treap = NULL
+        cdef int v,a = 0
+        i = 0
+        while i < self.nodecount:
+            all_actions_treap = NULL
+            non_selfloop_actions_treap = NULL
+            if not in_treap(singleton_mecs_treap,ret_view[i]):
+                proper_mecs_view[ret_view[i]] = 1
+                i += 1
                 continue
-            w = i_nodes[0]
-            for s,a,p in self.successors(w): # if a prob-1 self loop exists, singleton mecs are proper
-                if (s == w) and (float(p) >= 1-1e-20):
-                    proper_mecs[i] = True
+            node = &self.nodes[i]
+            # check whether i has a prob-one-selfloop
+            for succidx in range(node[0].succcount):
+                v = node[0].successors[succidx][0] # -> index of successor state
+                a = node[0].successors[succidx][1] # -> index of corresponding action
+                all_actions_treap = add_to_treap(all_actions_treap,a)
+                if v != i:
+                    non_selfloop_actions_treap = add_to_treap(non_selfloop_actions_treap,a)
+
+            if non_selfloop_actions_treap != NULL:
+                if non_selfloop_actions_treap.size != all_actions_treap.size:
+                    proper_mecs_view[ret_view[i]] = 1
+
+            free_treap(non_selfloop_actions_treap)
+            free_treap(all_actions_treap)
+            i += 1
+
+        free_treap(singleton_mecs_treap)
 
         return ret, proper_mecs, mec_counter
 
