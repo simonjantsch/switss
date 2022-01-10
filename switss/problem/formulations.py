@@ -25,14 +25,16 @@ def certificate_size(rf, mode):
     else:
         return C-2
 
-def compute_upper_bound(matr, rhs, solver="cbc"):
+def compute_upper_bounds(matr, rhs, solver="cbc"):
     """
-    computes upper bound :math:`K` for LPs/MILPs. Solves the LP
+    computes point wise upper bounds for LPs/MILPs. Solves the LP
 
     .. math::
 
         K := \max \sum_{v \in V} \mathbf{x}(v) \; \\text{s.t.} \; 
         \mathbf{A} \mathbf{x} \leq \mathbf{b},\; \mathbf{x} \geq 0
+
+    Returns either [K,K,...,K], for MDPs, and the solution vector of the above LP for DTMCs.
 
     :param matr: left hand side matrix :math:`\mathbf{A}` for constraining polytope
     :type matr: scipy.sparse.dok_matrix
@@ -40,10 +42,10 @@ def compute_upper_bound(matr, rhs, solver="cbc"):
     :type rhs: np.array
     :param solver: the used solver, defaults to "cbc"
     :type solver: str, optional
-    :return: the optimal value :math:`K` and status of LP
-    :rtype: Tuple[str, float]
+    :return: [K,K,...,K] for MDPs and the solution vector of the LP for DTMCs, and the status of the LP
+    :rtype: Tuple[str, [float]]
     """
-    _, certsize = matr.shape
+    rows, certsize = matr.shape
     upper_obj = np.ones(certsize)
     upper_bound_LP = LP.from_coefficients(matr, rhs, upper_obj, objective="max")
 
@@ -52,7 +54,13 @@ def compute_upper_bound(matr, rhs, solver="cbc"):
 
     lp_result = upper_bound_LP.solve(solver=solver)
     assert lp_result.status != "unbounded"
-    return lp_result.status, lp_result.value
+
+    if (certsize == rows):
+        result = lp_result.result_vector
+    else:
+        result = np.full(shape=certsize, fill_value=lp_result.value)
+
+    return lp_result.status, result
 
 
 def groups_from_labels(rf, mode, labels=None):
@@ -88,13 +96,13 @@ def groups_from_labels(rf, mode, labels=None):
                     groups.add(label, sap)
         return groups
 
-def add_indicator_constraints(model, variables, upper_bound, mode, groups, use_real_indicator_constrs=False, indicator_domain="real"):
+def add_indicator_constraints(model, variables, upper_bounds, mode, groups, use_real_indicator_constrs=False, indicator_domain="real"):
     """
     adds new variables and constraints of the form 
 
     .. math:: 
 
-        \mathbf{x}(v) \leq K \sigma(l), \quad \\text{for all}\; v \in V, l \in\Lambda(v) 
+        \mathbf{x}(v) \leq UB(v) \sigma(l), \quad \\text{for all}\; v \in V, l \in\Lambda(v) 
 
     to a given MILP/LP. Introduces a new variable :math:`\sigma(l)` for every label :math:`l` and, dependent on the given indicator domain, the additional constraint :math:`\sigma(l) \in \{0,1\}` or :math:`0 \leq \sigma(l) \leq 1`. 
 
@@ -102,8 +110,8 @@ def add_indicator_constraints(model, variables, upper_bound, mode, groups, use_r
     :type model: solver.MILP or solver.LP
     :param variables: set of variables :math:`V`.
     :type variables: Iterable[int]
-    :param upper_bound: value for :math:`K`
-    :type upper_bound: float
+    :param upper_bounds: point wise upper bound UB(i) for all variables i
+    :type upper_bounds: [float]
     :param mode: either 'min' or 'max'
     :type mode: str
     :param groups: mapping :math:`\Lambda` grouping subsets of variables :math:`V` together
@@ -126,8 +134,8 @@ def add_indicator_constraints(model, variables, upper_bound, mode, groups, use_r
             if use_real_indicator_constrs:
                 model.add_indicator_constraint(indicator_var,var)
 
-            elif upper_bound is not None:
-                model.add_constraint([(var, 1), (indicator_var, -upper_bound)], "<=", 0)
+            elif upper_bounds is not None:
+                model.add_constraint([(var, 1), (indicator_var, -upper_bounds[var])], "<=", 0)
             else:
                 model.add_constraint([(var, 1), (indicator_var, -1)], "<=", 0)
 
@@ -136,13 +144,13 @@ def add_indicator_constraints(model, variables, upper_bound, mode, groups, use_r
     if indicator_domain != "binary":
         for indicator_var in indicator_to_group.keys():
             model.add_constraint([(indicator_var, 1)], ">=", 0)
-            if upper_bound is not None:
+            if upper_bounds is not None:
                 model.add_constraint([(indicator_var, 1)], "<=", 1)
 
     return indicator_to_group
 
 
-def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_solver="cbc", modeltype_str="pulp"):
+def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, known_upper_bounds = None, upper_bound_solver="cbc", modeltype_str="pulp"):
     """
     constructs a MILP in the following form:
 
@@ -164,6 +172,8 @@ def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_
     :param relaxed: if set to True, then the last condition is relaxed to :math:`0 \leq \sigma \leq 1`, 
         defaults to False
     :type relaxed: bool, optional
+    :param known_upper_bounds: vector of point wise upper bounds
+    :type knwon_upper_bounds: [int] , optional
     :param upper_bound_solver: if the max-form is considered, :math:`K` needs to be computed by a solver, 
         defaults to "cbc"
     :type upper_bound_solver: str, optional
@@ -177,24 +187,23 @@ def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_
 
     # construct constraining polytope matrices according to chosen mode
     fark_matr, fark_rhs = rf.fark_constraints(threshold, mode)
-    
-    # TODO: Upper bound for DTMCs should simply by the expected visiting times (pointwise)
+    certsize = certificate_size(rf, mode)
 
-    upper_bound = None
+    upper_bounds = known_upper_bounds
     use_real_indicator_constrs = False
 
-    if mode == "min" and isinstance(rf,ReachabilityForm):
-        upper_bound = 1
+    if mode == "min" and isinstance(rf,ReachabilityForm) and upper_bounds is None:
+        upper_bounds = np.ones(certsize)
 
     elif rf.is_ec_free:
-        status, upper_bound = compute_upper_bound(fark_matr, fark_rhs, solver=upper_bound_solver)
+        status, upper_bounds = compute_upper_bounds(fark_matr, fark_rhs, solver=upper_bound_solver)
         if status != "optimal":
             return None, None
 
     elif not relaxed:
         assert modeltype_str == "gurobi", "warning: exact minimization of max-properties only possible via gurobi interface at the moment."
+
         use_real_indicator_constrs = True
-        return None,None
 
     # obtain variable groups from labels
     groups = groups_from_labels(rf, mode, labels=labels)
@@ -206,8 +215,8 @@ def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_
     # add lower/upper bounds
     for varidx in range(certsize):
         model.add_constraint([(varidx, 1)], ">=", 0)
-        if upper_bound is not None:
-            model.add_constraint([(varidx, 1)], "<=", upper_bound)
+        if upper_bounds is not None:
+            model.add_constraint([(varidx, 1)], "<=", upper_bounds[varidx])
         if mode == "min" and not rf.is_ec_free:
             if rf.in_proper_ec(varidx):
                 model.add_constraint([(varidx,1)], "=" , 0)
@@ -216,7 +225,7 @@ def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_
     # add indicator variables, which are either binary or real, dependent on what relaxed was set to
     indicator_domain = "real" if relaxed else "binary"
     indicators = add_indicator_constraints(model, np.arange(certsize),
-                                           upper_bound, mode, groups,
+                                           upper_bounds, mode, groups,
                                            use_real_indicator_constrs,
                                            indicator_domain=indicator_domain)
 

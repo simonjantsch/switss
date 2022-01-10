@@ -61,7 +61,7 @@ class MILPExact(ProblemFormulation):
                                   relaxed=False, 
                                   upper_bound_solver=self.solver,
                                   modeltype_str="gurobi" if self.solver=="gurobi" else "pulp")
-        
+
         if model is None:
             yield ProblemResult("infeasible", None, None, None)
         else:
