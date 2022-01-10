@@ -6,7 +6,7 @@ class Initializer(ABC):
     computes the initial objective function :math:`\mathbf{o}_0` of a QSHeur-problem.
     """
 
-    def __init__(self, reachability_form, mode, indicator_to_group, **kwargs):
+    def __init__(self, reachability_form, mode, indicator_to_group, weights = None, **kwargs):
         """
         :param reachability_form: The reachability-form that should be minimized.
             Computation of objective function may or may not be dependent on the reachability-form.
@@ -18,6 +18,8 @@ class Initializer(ABC):
             If label-based minimization was choosen, every group corresponds to one of the specified labels
             and yields all states that belong to this label.
         :type indicator_to_group: utils.InvertibleDict
+        :param weights: a mapping from groups to weights. If None, then each group is assigned weight one.
+        :type mode: Dict[int,float]
         """
         assert mode in ["max", "min"]
         self.reachability_form = reachability_form
@@ -25,6 +27,10 @@ class Initializer(ABC):
         self.indicator_to_group = indicator_to_group
         self.groups = self.indicator_to_group.keys()
         self.variables = self.indicator_to_group.inv.keys()
+        if weights is None:
+            self.weights = {gr : 1 for gr in self.groups }
+        else:
+            self.weights = weights
 
     @abstractmethod
     def initialize(self):
@@ -46,7 +52,7 @@ class Updater(ABC):
     or may not be dependent on the last result vector :math:`QS(i)`.
     """    
 
-    def __init__(self, reachability_form, mode, indicator_to_group, **kwargs):
+    def __init__(self, reachability_form, mode, indicator_to_group, weights=None, **kwargs):
         """
         :param reachability_form: The reachability-form that should be minimized.
             Computation of objective function may or may not be dependent on the reachability-form.
@@ -58,6 +64,8 @@ class Updater(ABC):
             If label-based minimization was choosen, every group corresponds to one of the specified labels
             and yields all states that belong to this label.
         :type indicator_to_group: utils.InvertibleDict
+        :param weights: a vector of weights associated to the groups. If None, then implicitly every group has weight one.
+        :type mode: [float]
         """
         assert mode in ["max", "min"]
         self.reachability_form = reachability_form
@@ -65,6 +73,10 @@ class Updater(ABC):
         self.indicator_to_group = indicator_to_group
         self.groups = self.indicator_to_group.keys()
         self.variables = self.indicator_to_group.inv.keys()
+        if weights is None:
+            self.weights = {gr : 1 for gr in self.groups }
+        else:
+            self.weights = weights
 
     @abstractmethod
     def update(self, last_result):
@@ -103,18 +115,18 @@ class Updater(ABC):
         return type(self).__name__
 
 class AllOnesInitializer(Initializer):
-    """Gives each group the same weight, i.e.
+    """Initializes each group by its weight, i.e.
     
     .. math::
     
-        \mathbf{o}_0(v) = 1, \quad \\forall v \in V 
+        \mathbf{o}_0(v) = wgt(v), \quad \\forall v \in V 
     
     """
-    def __init__(self, indicator_to_group, **kwargs):
-        super(AllOnesInitializer, self).__init__(None, "min", indicator_to_group)
+    def __init__(self, indicator_to_group, weights=None, **kwargs):
+        super(AllOnesInitializer, self).__init__(None, "min", indicator_to_group, weights=weights)
 
     def initialize(self):
-        return [(group,1) for group in self.groups]
+        return [(group,self.weights[group]) for group in self.groups]
 
 class InverseResultUpdater(Updater):
     """Gives most weight to groups that were removed in the last iteration (i.e. :math:`QS_{\sigma}(i)(v) = 0`)
@@ -133,7 +145,7 @@ class InverseResultUpdater(Updater):
 
     def update(self, last_result):
         C = np.min([np.max([0,1e8] + [1/last_result[group] for group in self.groups if last_result[group] != 0]),1e9])
-        objective = [(group, np.min([1/last_result[group],C]) if last_result[group] > 0 else C) for group in self.groups]
+        objective = [(group, self.weights[group] * np.min([1/last_result[group],C]) if last_result[group] > 0 else C) for group in self.groups]
         return objective
 
     def constraints(self, last_result):
@@ -142,7 +154,7 @@ class InverseResultUpdater(Updater):
 class InverseResultFixedZerosUpdater(Updater):
 
     def update(self, last_result):
-        return [((group, 1/last_result[group]) if last_result[group] > 0 else (group,0.)) for group in self.groups]
+        return [((group, self.weights[group]/last_result[group]) if last_result[group] > 0 else (group,0.)) for group in self.groups]
 
     def constraints(self, last_result):
         # if fix_zero_states is enabled, every group that has a 0-entry in the 
@@ -209,7 +221,7 @@ class InverseReachabilityInitializer(Initializer):
             variables = self.indicator_to_group[group]
             variablecount = len(variables)
             weighted_probability = sum([self.Pr[var] for var in variables])/variablecount
-            ret.append((group, np.min([1e9,1/weighted_probability])))
+            ret.append((group, self.weights[group] * np.min([1e9,1/weighted_probability])))
 
         return ret
 
@@ -237,7 +249,7 @@ class InverseFrequencyInitializer(Initializer):
         for group in self.groups:
             variables = self.indicator_to_group[group]
             expected_val_sum = sum([self.E[var] for var in variables])
-            ret.append((group, np.min([1e9,1/expected_val_sum]) if expected_val_sum > 0 else 1e8))
+            ret.append((group, self.weights[group] * np.min([1e9,1/expected_val_sum]) if expected_val_sum > 0 else 1e8))
 
         return ret
 
@@ -266,6 +278,6 @@ class InverseCombinedInitializer(Initializer):
         for group in self.groups:
             variables = self.indicator_to_group[group]
             expected_val_sum = sum([self.V[var] for var in variables])
-            ret.append((group, np.min([1e9,1/expected_val_sum]) if expected_val_sum > 0 else 1e8))
+            ret.append((group, self.weights[group] * np.min([1e9,1/expected_val_sum]) if expected_val_sum > 0 else 1e8))
 
         return ret

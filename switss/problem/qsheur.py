@@ -94,9 +94,11 @@ class QSHeur(ProblemFormulation):
         initializer = self.initializertype(reachability_form=reach_form, mode=mode, indicator_to_group=indicators)
         updater = self.updatertype(reachability_form=reach_form, mode=mode, indicator_to_group=indicators)
         current_objective = initializer.initialize()
+
         for i in range(self.iterations):
             model.set_objective_function(current_objective)
             result = model.solve(self.solver, timeout=timeout)
+
             if result.status == "optimal":
                 certificate = result.result_vector[:certsize]
                 witness = Subsystem(reach_form, certificate, mode)
