@@ -37,8 +37,9 @@ def test_mecs():
         ucount = len([w for w,z in E if w == u])
         P[u,v] = 1/ucount
     dtmc = DTMC(P)
-    components,mec_count = dtmc.maximal_end_components()
-    assert (components == np.array([1., 1., 1., 0., 0., 0., 0., 0.])).all()
+    components,proper_mec,mec_count = dtmc.maximal_end_components()
+    assert(components[0] == components[1] == components[2])
+    assert(len(set([components[0],components[3],components[4],components[5],components[6],components[7]])) == 6)
 
 def test_minimal_witnesses():
     for dtmc in dtmcs:
