@@ -176,7 +176,6 @@ class ReachabilityForm:
         """
         Returns yes if "state" is included in a proper end component.
         """
-        print(self.__state_to_mec[state])
         return self.proper_mecs[self.__state_to_mec[state]]
 
     @staticmethod

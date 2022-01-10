@@ -282,9 +282,10 @@ cdef class Graph:
                 if v != i:
                     non_selfloop_actions_treap = add_to_treap(non_selfloop_actions_treap,a)
 
-            if non_selfloop_actions_treap != NULL:
-                if non_selfloop_actions_treap.size != all_actions_treap.size:
-                    proper_mecs_view[ret_view[i]] = 1
+            if non_selfloop_actions_treap == NULL:
+                proper_mecs_view[ret_view[i]] = 1
+            elif non_selfloop_actions_treap.size != all_actions_treap.size:
+                proper_mecs_view[ret_view[i]] = 1
 
             free_treap(non_selfloop_actions_treap)
             free_treap(all_actions_treap)
