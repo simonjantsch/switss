@@ -17,7 +17,9 @@ class RewardReachabilityForm:
         self.__system = reachability_form.system
         self.__P = reachability_form.system.P[:self.__system.C-2, :self.__system.N-2]
         self.__A = reachability_form.A
-
+        self.__index_by_state_action = reachability_form.system.index_by_state_action.copy()
+        del self.__index_by_state_action.inv[self.__system.C-2]
+        del self.__index_by_state_action.inv[self.__system.C-1]
 
         self.target_label = reachability_form.target_label
         self.initial_label = reachability_form.initial_label
@@ -33,8 +35,8 @@ class RewardReachabilityForm:
         return self.__A
 
     @property
-    def nr_of_mecs(self):
-        return 0
+    def is_ec_free(self):
+        return True
 
     @classmethod
     def fromsystem(cls, system, initial_label, target_label="rrf_target",ignore_consistency_checks=False):
@@ -277,7 +279,7 @@ class RewardReachabilityForm:
 
         matr, rhs = self.fark_y_constraints(0)
         max_y_lp = LP.from_coefficients(
-            matr,rhs,self.to_target,sense="<=",objective="max")
+            matr,rhs,self.reward_vector,sense="<=",objective="max")
 
         for sap_idx in range(C):
             max_y_lp.add_constraint([(sap_idx,1)],">=",0)

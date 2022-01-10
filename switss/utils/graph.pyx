@@ -179,7 +179,7 @@ cdef class Graph:
     # number of mecs
     def maximal_end_components(self):
         srand(time(NULL))
-        ret = np.zeros(self.nodecount)
+        ret = np.zeros(self.nodecount,int)
         cdef int compcount = 0
         cdef int mec_counter = 0
 
@@ -223,7 +223,7 @@ cdef class Graph:
             if compcount == 1:
                 j = 0
                 while j < subg_nodecount:
-                    ret[subg_arr[j]] = mec_counter
+                    ret[subg_arr[j]] = int(mec_counter)
                     j += 1
                 mec_counter += 1
                 free_treap(subg_treap)
@@ -259,7 +259,7 @@ cdef class Graph:
         for i in range(mec_counter):
             i_nodes = []
             for j in range(self.nodecount):
-                if ret[j] == i:
+                if ret[j] == int(i):
                     if len(i_nodes) > 0:
                         break
                     else:

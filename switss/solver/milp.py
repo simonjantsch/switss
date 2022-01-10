@@ -93,10 +93,9 @@ class MILP:
                     -2:"unbounded", 
                     -3:"undefined"}[self.__pulpmodel.status]
         result_vector = np.array([var.value() for var in self.__variables])
-        dual_result_vector = np.array([ constr.pi for constr in self.__constraints ])
         value = self.__pulpmodel.objective.value()
 
-        return SolverResult(status, result_vector, dual_result_vector, value)
+        return SolverResult(status, result_vector, value)
 
     def _assert_expression(self, expression):
         for idx,(var,coeff) in enumerate(expression):
@@ -362,13 +361,10 @@ class GurobiMILP(MILP):
         
         if status == "optimal":    
             result_vector = np.array([var.x for var in self.__variables])
-            dual_result_vector = np.array([
-                constr.pi if constr is not None else float("nan") for constr in self.__constraints
-            ])
             value = self.__model.objVal
-            return SolverResult(status, result_vector, dual_result_vector, value)
+            return SolverResult(status, result_vector, value)
         else:
-            return SolverResult(status, None, None, None)
+            return SolverResult(status, None, None)
 
     def _assert_expression(self, expression):
         for idx,(var,coeff) in enumerate(expression):
@@ -440,11 +436,29 @@ class GurobiMILP(MILP):
         constr = self.__constraints[constridx]
         self.__model.chgCoeff(constr, self.__variables[varidx], coeff)
 
+    def add_indicator_constraint(self, ind_varidx, rhs_varidx):
+        """Adds a constraint of the form:
+        .. math:: \sigma = 0 \Implies x = 0
+        :param ind_varidx: index of the indicator variable
+        :type ind_varidx: int
+        :param rhs_varidx: index of rhs variable
+        :type rhs_varidx: int
+        :return: index of the added constraint
+        :rtype: int
+        """
+        name = "c%d" % len( self.__constraints )
+
+        new_constr = self.__model.addConstr((self.__variables[ind_varidx] == 0) << (self.__variables[rhs_varidx] == 0))
+
+        constridx = len(self.__constraints)
+        self.__constraints.append(newconstr)
+        return constridx
+
     def remove_constraint(self, constridx):
         """removes a given constraint from the model.
 
-        :param name: the name of the constraint
-        :type name: str
+        :param constridx: index of the constraint
+        :type constridx: int
         """
         self.__model.remove(self.__constraints[constridx])
         self.__constraints[constridx] = None

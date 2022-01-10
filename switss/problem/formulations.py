@@ -88,7 +88,7 @@ def groups_from_labels(rf, mode, labels=None):
                     groups.add(label, sap)
         return groups
 
-def add_indicator_constraints(model, variables, upper_bound, mode, groups, indicator_domain="real"):
+def add_indicator_constraints(model, variables, upper_bound, mode, groups, use_real_indicator_constrs=False, indicator_domain="real"):
     """
     adds new variables and constraints of the form 
 
@@ -108,21 +108,29 @@ def add_indicator_constraints(model, variables, upper_bound, mode, groups, indic
     :type mode: str
     :param groups: mapping :math:`\Lambda` grouping subsets of variables :math:`V` together
     :type groups: Dict[\*, Set[int]]
+    :param use_real_indicator_constrs: True iff "real" boolean indicator constrs of type "s = 0 ==> x = 0" should be used. Only possible with gurobi, atm.
+    :type  use_real_indicator_constrs: bool
     :param indicator_domain: domain of every :math:`\sigma(l)`, defaults to "real"
     :type indicator_domain: str, optional
     :return: the mapping of new indicator variables (:math:`\sigma(l)`) to their corresponding sets of variables (the set that contains all :math:`\mathbf{x}(v)` where :math:`l \in\Lambda(v)`).
     :rtype: utils.InvertibleDict[int, Set[int]]
     """
+    if use_real_indicator_constrs:
+        assert model.isinstance(GurobiMILP)
 
     indicator_to_group = {}
     for _, group in groups.items():
         indicator_var = model.add_variables(indicator_domain)
         indicator_to_group[indicator_var] = group
         for var in group:
-            if upper_bound is not None:
+            if use_real_indicator_constrs:
+                model.add_indicator_constraint(indicator_var,var)
+
+            elif upper_bound is not None:
                 model.add_constraint([(var, 1), (indicator_var, -upper_bound)], "<=", 0)
             else:
                 model.add_constraint([(var, 1), (indicator_var, -1)], "<=", 0)
+
     indicator_to_group = InvertibleDict(indicator_to_group)
 
     if indicator_domain != "binary":
@@ -134,22 +142,7 @@ def add_indicator_constraints(model, variables, upper_bound, mode, groups, indic
     return indicator_to_group
 
 
-#TODO remove this?
-def construct_RMP(rf, threshold, mode, Pinit, modeltype="pulp"):
-    assert mode in ["min", "max"]
-    assert modeltype in ["gurobi", "pulp"]
-    modeltype = { "gurobi": GurobiMILP, "pulp": MILP }[modeltype]
-    fark_matr, fark_rhs = rf.fark_constraints(threshold, mode)
-    certsize = certificate_size(rf, mode)
-    model = modeltype.from_coefficients(fark_matr, fark_rhs, np.zeros(certsize), ["real"]*certsize) # initialize model
-    constraints = []
-    
-    
-    
-    return model, constraints
-
-
-def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_solver="cbc", modeltype="pulp"):
+def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_solver="cbc", modeltype_str="pulp"):
     """
     constructs a MILP in the following form:
 
@@ -179,50 +172,54 @@ def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, upper_bound_
     :return: the resulting MILP. If the upper bound calculation fails, returns (None, None)
     :rtype: Tuple[solver.MILP, utils.InvertibleDict[int, Set[int]]]
     """
-    assert modeltype in ["gurobi", "pulp"]
-    modeltype = { "gurobi": GurobiMILP, "pulp": MILP }[modeltype]
+    assert modeltype_str in ["gurobi", "pulp"]
+    modeltype = { "gurobi": GurobiMILP, "pulp": MILP }[modeltype_str]
 
     # construct constraining polytope matrices according to chosen mode
     fark_matr, fark_rhs = rf.fark_constraints(threshold, mode)
     
-    # TODO: add an option to use indicator constraints for non-relaxed setting with MAX and proper ECs
     # TODO: Upper bound for DTMCs should simply by the expected visiting times (pointwise)
 
-    nr_of_mecs = rf.nr_of_mecs
-
     upper_bound = None
+    use_real_indicator_constrs = False
 
     if mode == "min" and isinstance(rf,ReachabilityForm):
         upper_bound = 1
-    elif nr_of_mecs == 0:
+
+    elif rf.is_ec_free:
         status, upper_bound = compute_upper_bound(fark_matr, fark_rhs, solver=upper_bound_solver)
         if status != "optimal":
             return None, None
+
     elif not relaxed:
-        print("warning: not yet supporting exact minimization of max-properties if proper end compoents are present.")
+        assert modeltype_str == "gurobi", "warning: exact minimization of max-properties only possible via gurobi interface at the moment."
+        use_real_indicator_constrs = True
         return None,None
 
-    
     # obtain variable groups from labels
     groups = groups_from_labels(rf, mode, labels=labels)
-    
+
     # construct MILP
     certsize = certificate_size(rf, mode)
     model = modeltype.from_coefficients(fark_matr, fark_rhs, np.zeros(certsize), ["real"]*certsize) # initialize model
+
+    # add lower/upper bounds
     for varidx in range(certsize):
         model.add_constraint([(varidx, 1)], ">=", 0)
         if upper_bound is not None:
             model.add_constraint([(varidx, 1)], "<=", upper_bound)
-        if mode == "min" and rf.nr_of_mecs > 0:
-            if rf.mec_states[varidx] > 0:
+        if mode == "min" and not rf.is_ec_free:
+            if rf.in_proper_ec(varidx):
                 model.add_constraint([(varidx,1)], "=" , 0)
 
 
     # add indicator variables, which are either binary or real, dependent on what relaxed was set to
     indicator_domain = "real" if relaxed else "binary"
-    indicators = add_indicator_constraints(model, np.arange(certsize), 
-                                           upper_bound, mode, groups, 
+    indicators = add_indicator_constraints(model, np.arange(certsize),
+                                           upper_bound, mode, groups,
+                                           use_real_indicator_constrs,
                                            indicator_domain=indicator_domain)
+
     # make objective function opt=(0,...,0, 1,...,1) where the (0,..,0) part
     # corresponds to the x-variables and the (1,..,1) part to the indicators 
     objective = AllOnesInitializer(indicators).initialize()

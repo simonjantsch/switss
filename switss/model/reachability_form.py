@@ -53,7 +53,7 @@ class ReachabilityForm:
         self.__to_target = system.P.getcol(system.N-2).todense()[:system.C-2]
 
         system_mecs, proper_mecs, nr_of_system_mecs = system.maximal_end_components()
-        self.__mec_states = system_mecs[:system.N-2]
+        self.__state_to_mec = system_mecs[:system.N-2]
         self.__nr_of_mecs = int(nr_of_system_mecs - 2)
         self.__proper_mecs = proper_mecs
         
@@ -138,13 +138,6 @@ class ReachabilityForm:
         return self.__to_target
 
     @property
-    def mec_states(self):
-        """
-        Returns a vector of length :math:`N` which contains a non-zero value for each state that is contained in a proper end component.
-        """
-        return self.__mec_states
-
-    @property
     def proper_mecs(self):
         """
         Returns a vector which contains a boolean value for each maximal end component and indicates whether it is proper or not.
@@ -171,6 +164,20 @@ class ReachabilityForm:
         Returns yes if the RF is EC-free (its only proper end components are induced by goal and fail).
         """
         return self.nr_of_proper_mecs == 0
+
+    @property
+    def state_to_mec(self):
+        """
+        Returns a vector of length :math:`N` which contains the index of the corresponding MEC for each state.
+        """
+        return self.__state_to_mec
+
+    def in_proper_ec(self, state):
+        """
+        Returns yes if "state" is included in a proper end component.
+        """
+        print(self.__state_to_mec[state])
+        return self.proper_mecs[self.__state_to_mec[state]]
 
     @staticmethod
     def assert_consistency(system, initial_label, target_label="rf_target", fail_label="rf_fail"):

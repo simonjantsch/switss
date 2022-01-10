@@ -12,8 +12,6 @@ from .problemresult import ProblemResult
 from .formulations import add_indicator_constraints, \
                           compute_upper_bound, \
                           construct_MILP, \
-                          certificate_size, \
-                          construct_indicator_graph, \
-                          construct_RMP
+                          certificate_size
 from .qsheur import QSHeur
 from .milpexact import MILPExact

@@ -51,14 +51,14 @@ def test_minimal_witnesses():
             results = []
             for mode in ["min", "max"]:
                 for instance in instances:
-                    results.append(instance.solve(reach_form,threshold,mode,timeout=20))
+                    results.append(instance.solve(reach_form,threshold,mode,timeout=2))
 
             # either the status of all results is optimal, or of none of them
             positive_results = [result for result in results if result.status == "optimal"]
             assert len(positive_results) == len(results) or len(positive_results) == 0
 
             if results[0].status == "optimal":
-                # if the result was optimal, tha values of all results should be the same
+                # if the result was optimal, the values of all results should be the same
                 assert len(set([result.status for result in results])) == 1
 
 def test_label_based_exact_min():
