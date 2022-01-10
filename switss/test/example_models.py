@@ -23,13 +23,16 @@ def example_mdps():
     mdps = []
     mdps.append(toy_mdp1())
     mdps.append(toy_mdp2())
-    mdps.append(toy_mdp3())
     mdps.append(MDP.from_prism_model("./examples/datasets/csma2_2.nm",
-                                     extra_labels={("target","s1=4&s2=4")}))
+                                     extra_labels={("target","s1=4&s2=4")}
+                                     ))
     mdps.append(
         MDP.from_prism_model("./examples/datasets/coin2.nm",
                              prism_constants = {("K",2)},
-                             extra_labels={("target","pc1=3 & pc2=3")}))
+                             extra_labels={("target","pc1=3 & pc2=3")}
+                             ))
+    #only this last mdp has proper end components
+    mdps.append(toy_mdp3())
     return mdps
 
 def toy_mdp1():
@@ -129,3 +132,9 @@ def toy_dtmc2():
 
     return(DTMC(P, label_to_states=labels))
 
+def toy_dtmc3():
+    P = [[0.1,0.9,0],
+         [0,0.2,0.8],
+         [0,1,0]]
+
+    return(DTMC(P))

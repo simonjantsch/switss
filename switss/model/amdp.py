@@ -7,9 +7,8 @@ from bidict import bidict
 import os.path
 import tempfile
 
-from switss.utils import Graph
 from ..prism import parse_label_file, prism_to_tra
-from ..utils import InvertibleDict, cast_dok_matrix
+from ..utils import InvertibleDict, cast_dok_matrix, Graph
 
 
 class AbstractMDP(ABC):
@@ -75,8 +74,6 @@ class AbstractMDP(ABC):
         for (i,j), p in self.P.items():
             assert p >= 0 and p <= 1, "P[%d,%d]=%f, violating 0<=%f<=1." % (i,j,p,p)
 
-        print(self.reward_vector)
-        print(self.N)
 
         #make sure rewards are nonnegative
         if self.reward_vector is not None:
@@ -196,8 +193,8 @@ class AbstractMDP(ABC):
     def maximal_end_components(self):
         """Returns the Maximal End Components (MECs) of this model.
 
-        :return: A :math:`N_{S_{\\text{all}}}`-dimensional vector containing the index of the MEC every state belongs to and the number of MECs. If a state has a 0-entry, then it does not belong to any MEC.
-        :rtype: Tuple[np.ndarry[int],int]
+        :return: A :math:`N_{S_{\\text{all}}}`-dimensional vector containing the index of the MEC every state belongs to, a boolean vector which indicates which MECs are proper, and the number of MECs.
+        :rtype: Tuple[np.ndarry[int],np.ndarry[bool],int]
         """        
         return self.__graph.maximal_end_components()
 

@@ -81,10 +81,13 @@ class RewardReachabilityForm:
         target_mask = np.zeros(reachform.system.N,dtype=bool)
         target_mask[reachform.target_state_idx] = True
 
-        _,nr_of_mecs = reachform.system.maximal_end_components()
+        mecs,proper_mecs,nr_of_mecs = reachform.system.maximal_end_components()
 
-        assert (nr_of_mecs == 2), "there is some proper end component apart from the target and fail state"
+        print("mecs:" + str(mecs))
+        print("proper_mecs:" + str(proper_mecs))
+        print("nr_of_mecs:" + str(nr_of_mecs))
 
+        assert (sum(proper_mecs) == 2), "there is some proper end component apart from the target and fail state"
 
     @staticmethod
     def assert_system_consistency(system, initial_label, target_label="rf_target"):
@@ -129,11 +132,9 @@ class RewardReachabilityForm:
         assert (bwd_mask).all(), "Not every state reaches %s in system %s" % (target_label, system)
 
         # check that there is no proper end component apart from the target state
-        # target_mask has a 1 only at the fail state and zeros otherwise
-        target_mask = np.zeros(system.N,dtype=np.bool)
-        target_mask[target] = True
-        mec_mask = system.maximal_end_components()
-        assert (target_mask == mec_mask), "there is some proper end component apart from the target state"
+        mec_vec, proper_mec_vec, nr_of_mecs = system.maximal_end_components()
+        assert (sum(proper_mec_vec) == 1), "there is some proper end component apart from the target state"
+        assert (proper_mec_vec[mec_vec[target]] == 1), "target state does not induce a proper end component"
 
     def fark_constraints(self, threshold, mode):
         """returns the right constraint set dependent on the given mode.
