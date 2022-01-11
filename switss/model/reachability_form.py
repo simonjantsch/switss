@@ -34,6 +34,7 @@ class ReachabilityForm:
         :param ignore_consistency_checks: If set to False, checks consistency of given model (i.e. if the properties are satisfied),
             defaults to False
         :type ignore_consistency_checks: bool, optional
+        :type ignore_consistency_checks: bool, optional
         """        
         if not ignore_consistency_checks:
             ReachabilityForm.assert_consistency(system, initial_label, target_label, fail_label)
@@ -50,11 +51,32 @@ class ReachabilityForm:
         
         self.__A = self._reach_form_id_matrix() - self.__P
         self.__to_target = system.P.getcol(system.N-2).todense()[:system.C-2]
+
+        system_mecs, proper_mecs, nr_of_system_mecs = system.maximal_end_components()
+        self.__state_to_mec = system_mecs[:system.N-2]
+        self.__nr_of_mecs = int(nr_of_system_mecs - 2)
+        self.__proper_mecs = proper_mecs
         
         self.__target_visualization_style = None
         self.__fail_visualization_style = None
         self.set_target_visualization_style()
         self.set_fail_visualization_style()
+
+    @property
+    def target_sap_idx(self):
+        return self.system.C-2
+
+    @property
+    def target_state_idx(self):
+        return self.system.N-2
+
+    @property
+    def fail_sap_idx(self):
+        return self.system.C-1
+
+    @property
+    def fail_state_idx(self):
+        return self.system.N-1
 
     def set_target_visualization_style(self,style=None):
         assert style is None or type(style) == type(self.system.visualization)
@@ -83,6 +105,11 @@ class ReachabilityForm:
             else: style = DTMCVisualizationConfig(state_map=_state_map)
         
         self.__fail_visualization_style = style
+
+    @property
+    def system(self):
+        """The underlying system (instance of model.AbstractMDP)"""
+        return self.__system
 
     @property
     def A(self):
@@ -116,6 +143,47 @@ class ReachabilityForm:
         for all :math:`(s,a) \in \mathcal{M}`. 
         """
         return self.__to_target
+
+    @property
+    def proper_mecs(self):
+        """
+        Returns a vector which contains a boolean value for each maximal end component and indicates whether it is proper or not.
+        """
+        return self.__proper_mecs
+
+    @property
+    def nr_of_mecs(self):
+        """
+        Returns the number of end components (excluding goal and fail).
+        """
+        return self.__nr_of_mecs
+
+    @property
+    def nr_of_proper_mecs(self):
+        """
+        Returns the number of proper end components (excluding goal and fail).
+        """
+        return sum(self.__proper_mecs) - 2
+
+    @property
+    def is_ec_free(self):
+        """
+        Returns yes if the RF is EC-free (its only proper end components are induced by goal and fail).
+        """
+        return self.nr_of_proper_mecs == 0
+
+    @property
+    def state_to_mec(self):
+        """
+        Returns a vector of length :math:`N` which contains the index of the corresponding MEC for each state.
+        """
+        return self.__state_to_mec
+
+    def in_proper_ec(self, state):
+        """
+        Returns yes if "state" is included in a proper end component.
+        """
+        return self.proper_mecs[self.__state_to_mec[state]]
 
     @staticmethod
     def assert_consistency(system, initial_label, target_label="rf_target", fail_label="rf_fail"):
@@ -153,7 +221,7 @@ class ReachabilityForm:
             assert state == colidx, "State %s must be at index %s but is at %s" % (name, colidx, state)
 
         # fail_mask has a 1 only at the fail state and zeros otherwise
-        fail_mask = np.zeros(system.N,dtype=np.bool)
+        fail_mask = np.zeros(system.N,dtype=bool)
         fail_mask[fail] = True 
 
         # check that every state is reachable
@@ -250,7 +318,7 @@ class ReachabilityForm:
         to_target = np.zeros(new_C)
 
         # mask for faster access
-        target_mask = np.zeros(system.N, dtype=np.bool)
+        target_mask = np.zeros(system.N, dtype=bool)
         for t in target_states:
             target_mask[t] = 1
 
@@ -287,11 +355,6 @@ class ReachabilityForm:
 
         return rf, to_rf_cols, to_rf_rows
 
-    @property
-    def system(self):
-        """The underlying system (instance of model.AbstractMDP)"""
-        return self.__system
-
     @staticmethod
     def __initialize_system(P, index_by_state_action, to_target, mapping, configuration, target_label, fail_label):
         C,N = P.shape
@@ -301,7 +364,14 @@ class ReachabilityForm:
         index_by_state_action_compl = index_by_state_action.copy()
         index_by_state_action_compl[(target_state,0)] = C
         index_by_state_action_compl[(fail_state,0)] = C+1
-    
+
+        if configuration.reward_vector is not None:
+            reward_vector = np.zeros(C+2)
+            reward_vector[C] = 0
+            reward_vector[C+1] = 0
+        else:
+            reward_vector = None
+
         
         # copy labels from configuration (i.e. a system)
         # mapping defines which state-action pairs in the system map to which state-action pairs in the r.f.
@@ -316,6 +386,12 @@ class ReachabilityForm:
             actionlabels = configuration.labels_by_action[(sys_stateidx,sys_actionidx)]
             for l in actionlabels:
                 label_to_actions[l].add((stateidx,actionidx))
+
+            if configuration.reward_vector is not None:
+                # initialize new reward vector
+                sys_idx = configuration.index_by_state_action[(sys_stateidx,sys_actionidx)]
+                reward_vector[idx] = configuration.reward_vector[sys_idx]
+
         label_to_states[fail_label].add(fail_state)
         label_to_states[target_label].add(target_state)
 
@@ -338,7 +414,8 @@ class ReachabilityForm:
                     P=P_compl, 
                     index_by_state_action=index_by_state_action_compl, 
                     label_to_states=label_to_states,
-                    label_to_actions=label_to_actions)
+                    label_to_actions=label_to_actions,
+                    reward_vector=reward_vector)
     
     def __adapt_style(self, state_map, state_action_map, viz_cfg):
         C,N = self.system.C,self.system.N
@@ -385,6 +462,23 @@ class ReachabilityForm:
     def __repr__(self):
         return "ReachabilityForm(initial=%s, target=%s, fail=%s, system=%s)" % (self.initial_label, self.target_label, self.fail_label, self.system)
 
+    def fark_constraints(self, threshold, mode):
+        """returns the right constraint set dependent on the given mode.
+
+        :param threshold: the threshold
+        :type threshold: float
+        :param mode: either 'min' or 'max'
+        :type mode: str
+        :return: either :math:`(C+1) \\times N`-matrix :math:`M_z`, and vector of length :math:`C+1` :math:`rhs_z` or :math:`(N+1) \\times C`-matrix :math:`M_y`, and :math:`N+1`-vector :math:`rhs_y`.
+        :rtype: Tuple[scipy.sparse.dok_matrix, np.ndarray[float]]
+        """ 
+        assert mode in ["min", "max"]
+
+        if mode == "min":
+            return self.fark_z_constraints(threshold)
+        else:
+            return self.fark_y_constraints(threshold)
+
     def fark_z_constraints(self, threshold):
         """
         Returns a matrix :math:`M_z` and a vector :math:`rhs_z` such that for a :math:`N` vector :math:`\mathbf{z}`
@@ -411,20 +505,21 @@ class ReachabilityForm:
         delta[self.initial] = 1
 
         fark_z_matr = vstack((self.A,-delta))
+
         return fark_z_matr, rhs
 
     def fark_y_constraints(self, threshold):
         """ 
         Returns a matrix :math:`M_y` and a vector :math:`rhs_y` such that for a :math:`C` vector :math:`\mathbf{y}`
 
-        .. math::
+p        .. math::
 
             M_y\, \mathbf{y} \leq rhs_y \quad \\text{  iff  } \quad
             \mathbf{y} \, \mathbf{A} \leq \delta_{\\texttt{init}} \land \mathbf{b} \, \mathbf{y} \geq \lambda
             \quad \\text{  iff  } \quad
             \mathbf{y} \in \mathcal{P}^{\\text{max}}(\lambda)
 
-        where :math:`\lambda` is the threshold. The vector :math:`\delta_{\\texttt{init}}` is 1 for the initial state, and otherwise 0.
+        where :math:`\lambda` is the threshold, :math:'\mathbf{A}' is the system matrix and :math:`\mathbf{b}` is to_target. The vector :math:`\delta_{\\texttt{init}}` is 1 for the initial state, and otherwise 0.
 
         :param threshold: The threshold :math:`\lambda` for which the Farkas y-constraints should be constructed
         :type threshold: Float
@@ -515,7 +610,7 @@ class ReachabilityForm:
         :return: Result vector
         :rtype: np.ndarray[float]
         """
-        N,C = self.__P.shape
+        C,N = self.__P.shape
 
         matr, rhs = self.fark_y_constraints(0)
         max_y_lp = LP.from_coefficients(
@@ -574,7 +669,7 @@ class ReachabilityForm:
         """
         C,N = self.__P.shape
 
-        matr, rhs = self.fark_z_constraints(0)
+        matr, rhs = self.fark_z_constraints(1)
         opt = np.ones(N)
         pr_max_z_lp = LP.from_coefficients(
             matr,rhs,opt,sense=">=",objective="min")
@@ -586,62 +681,7 @@ class ReachabilityForm:
         result = pr_max_z_lp.solve(solver=solver)
         return result.result_vector
 
+
+    # check that the only proper mecs are the ones induced by target and fail
     def _check_mec_freeness(self):
-
-        # indices of old fail and target state
-        target_state, target_action = self.system.N-2, self.system.C-2
-        fail_state, fail_action = self.system.N-1, self.system.C-1
-
-        if len(set(self.system.predecessors(fail_state))) == 1:
-            # if that happens, then fail state has no predecessors but itself.
-            # in that case, the fail state has no impact on the other states.
-            assert (self.pr_min() == 1).all()
-            return
-
-        import copy
-        new_label_to_states = copy.deepcopy(self.system.states_by_label)
-        new_index_by_state_action = copy.deepcopy(self.system.index_by_state_action)
-
-        # create a new transition matrix with 2 new entries for a new target and fail state
-        P = dok_matrix((self.system.C+2,self.system.N+2))
-        P[:self.system.C,:self.system.N] = self.system.P
-
-        # indices of new target and new fail state according to RF
-        new_target_state, new_target_action = self.system.N, self.system.C
-        new_fail_state, new_fail_action = self.system.N+1, self.system.C+1
-        # index state-action pairs
-        new_index_by_state_action[(new_target_state,0)] = new_target_action
-        new_index_by_state_action[(new_fail_state,0)] = new_fail_action
-        
-        # map new target and new fail state only to themselves
-        P[new_target_action,new_target_state] = 1
-        P[new_fail_action,new_fail_state] = 1
-
-        # remap old fail & target state to new target state
-        P[target_action,target_state] = 0
-        P[target_action,new_target_state] = 1
-        P[fail_action,fail_state] = 0
-        P[fail_action,new_target_state] = 1
-        
-        # remove fail and target label from old target and fail state
-        new_label_to_states.remove(self.target_label, target_state)
-        new_label_to_states.remove(self.fail_label, fail_state)
-        # add fail and target label to new target and new fail state
-        new_label_to_states.add(self.target_label, new_target_state)
-        new_label_to_states.add(self.fail_label, new_fail_state)
-
-        # new system should already be in RF, so calling .reduce is not necessary
-        target_or_fail_system = type(self.system)(
-            P=P, 
-            index_by_state_action=new_index_by_state_action,
-            label_to_actions={},
-            label_to_states=new_label_to_states)
-        
-        target_or_fail_rf = ReachabilityForm(
-            target_or_fail_system,
-            self.initial_label,
-            self.target_label,
-            self.fail_label)
-
-        assert (target_or_fail_rf.pr_min() == 1).all(), target_or_fail_rf.pr_min()
-
+        assert sum(self.__proper_mecs) == 2, sum(self.__proper_mecs)

@@ -7,9 +7,8 @@ from bidict import bidict
 import os.path
 import tempfile
 
-from switss.utils.graph import Graph
 from ..prism import parse_label_file, prism_to_tra
-from ..utils import InvertibleDict, cast_dok_matrix
+from ..utils import InvertibleDict, cast_dok_matrix, Graph
 
 
 class AbstractMDP(ABC):
@@ -18,7 +17,7 @@ class AbstractMDP(ABC):
     reachability sets, rendering of MDPs/DTMCs as graphviz digraphs, loading from .pm-files and 
     loading/storing from/to .lab,.tra files. 
     """    
-    def __init__(self, P, index_by_state_action, label_to_actions={}, label_to_states={}, vis_config=None):
+    def __init__(self, P, index_by_state_action, label_to_actions={}, label_to_states={}, vis_config=None, reward_vector=None):
         """Instantiates an AbstractMDP from a transition matrix, a bidirectional
         mapping from state-action pairs to corresponding transition matrix entries and labelings for states and actions.
 
@@ -26,6 +25,8 @@ class AbstractMDP(ABC):
         :type P: Either 2d-list, numpy.matrix, numpy.array or scipy.sparse.spmatrix
         :param index_by_state_action: A bijection of state-action pairs :math:`(s,a) \in \mathcal{M}_{S_{\\text{all}}}` 
             to indices :math:`i=0,\dots,C_{S_{\\text{all}}}-1` and vice versa.
+        :param reward_vector: A vector containing a nonnegative reward per state action pair
+        :type reward_vector: Dict[int,int]
         :type index_by_state_action: Dict[Tuple[int,int],int]
         :param label_to_actions: Mapping from labels to sets of state-action pairs.
         :type label_to_actions: Dict[str,Set[Tuple[int,int]]]
@@ -42,6 +43,7 @@ class AbstractMDP(ABC):
         self.C, self.N = self.P.shape
         # transform mapping into bidict if neccessary (applying bidict to bidict doesn't change anything)
         self.index_by_state_action = bidict(index_by_state_action)
+        self.reward_vector = reward_vector
         if isinstance(label_to_actions,InvertibleDict):
             self.__label_to_actions_invertible = label_to_actions
         else:
@@ -62,6 +64,8 @@ class AbstractMDP(ABC):
         
         * :math:`0 \leq P_{(i,j)} \leq 1 \quad \\forall (i,j) \in \{1,\dots,C\} \\times \{1,\dots,N\}`
         
+        * :math:`reward_vector[i] \geq 0 \quad \\forall i \in \{1,\dots,C\}`
+
         """
         # make sure all rows of P sum to one
         for idx,s in enumerate(self.P.sum(axis=1)):  
@@ -69,6 +73,12 @@ class AbstractMDP(ABC):
         # make sure that all values x are 0<=x<=1
         for (i,j), p in self.P.items():
             assert p >= 0 and p <= 1, "P[%d,%d]=%f, violating 0<=%f<=1." % (i,j,p,p)
+
+
+        #make sure rewards are nonnegative
+        if self.reward_vector is not None:
+            for i in range(self.C):
+                assert self.reward_vector[i] >= 0, "reward_vector[%d] = %d is negative." % (i,reward_vector[i])
 
     @property
     def states_by_label(self):
@@ -120,6 +130,17 @@ class AbstractMDP(ABC):
                 self.__available_actions.add(state, action)
         return self.__available_actions
 
+    def add_label(self,state,label):
+        """Adds a label to a given state.
+        
+        :param state: a state
+        :type state: int
+        :param label: a label
+        :type label: str
+        """
+        self.__label_to_states_invertible.add(label,state)
+
+
     def reachable_mask(self, from_set, mode, blocklist=set()):
         """Computes an :math:`N_{S_{\\text{all}}}`-dimensional vector which has a True-entry (False otherwise) for
         every state index that is reachable from 'from_set' in the given search mode (forward or backward).
@@ -156,6 +177,26 @@ class AbstractMDP(ABC):
         :rtype: Iterator[Tuple[int,int,float]]
         """        
         return self.__graph.successors(fromidx)
+
+    def strongly_connected_components(self):
+        """Returns the strongly connected components (SCCs) of the underlying graph of this model using Tarjan's Algorithm. The underlying graph is defined as math:`G=(V,E)` with 
+
+        .. math::
+
+            V = S_{\\text{all}},\quad E = \{ (s,s') \in S_{\\text{all}} \\times S_{\\text{all}} \mid \exists a \in \\text{Act}(s). \\textbf{P}(s,a,s') > 0 \}
+
+        :return: A :math:`N_{S_{\\text{all}}}`-dimensional vector containing the index of the SCC every state belongs to and the number of SCCs.
+        :rtype: Tuple[np.ndarray[int],int]
+        """        
+        return self.__graph.strongly_connected_components()
+
+    def maximal_end_components(self):
+        """Returns the Maximal End Components (MECs) of this model.
+
+        :return: A :math:`N_{S_{\\text{all}}}`-dimensional vector containing the index of the MEC every state belongs to, a boolean vector which indicates which MECs are proper, and the number of MECs.
+        :rtype: Tuple[np.ndarry[int],np.ndarry[bool],int]
+        """        
+        return self.__graph.maximal_end_components()
 
     @classmethod
     def from_file(cls, label_file_path, tra_file_path):
@@ -198,6 +239,20 @@ class AbstractMDP(ABC):
             else:
                 assert False, "Prism call to create model failed."
         
+    @classmethod
+    def from_stormpy(cls, stormpy_model, choice_model = False):
+        """Transforms a stormpy model into a switss model.
+
+        :param stormpy_model: the stormpy model
+        :type stormpy_model: stormpy.storage.SparseModel
+        :param choice_model: if True, builds the "choice model" corresponding to the stormpy model, whose states correspond to choices of the stormpy model
+        :type choice_model: Boolean
+        :return: Instance of the class this function is called from.
+        :rtype: [This Class]
+        """
+        res = cls.from_stormpy_model(stormpy_model,choice_model)
+        return cls(**res)
+
     @abstractmethod
     def save(self, filepath):
         """Saves the .tra and .lab-file according to the given filepath.

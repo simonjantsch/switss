@@ -7,17 +7,19 @@ from ..utils import color_from_hash, cast_dok_matrix, DTMCVisualizationConfig
 from ..prism import prism
 
 class DTMC(AbstractMDP):
-    def __init__(self, P, label_to_states={}, index_by_state_action=None, vis_config=None, **kwargs):
+    def __init__(self, P, label_to_states={}, index_by_state_action=None, vis_config=None,reward_vector=None, **kwargs):
         """Instantiates a DTMC from a transition matrix and labelings for states.
 
         :param P: :math:`N_{S_{\\text{all}}} \\times N_{S_{\\text{all}}}` transition matrix.
         :type P: Either 2d-list, numpy.matrix, numpy.array or scipy.sparse.spmatrix
+        :param reward_vector: A vector containing a nonnegative reward per state
+        :type reward_vector: Dict[int,int]
+        :param label_to_states: Mapping from labels to sets of states.
+        :type label_to_states: Dict[str,Set[int]]
         :param index_by_state_action: Mapping from states to their corresponding row-entries. Every
             key must have 0 for its action value. If None, then every row-index corresponds to the
             same column-index.
         :type index_by_state_action: Dict[Tuple[int,int],int]
-        :param label_to_states: Mapping from labels to sets of states.
-        :type label_to_states: Dict[str,Set[int]]
         :param vis_config: Used to configure how model is visualized.
         :type vis_config: VisualizationConfig
         """
@@ -35,7 +37,7 @@ class DTMC(AbstractMDP):
         if vis_config is None:
             vis_config = DTMCVisualizationConfig()
 
-        super().__init__(P, index_by_state_action, {}, label_to_states, vis_config)
+        super().__init__(P, index_by_state_action, {}, label_to_states, vis_config, reward_vector)
 
     def digraph(self, state_map = None, trans_map = None, **kwargs):
         """Creates a `graphviz.Digraph` object from this instance. When a digraph object is created, 
@@ -137,3 +139,22 @@ class DTMC(AbstractMDP):
                     prob = float(line_split[2])
                     P[source,dest] = prob
         return { "P" :  P }
+
+    @classmethod
+    def from_stormpy_model(cls,stormpy_model):
+        
+        #assert stormpy_model.model_type == "ModelType.MDP"
+
+        P = dok_matrix((1,1))
+        index_by_state_action = bidict()
+        N = stormpy_model.nr_states
+
+        P.resize((N,N))
+
+        for state in stormpy_model.states:
+            sid = state.id
+            for action in state.actions:
+                for transition in action.transitions:
+                    P[sid,transition.column] = transition.value()
+
+        return { "P" : P }

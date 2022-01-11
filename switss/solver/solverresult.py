@@ -6,8 +6,10 @@ class SolverResult:
         
         :param status: Status of the solved instance, e.g. optimal, infeasible, unbounded or undefined.
         :type status: str
-        :param result: Resulting variable assignments.
-        :type result: List[float]
+        :param result_vector: Resulting assignments for primal variables.
+        :type result_vector: List[float]
+        :param value: Resulting value
+        :type value: float
         """
         assert status in ["optimal", "infeasible", "unbounded", "undefined","notsolved"]
         self.status = status

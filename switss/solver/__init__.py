@@ -3,4 +3,4 @@ solving LP/MILP instances by using different kinds of solvers (like Gurobi or CB
 The wrapper defines custom MILP and LP classes in order to simplify the instantiation of 
 problems from coefficient vectors and matrices."""
 from .solverresult import SolverResult
-from .milp import MILP, LP
+from .milp import MILP, LP, GurobiMILP
