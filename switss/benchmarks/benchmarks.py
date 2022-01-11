@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as tkr
 from collections.abc import Iterable
 import json as json
+import itertools
 from pathlib import Path
 
 def run(reachability_form, 
@@ -67,10 +68,10 @@ def run(reachability_form,
     
     if isinstance(method, Iterable):
         ret = []
-        for idx,(me,mo) in enumerate(zip(method,mode)):
+        for idx,(me,mo) in enumerate(itertools.product(method,mode)):
             if debug:
                 print("="*50)
-                print("running benchmark %s/%s" % (idx+1, len(method)))
+                print("running benchmark %s/%s" % (idx+1, len(method)*len(mode)))
             data = run(reachability_form, 
                        me, mo, from_thr, 
                        to_thr, step, 
@@ -82,16 +83,16 @@ def run(reachability_form,
     assert isinstance(method, ProblemFormulation)
 
     thresholds = np.arange(from_thr, min(1,to_thr+step), step)
-    data = { "method" : method.details , "run" : [] }
+    data = { "method" : method.details , "mode" : mode, "run" : [] }
     if debug:
         print("-"*50)
-        print("%s" % "\n".join(["%s=%s" % it for it in method.details.items()]))
+        print("%s" % "\n".join(["%s=%s" % it for it in list(method.details.items())  + [("mode",mode)]]))
         print("-"*50)
 
     def print_json(json_dir,data):
         if json_dir is not None:
             json_dir = Path(json_dir)
-            json_file_name = str(method) + ".json"
+            json_file_name = str(method) + "-" + str(mode) + ".json"
             json_path = json_dir / json_file_name
             with open(json_path,"w") as json_file:
                 json.dump(data,json_file)
