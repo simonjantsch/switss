@@ -1,6 +1,6 @@
 # cython: language_level=3
 # cython: profile=True
-# distutils: include_dirs = /usr/local/Cellar/numpy/1.19.4/lib/python3.9/site-packages/numpy/core/include
+# distutils: include_dirs = /usr/local/lib/python3.9/site-packages/numpy/core/include
 
 import itertools as it
 from more_itertools import powerset
