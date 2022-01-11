@@ -171,29 +171,38 @@ class MILP:
         """        
         self.__pulpmodel.constraints.pop(constridx)
 
-    def add_variables(self, *domains):
+    def add_variables(self, domains):
         """Adds a list of variables to this MILP. Each element in `domains` must be either `integer`, `binary` or `real`.
         
         :return: Index or indices of new variables.
         :rtype: either List[int] or int.
         """        
+        var_descr = [ (dom,None,None) for dom in domains ]
+        return self.add_variables_w_bounds(var_descr)
+
+    def add_variables_w_bounds(self, var_descr):
+        """Adds a list of variables to this MILP. Each element in `var_descr` must be a triple (dom,lb,ub) where dom is either `integer`, `binary` or `real` and lb,ub are floats, or None.
+
+        :return: Index or indices of new variables.
+        :rtype: either List[int] or int.
+        """
         l = []
-        for domain in domains:
+        for (domain,lb,ub) in var_descr:
             assert domain in ["integer", "real", "binary"]
 
             cat = { "real" : pulp.LpContinuous, "integer" : pulp.LpInteger, "binary" : pulp.LpBinary }[domain]
             varidx = len(self.__variables)
-            var = pulp.LpVariable("x%d" % varidx, cat=cat)
+            var = pulp.LpVariable("x%d" % varidx, lowBound=lb, upBound=ub, cat=cat)
             self.__variables.append(var)
 
-            if len(domains) == 1:
+            if len(var_descr) == 1:
                 return varidx
             else:
                 l.append(varidx)
         return l
 
     @classmethod
-    def from_coefficients(cls, A, b, opt, domains, sense="<=", objective="min"):
+    def from_coefficients(cls, A, b, opt, domains, sense="<=", objective="min", bounds=None):
         """Returns a Mixed Integer Linear Programming (MILP) formulation of a problem
         
         .. math::
@@ -217,6 +226,8 @@ class MILP:
         :type sense: str, optional
         :param objective: "min" or "max", defaults to "min"
         :type objective: str, optional
+        :param bounds: a vector of lower/upper bounds for all variables, optional
+        :type bounds: [(float,float)], optional
         :return: The resulting MILP.
         :rtype: solver.MILP
         """
@@ -231,9 +242,13 @@ class MILP:
 
         # initialize problem
         # this adds the variables and the objective function (which is opt^T*x, i.e. sum_{i=1}^N opt[i]*x[i])
-        model.add_variables(*[domains[idx] for idx in range(A.shape[1])])
+        if bounds is not None:
+            model.add_variables_w_bounds([(domains[idx],bounds[idx][0],bounds[idx][1]) for idx in range(A.shape[1])])
+        else:
+            model.add_variables([domains[idx] for idx in range(A.shape[1])])
+
         model.set_objective_function([(idx, opt[idx,0]) for idx in range(A.shape[1])])
-        
+
         # this takes quite a lot of time since accessing the rows is inefficient, even for csr-formats.
         # maybe find a way to compute Ax <= b faster.
         # now: add linear constraints: Ax <= b.
@@ -464,14 +479,14 @@ class GurobiMILP(MILP):
         self.__constraints[constridx] = None
 
 
-    def add_variables(self, *domains):
-        """Adds a list of variables to this MILP. Each element in `domains` must be either `integer`, `binary` or `real`.
-        
+    def add_variables_w_bounds(self, var_descr):
+        """Adds a list of variables to this MILP. Each element in `var_descr` must be a triple (dom,lb,ub) where dom is either `integer`, `binary` or `real` and lb,ub are floats, or None.
+
         :return: Index or indices of new variables.
         :rtype: either List[int] or int.
-        """        
+        """
         l = []
-        for domain in domains:
+        for (domain,lb,ub) in var_descr:
             assert domain in ["integer", "real", "binary"]
             cat = { "binary": GRB.BINARY,
                     "real": GRB.CONTINUOUS,
@@ -479,18 +494,36 @@ class GurobiMILP(MILP):
 
             varidx = len(self.__variables)
             varname = "x%d" % varidx
-            var = self.__model.addVar(vtype=cat, name=varname)
+            if lb is not None:
+                if ub is not None:
+                    var = self.__model.addVar(lb=lb, ub=ub, vtype=cat, name=varname)
+                else:
+                    var = self.__model.addVar(lb=lb, vtype=cat, name=varname)
+            elif ub is not None:
+                var = self.__model.addVar(ub=ub, vtype=cat, name=varname)
+            else:
+                var = self.__model.addVar(vtype=cat, name=varname)
+
             self.__variables.append(var)
 
-            if len(domains) == 1:
+            if len(var_descr) == 1:
                 return varidx
             else:
                 l.append(varidx)
         return l
 
+    def add_variables(self, domains):
+        """Adds a list of variables to this MILP. Each element in `domains` must be either `integer`, `binary` or `real`.
+        
+        :return: Index or indices of new variables.
+        :rtype: either List[int] or int.
+        """        
+        var_descr = [(dom,None,None) for dom in domains]
+        return self.add_variables_w_bounds(var_descr)
+
 
     @classmethod
-    def from_coefficients(cls, A, b, opt, domains, sense="<=", objective="min"):
+    def from_coefficients(cls, A, b, opt, domains, sense="<=", objective="min", bounds=None):
         """Returns a Mixed Integer Linear Programming (MILP) formulation of a problem
         
         .. math::
@@ -514,6 +547,8 @@ class GurobiMILP(MILP):
         :type sense: str, optional
         :param objective: "min" or "max", defaults to "min"
         :type objective: str, optional
+        :param bounds: a vector of lower/upper bounds for all variables, optional
+        :type bounds: [(float,float)], optional
         :return: The resulting MILP.
         :rtype: solver.MILP
         """
@@ -527,9 +562,13 @@ class GurobiMILP(MILP):
 
         # initialize problem
         # this adds the variables and the objective function (which is opt^T*x, i.e. sum_{i=1}^N opt[i]*x[i])
-        model.add_variables(*[domains[idx] for idx in range(A.shape[1])])
+        if bounds is not None:
+            model.add_variables_w_bounds([(domains[idx], bounds[idx][0], bounds[idx][1]) for idx in range(A.shape[1])])
+        else:
+            model.add_variables([domains[idx] for idx in range(A.shape[1])])
+
         model.set_objective_function([(idx, opt[idx,0]) for idx in range(A.shape[1])])
-        
+
         # this takes quite a lot of time since accessing the rows is inefficient, even for csr-formats.
         # maybe find a way to compute Ax <= b faster.
         # now: add linear constraints: Ax <= b.

@@ -111,7 +111,7 @@ def add_indicator_constraints(model, variables, upper_bounds, mode, groups, use_
     :param variables: set of variables :math:`V`.
     :type variables: Iterable[int]
     :param upper_bounds: point wise upper bound UB(i) for all variables i
-    :type upper_bounds: [float]
+    :type upper_bounds: [float], optional
     :param mode: either 'min' or 'max'
     :type mode: str
     :param groups: mapping :math:`\Lambda` grouping subsets of variables :math:`V` together
@@ -127,8 +127,14 @@ def add_indicator_constraints(model, variables, upper_bounds, mode, groups, use_
         assert model.isinstance(GurobiMILP)
 
     indicator_to_group = {}
+
+    if upper_bounds is not None:
+        ub = 1
+    else:
+        ub = None
+
     for _, group in groups.items():
-        indicator_var = model.add_variables(indicator_domain)
+        indicator_var = model.add_variables_w_bounds([(indicator_domain,0,ub)])
         indicator_to_group[indicator_var] = group
         for var in group:
             if use_real_indicator_constrs:
@@ -140,12 +146,6 @@ def add_indicator_constraints(model, variables, upper_bounds, mode, groups, use_
                 model.add_constraint([(var, 1), (indicator_var, -1)], "<=", 0)
 
     indicator_to_group = InvertibleDict(indicator_to_group)
-
-    if indicator_domain != "binary":
-        for indicator_var in indicator_to_group.keys():
-            model.add_constraint([(indicator_var, 1)], ">=", 0)
-            if upper_bounds is not None:
-                model.add_constraint([(indicator_var, 1)], "<=", 1)
 
     return indicator_to_group
 
@@ -208,19 +208,22 @@ def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, known_upper_
     # obtain variable groups from labels
     groups = groups_from_labels(rf, mode, labels=labels)
 
+    # compute lower/upper bounds
+    bounds = []
+    for varidx in range(certsize):
+        #model.add_constraint([(varidx, 1)], ">=", 0)
+        if mode == "min" and rf.in_proper_ec(varidx):
+            ub = 0
+        elif upper_bounds is not None:
+            ub = upper_bounds[varidx]
+        else:
+            ub = None
+        bounds.append((0,ub))
+
     # construct MILP
     certsize = certificate_size(rf, mode)
-    model = modeltype.from_coefficients(fark_matr, fark_rhs, np.zeros(certsize), ["real"]*certsize) # initialize model
-
-    # add lower/upper bounds
-    for varidx in range(certsize):
-        model.add_constraint([(varidx, 1)], ">=", 0)
-        if upper_bounds is not None:
-            model.add_constraint([(varidx, 1)], "<=", upper_bounds[varidx])
-        if mode == "min" and not rf.is_ec_free:
-            if rf.in_proper_ec(varidx):
-                model.add_constraint([(varidx,1)], "=" , 0)
-
+    # initialize model
+    model = modeltype.from_coefficients(fark_matr, fark_rhs, np.zeros(certsize), ["real"]*certsize, sense="<=", objective="min", bounds=bounds)
 
     # add indicator variables, which are either binary or real, dependent on what relaxed was set to
     indicator_domain = "real" if relaxed else "binary"

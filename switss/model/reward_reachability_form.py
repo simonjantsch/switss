@@ -38,6 +38,9 @@ class RewardReachabilityForm:
     def is_ec_free(self):
         return True
 
+    def in_proper_ec(self, state):
+        return False
+
     @classmethod
     def fromsystem(cls, system, initial_label, target_label="rrf_target",ignore_consistency_checks=False):
         if not ignore_consistency_checks:
