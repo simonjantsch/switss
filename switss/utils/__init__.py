@@ -3,3 +3,5 @@ from .graphviz_utils import color_from_hash, VisualizationConfig, DTMCVisualizat
 from .casting import cast_dok_matrix
 from .graph import Graph
 from .treaps import treap_testcases
+
+from .graph_utils import underlying_graph, quotient
