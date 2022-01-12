@@ -15,7 +15,7 @@ cython_modules = [ "switss/utils/graph.pyx",
                    "switss/utils/stack.pyx"]
 
 if "--with-treealg" in sys.argv:
-    install_packages += ["Pillow"]
+    install_packages += ["Pillow", "more-itertools"]
     cython_modules += ["switss/utils/tree_decomp.pyx"]
     sys.argv.remove("--with-treealg")
 
