@@ -141,7 +141,7 @@ def is_tree(G):
     return ((len(u.get_vertices()) == 1) and (max_in_degree == 1))
 
 def tree_decomp_from_partition_graphtool(P,partition):
-    G = underlying_graph_graphtool(P)
+    G = underlying_graph(P)
     #nx.nx_pydot.write_dot(G,"orig.dot")
     decomp,labeling,interface = quotient(G,partition)
 
@@ -195,7 +195,7 @@ def min_witnesses_from_tree_decomp(rf,partition,thr,known_upper_bound=None,timeo
     if known_upper_bound == None:
         known_upper_bound = rf.P.shape[0]
 
-    G = underlying_graph_graphtool(rf.P)
+    G = underlying_graph(rf.P)
 
     dist_from_init = gt.shortest_distance(G,source=G.vertex(rf.initial))
     ## print(dist_from_init.a)

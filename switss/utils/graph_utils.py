@@ -1,19 +1,13 @@
-import networkx as nx
 import numpy as np
 from scipy.sparse import dok_matrix
-
-import graph_tool.all as gt
 from bidict import bidict
 
-def underlying_graph(P):
-    rows,cols = np.shape(P)
-    G = nx.DiGraph()
-    G.add_nodes_from(range(0,cols))
-    for (source,dest) in P.keys():
-        G.add_edge(source,dest)
-    return G
+try:
+    import graph_tool.all as gt
+except:
+    print("It seems that graph_tool is not installed, you will not be able to use the treealgo.")
 
-def underlying_graph_graphtool(P):
+def underlying_graph(P):
     rows,cols = np.shape(P)
     G = gt.Graph()
     G.add_vertex(cols)
@@ -40,10 +34,6 @@ def quotient(G,partition):
                                add_missing = True)
 
     return quotientGraph,labeling,interface
-
-def scc_graph(G):
-    components = list(nx.strongly_connected_components(G))
-    return nx.condensation(G,components)
 
 def interface(node_set1,node_set2,P):
     M = len(node_set1)

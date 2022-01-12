@@ -2,9 +2,10 @@ from switss.model import DTMC, ReachabilityForm
 from switss.problem import MILPExact, QSHeur
 from switss.certification import generate_farkas_certificate,check_farkas_certificate
 import switss.problem.qsheurparams as qsparam
-from .example_models import example_dtmcs, toy_dtmc2
+from .example_models import example_dtmcs, toy_dtmc2, toy_dtmc1
 import tempfile
 import itertools
+import warnings
 
 dtmcs = example_dtmcs()
 free_lp_solvers = ["cbc","glpk"]
@@ -162,3 +163,26 @@ def test_heuristics():
                     ss_reach_form = r.subsystem.reachability_form
                     super_reach_form = r.subsystem.supersys_reachability_form
                     ss_model = r.subsystem.model
+
+def test_treelike():
+    try:
+        from switss.utils.tree_decomp import min_witnesses_from_tree_decomp
+        from switss.problem import TreeAlgo
+    except:
+        warnings.warn(UserWarning("it seems that switss is installed without tree-algo, not running the corresponding tests."))
+        return
+
+    for dtmc in [toy_dtmc1(),toy_dtmc2()]:
+        rf,_,_ = ReachabilityForm.reduce(dtmc,"init","target")
+
+        for thr in [0.1,0.7,1]:
+
+            instance_tree = TreeAlgo([range(rf.A.shape[0])],solver="gurobi")
+            result_tree = instance_tree.solve(rf,thr,"max")
+
+            instance_exact = MILPExact()
+            result_exact = instance_exact.solve(rf,thr,"max")
+            print(result_tree)
+            print(result_exact)
+
+            assert result_tree.value == result_exact.value
