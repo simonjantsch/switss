@@ -125,6 +125,13 @@ class ReachabilityForm:
         return self.__A
 
     @property
+    def P(self):
+        """
+        Returns the :math:`C \\times N` transition probability matrix :math:`\mathbf{P}`
+        """
+        return self.__P
+
+    @property
     def to_target(self):
         """
         Returns a vector of length :math:`C` :math:`\\textbf{b}` where

@@ -14,3 +14,4 @@ from .formulations import add_indicator_constraints, \
                           certificate_size
 from .qsheur import QSHeur
 from .milpexact import MILPExact
+from .tree_algo import TreeAlgo
