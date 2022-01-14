@@ -80,12 +80,18 @@ class QSHeur(ProblemFormulation):
     def _solveiter(self, reach_form, threshold, mode, labels, timeout=None):
         """Runs the QSheuristic using the Farkas (y- or z-) polytope
         depending on the value in mode."""
+        if self.solver == "gurobi":
+            modeltype_str = "gurobi"
+        else:
+            modeltype_str = "pulp"
+
         model, indicators = construct_MILP(reach_form, 
                                            threshold, 
                                            mode=mode, 
                                            labels=labels, 
                                            relaxed=True, 
-                                           upper_bound_solver=self.solver)
+                                           upper_bound_solver=self.solver,
+                                           modeltype_str=modeltype_str)
         if model is None:
             yield ProblemResult("infeasible", None, None, None)
             return

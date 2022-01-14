@@ -362,7 +362,9 @@ class GurobiMILP(MILP):
         self.__model.setParam('OutputFlag', 0)
 
 
-    def solve(self, **kwargs):
+    def solve(self, solver, timeout=None):
+        if timeout is not None:
+            self.__model.setParam('TimeLimit',timeout)
         self.__model.optimize()
         
         status_dict = { GRB.OPTIMAL: "optimal",
