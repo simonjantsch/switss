@@ -59,7 +59,7 @@ class MILPExact(ProblemFormulation):
                                   mode=mode, 
                                   labels=labels, 
                                   relaxed=False, 
-                                  upper_bound_solver=self.solver,
+                                  upper_bound_solver="cbc",
                                   modeltype_str="gurobi" if self.solver=="gurobi" else "pulp")
 
         if model is None:
