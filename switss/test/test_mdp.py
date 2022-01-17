@@ -41,6 +41,10 @@ def test_mecs():
     assert (components[3] == components[5])
     assert(len(set(components)) == 5)
 
+def test_proper_mecs():
+    rf,_,_ = ReachabilityForm.reduce(toy_mdp3(),"init","target")
+    assert (not rf.in_proper_ec(0) and rf.in_proper_ec(1) and not rf.in_proper_ec(2))
+
 def test_mec_free():
     for mdp in mdps[:-1]:
         rf ,_,_ = ReachabilityForm.reduce(mdp,"init","target")
@@ -146,9 +150,7 @@ def test_prmin_prmax():
             m_z_st = reach_form.max_z_state(solver=solver)
             m_z_st_act = reach_form.max_z_state_action(solver=solver)
 
-            #_,proper_mecs,nr_of_mecs = mdp.maximal_end_components()
-
-            if reach_form.nr_of_proper_mecs == 0:
+            if reach_form.is_ec_free:
                 m_y_st_act = reach_form.max_y_state_action(solver=solver)
                 m_y_st = reach_form.max_y_state(solver=solver)
                 assert (m_y_st_act >= -1e-8).all()
@@ -164,7 +166,9 @@ def test_prmin_prmax():
             pr_max = reach_form.pr_max()
 
             for vec in [pr_min,pr_max]:
-                assert (vec <= 1).all() and (vec > 0).all()
+                assert (vec <= 1).all()
+                if reach_form.is_ec_free:
+                    assert (vec > 0).all()
 
             assert (pr_min <= pr_max).all()
 

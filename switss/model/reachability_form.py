@@ -132,6 +132,13 @@ class ReachabilityForm:
         return self.__P
 
     @property
+    def index_by_state_action(self):
+        """
+        Returns a bidict which maps state-action pairs to indices (i.e. rows) of the matrix P, and vice versa
+        """
+        return self.__index_by_state_action
+
+    @property
     def to_target(self):
         """
         Returns a vector of length :math:`C` :math:`\\textbf{b}` where
@@ -571,8 +578,11 @@ p        .. math::
             matr,rhs,opt,sense="<=",objective="max")
 
         for st_idx in range(N):
-            max_z_lp.add_constraint([(st_idx,1)],">=",0)
-            max_z_lp.add_constraint([(st_idx,1)],"<=",1)
+            if self.in_proper_ec(st_idx):
+                max_z_lp.add_constraint([(st_idx,1)],"=",0)
+            else:
+                max_z_lp.add_constraint([(st_idx,1)],">=",0)
+                max_z_lp.add_constraint([(st_idx,1)],"<=",1)
 
         result = max_z_lp.solve(solver=solver)
         return result.result_vector

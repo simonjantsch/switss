@@ -2,7 +2,7 @@ from switss.solver import LP
 from scipy.sparse import dok_matrix, identity
 import numpy as np
 
-def find_interior_point(A, b, xgeq0=False, solver="cbc"):
+def find_interior_point(A, b, xgeq0=False, zero_vars = [], solver="cbc"):
     """Finds a point :math:`x` that is (strictly) inside a convex region (made up of half-spaces), i.e. a vector :math:`x \in \mathbb{R}^n` such that :math:`A x \leq b` if there are any. The algorithm finds the solution to the problem 
 
     .. :math:
@@ -15,6 +15,8 @@ def find_interior_point(A, b, xgeq0=False, solver="cbc"):
     :type b: np.ndarray
     :param xgeq0: If true, adds additional constraints :math:`x \geq 0`, defaults to False
     :type xgeq0: bool, optional
+    :param zero_vars: A list of variables which should be forced to have value zero.
+    :type zero_vars: [int], optional
     :param solver: the used solver, may be "gurobi", "cbc", "cplex" or "glpk", defaults to "cbc"
     :type solver: str, optional
     :return: a 3d-tuple (x, optimal, strict) where `x` is the :math:`M`-d result vector :math:`x^*`, `optimal` indicates whether the LP-solution is optimal (i.e. not unbounded or infeasible) and `strict` whether :math:`A x^* < b` is satisfied.
@@ -37,6 +39,9 @@ def find_interior_point(A, b, xgeq0=False, solver="cbc"):
     if xgeq0:
         for idx in range(A.shape[1]):
             lp.add_constraint([(idx,1),(A.shape[1],1)],">=",0)
+
+    for idx in zero_vars:
+        lp.add_constraint([(idx,1)],"=",0)
 
     result = lp.solve(solver)
     sres = result.result_vector[-1]
@@ -92,6 +97,19 @@ def check_farkas_certificate(reach_form, mode, sense, threshold, farkas_vec, tol
     N,D = farkas_matr.shape
     assert farkas_vec.shape[0] == D
 
+    if mode == "min":
+        N, D = farkas_matr.shape
+        if sense in [">=",">"]:
+            for idx in range(D):
+                if reach_form.in_proper_ec(idx) and not (farkas_vec[idx] == 0):
+                    return False
+
+        else:
+            for idx in range(D):
+                (s,a) = reach_form.index_by_state_action.inv[idx]
+                if reach_form.in_proper_ec(s) and not (farkas_vec[idx] == 0):
+                    return False
+
     res_vec = farkas_matr.dot(farkas_vec)
 
     if sense == "<=":
@@ -131,7 +149,22 @@ def generate_farkas_certificate(reach_form, mode, sense, threshold,tol=1e-5,solv
         # if sense is "<=" or "<", then the certificate condition is Ax >=/> b
         # therefore, apply the transformation: Ax >=/> b <=> (-A)x <=/< -b
         farkas_matr, rhs = -farkas_matr, -rhs
-    lp_result, optimal, is_strict = find_interior_point(farkas_matr,rhs,True,solver)
+
+    #for "min"-problems all variables corresponding to states in proper end components have to be set to zero
+    zero_vars = []
+    if mode == "min":
+        N, D = farkas_matr.shape
+        if sense in [">=",">"]:
+            for idx in range(D):
+                if reach_form.in_proper_ec(idx):
+                    zero_vars.append(idx)
+        else:
+            for idx in range(D):
+                (s,a) = reach_form.index_by_state_action.inv[idx]
+                if reach_form.in_proper_ec(s):
+                    zero_vars.append(s)
+
+    lp_result, optimal, is_strict = find_interior_point(farkas_matr,rhs,xgeq0=True,zero_vars=zero_vars,solver=solver)
     
     check = check_farkas_certificate(reach_form, mode, sense, threshold, lp_result,tol=tol)
     return lp_result if check else None

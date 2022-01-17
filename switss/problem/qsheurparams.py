@@ -206,12 +206,10 @@ class InverseReachabilityInitializer(Initializer):
         if self.mode == "min":
             # if mode is min, each variable in a group corresponds to a state
             Pr_x = self.reachability_form.max_z_state(solver=self.solver)
-            assert (Pr_x > 0).all()
             self.Pr = Pr_x
         else:
             # if mode is max, each variable in a group corresponds to a state-action pair index
             Pr_x_a = self.reachability_form.max_z_state_action(solver=self.solver)
-            assert (Pr_x_a > 0).all()
             self.Pr = Pr_x_a
 
     def initialize(self):
@@ -221,7 +219,7 @@ class InverseReachabilityInitializer(Initializer):
             variables = self.indicator_to_group[group]
             variablecount = len(variables)
             weighted_probability = sum([self.Pr[var] for var in variables])/variablecount
-            ret.append((group, self.weights[group] * np.min([1e9,1/weighted_probability])))
+            ret.append((group, self.weights[group] * np.min([1e9,1/weighted_probability if weighted_probability > 0 else 1e9])))
 
         return ret
 
