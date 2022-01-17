@@ -360,6 +360,7 @@ class GurobiMILP(MILP):
         self.__model.setParam("IntFeasTol", 1e-9)
         self.__model.setParam("NumericFocus", 3)
         self.__model.setParam('OutputFlag', 1)
+        self.__model.setParam('Threads', 4)
 
 
     def solve(self, solver, timeout=None):
