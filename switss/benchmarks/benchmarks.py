@@ -18,8 +18,9 @@ def run(reachability_form,
         to_thr=1, 
         step=1e-3, 
         debug=False, 
-        json_dir=None, 
-        timeout=None):
+        json_dir=None,
+        timeout=None,
+        labels=None):
     """Runs a benchmark on a given reachability form. The benchmark consists of running the method on the 
     reachability form for varying thresholds. Returns a dictionary which contains result of the specified test. 
     `from_thr` and `to_thr` specify the smallest and greatest  threshold respectively. `step` specifies the 
@@ -76,7 +77,8 @@ def run(reachability_form,
                        me, mo, from_thr, 
                        to_thr, step, 
                        debug, json_dir,
-                       timeout=timeout)
+                       timeout=timeout,
+                       labels=labels)
             ret.append(data)
         return ret
 
@@ -102,7 +104,7 @@ def run(reachability_form,
         starttime_wall = time.perf_counter()
         starttime_proc = time.process_time()
         wall_times, proc_times, statecounts = [], [], []
-        for result in method.solveiter(reachability_form, thr, mode, timeout=timeout):
+        for result in method.solveiter(reachability_form, thr, mode, labels=labels, timeout=timeout):
             if result.status != "success":
                 if debug:
                     print("threshold %d infeasible or method timeout. result status =%s" % (thr,result.status))
