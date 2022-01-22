@@ -123,7 +123,7 @@ def run(reachability_form,
         if debug:
             print("\tp={:.3f} threshold={:.3f} statecount={} time={:.3f}".\
                   format(p,thr,statecounts[-1], wall_times[-1]) )
-        els = { "threshold" : thr, "statecounts" : statecounts, "wall_times" : wall_times, "proc_times" : proc_times }
+        els = { "threshold" : thr, "value" : statecounts, "wall_times" : wall_times, "proc_times" : proc_times }
         data["run"].append(els)
     print_json(json_dir,data)
     return data
