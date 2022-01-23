@@ -63,7 +63,7 @@ def compute_upper_bounds(matr, rhs, solver="cbc"):
     return lp_result.status, result
 
 
-def groups_from_labels(rf, mode, labels=None):
+def groups_from_labels(rf, mode, labels=None, group_actions = False):
     """computes variable groups from a given mode and a set of labels.
     if the labels are 'None', then returns the identity mapping.
 
@@ -73,12 +73,21 @@ def groups_from_labels(rf, mode, labels=None):
     :type mode: str
     :param labels: labels that group states, defaults to None
     :type labels: List[str], optional
+    :param group_actions: returns the labeling in which all actions belong to the same group. Only applicable if mode="max" and labels=None. Defaults to False.
+    :type labels: Bool, optional
     :return: the state/state-action-pair groupings
     :rtype: InvertibleDict[int, Set[int]] 
     """    
     assert mode in ["min", "max"]
     if labels is None:
-        return InvertibleDict({ idx: {idx} for idx in range(certificate_size(rf, mode))})
+        if mode == "max" and group_actions == True:
+            groups = InvertibleDict({})
+            for i in range(certificate_size(rf, mode)):
+                (s,a) = rf.index_by_state_action.inv[i]
+                groups.add(s, i)
+            return groups
+        else:
+            return InvertibleDict({ idx: {idx} for idx in range(certificate_size(rf, mode))})
     elif mode == "min":
         groups = {}
         for label in labels:
@@ -206,7 +215,11 @@ def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, known_upper_
         use_real_indicator_constrs = True
 
     # obtain variable groups from labels
-    groups = groups_from_labels(rf, mode, labels=labels)
+    # for exact minimization in max case, make a group per state
+    if mode == "max" and not relaxed:
+        groups = groups_from_labels(rf, mode, labels=labels,group_actions=True)
+    else:
+        groups = groups_from_labels(rf, mode, labels=labels,group_actions=False)
 
     # compute lower/upper bounds
     bounds = []
