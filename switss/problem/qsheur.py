@@ -90,7 +90,7 @@ class QSHeur(ProblemFormulation):
                                            mode=mode, 
                                            labels=labels, 
                                            relaxed=True, 
-                                           upper_bound_solver="cbc",
+                                           upper_bound_solver=self.solver,
                                            modeltype_str=modeltype_str)
         if model is None:
             yield ProblemResult("infeasible", None, None, None)

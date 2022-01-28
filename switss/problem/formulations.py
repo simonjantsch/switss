@@ -25,7 +25,7 @@ def certificate_size(rf, mode):
     else:
         return C-2
 
-def compute_upper_bounds(matr, rhs, solver="cbc"):
+def compute_upper_bounds(matr, rhs, solver="cbc",timeout=600):
     """
     computes point wise upper bounds for LPs/MILPs. Solves the LP
 
@@ -52,7 +52,7 @@ def compute_upper_bounds(matr, rhs, solver="cbc"):
     for idx in range(certsize):
         upper_bound_LP.add_constraint([(idx, 1)], ">=", 0)
 
-    lp_result = upper_bound_LP.solve(solver=solver)
+    lp_result = upper_bound_LP.solve(solver=solver,timeout=timeout)
     assert lp_result.status != "unbounded"
 
     if (certsize == rows):
@@ -205,11 +205,14 @@ def construct_MILP(rf, threshold, mode, labels=None, relaxed=False, known_upper_
         upper_bounds = np.ones(certsize)
 
     elif rf.is_ec_free:
-        status, upper_bounds = compute_upper_bounds(fark_matr, fark_rhs, solver=upper_bound_solver)
-        if status != "optimal":
-            return None, None
+        # try to compute (if there is no result within 10 minutes, stop)
+        status, up_res = compute_upper_bounds(fark_matr, fark_rhs, solver=upper_bound_solver,timeout=600)
+        if status == "infeasible":
+            return None,None
+        elif status == "optimal":
+            upper_bounds = up_res
 
-    elif not relaxed:
+    if not relaxed and mode == "max" and upper_bounds is None:
         assert modeltype_str == "gurobi", "warning: exact minimization of max-properties only possible via gurobi interface at the moment."
 
         use_real_indicator_constrs = True
