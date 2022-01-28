@@ -20,7 +20,8 @@ def run(reachability_form,
         debug=False, 
         json_dir=None,
         timeout=None,
-        labels=None):
+        labels=None,
+        stop_on_timeout=True):
     """Runs a benchmark on a given reachability form. The benchmark consists of running the method on the 
     reachability form for varying thresholds. Returns a dictionary which contains result of the specified test. 
     `from_thr` and `to_thr` specify the smallest and greatest  threshold respectively. `step` specifies the 
@@ -62,6 +63,8 @@ def run(reachability_form,
     :type debug: bool, optional
     :param json_dir: Resulting json files will be printed into the directory json_dir
     :type json_dir: Path, optional
+    :param stop_on_timeout: True if the run should be stopped whenever one timeout occurs. Defaults to True.
+    :type stop_on_timeout: Bool, optional
     :return: The generated data.
     :rtype: Dict or List
     """    
@@ -78,7 +81,8 @@ def run(reachability_form,
                        to_thr, step, 
                        debug, json_dir,
                        timeout=timeout,
-                       labels=labels)
+                       labels=labels,
+                       stop_on_timeout=stop_on_timeout)
             ret.append(data)
         return ret
 
@@ -105,21 +109,21 @@ def run(reachability_form,
         starttime_proc = time.process_time()
         wall_times, proc_times, statecounts = [], [], []
         for result in method.solveiter(reachability_form, thr, mode, labels=labels, timeout=timeout):
-            if result.status != "success":
-                if debug:
-                    print("threshold %d infeasible or method timeout. result status =%s" % (thr,result.status))
-                print_json(json_dir,data)
-                return data
             wall_time = time.perf_counter() - starttime_wall
             proc_time = time.process_time() - starttime_proc
             wall_times.append(wall_time)
             proc_times.append(proc_time)
-            if result.status == "success":
-                # statecount = np.sum(result.subsystem.subsystem_mask)
-                # statecounts.append(int(statecount))
-                statecounts.append(result.value)
-            else:
+            if result.status != "success":
                 statecounts.append(-1)
+                if stop_on_timeout:
+                    els = { "threshold" : thr, "value" : statecounts, "wall_times" : wall_times, "proc_times" : proc_times }
+                    data["run"].append(els)
+                    if debug:
+                        print("threshold %d infeasible or method timeout. result status =%s" % (thr,result.status))
+                    print_json(json_dir,data)
+                    return data
+            else result.status == "success":
+                statecounts.append(result.value)
         if debug:
             print("\tp={:.3f} threshold={:.3f} statecount={} time={:.3f}".\
                   format(p,thr,statecounts[-1], wall_times[-1]) )
