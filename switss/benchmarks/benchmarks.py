@@ -178,11 +178,11 @@ def render(run,
 
     assert plot_no in [1,2,3]
 
-    resultcount = len(run["run"][0]["statecounts"])
+    resultcount = len(run["run"][0]["value"])
     if custom_label == None:
         custom_label = run["method"]["type"]
     if mode in ["states-thr", "laststates-thr"]:
-        maxstatecount = max([max(el["statecounts"]) for el in run["run"]])
+        maxstatecount = max([max(el["value"]) for el in run["run"]])
 #         normalize = (maxstatecount > 10000) and normalize
 #         ax.set_ylabel("states (x1000)" if normalize else "states")
 #         markers = ["tri_down", "x", "tri_up", ".", "+", "tri_right", "d", "s", "*", "h"]
@@ -201,7 +201,7 @@ def render(run,
             marker = markers[idx % len(markers)]
             thr = [el["threshold"] for el in run["run"]]
             label = r"%s" % custom_label if resultcount == 1 else r"%s$_{%s}$" % (custom_label, idx+1)
-            sta = [el["statecounts"][idx] for el in run["run"]]
+            sta = [el["value"][idx] for el in run["run"]]
             if normalize:
                 sta = [el/1000 for el in sta]
             ax.plot(thr, sta, linestyle="dashed", marker=marker, label=label, markersize=markersize,linewidth=linewidth)
