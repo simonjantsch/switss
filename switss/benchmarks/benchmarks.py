@@ -122,7 +122,7 @@ def run(reachability_form,
                         print("threshold %d infeasible or method timeout. result status =%s" % (thr,result.status))
                     print_json(json_dir,data)
                     return data
-            else result.status == "success":
+            else:
                 statecounts.append(result.value)
         if debug:
             print("\tp={:.3f} threshold={:.3f} statecount={} time={:.3f}".\
