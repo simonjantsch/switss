@@ -142,7 +142,8 @@ def render(run,
            plot_no=1, 
            e_mode=False, 
            markersize=6, 
-           linewidth=1):
+           linewidth=1,
+           markers=None):
     """Renders a benchmark run via matplotlib. `mode` specifies the type of the
     resulting plot, i.e. statecount vs. threshold ('states-thr', plots all intermediate results), only
     the last resulting statecount vs. threshold ('laststates-thr', plots only the last result), time
@@ -188,11 +189,10 @@ def render(run,
 #         markers = ["tri_down", "x", "tri_up", ".", "+", "tri_right", "d", "s", "*", "h"]
         #normalize = (maxstatecount > 10000) and normalize
         ax.set_ylabel("states of subsystem (x1000)" if normalize else "states of subsystem")
-        markers = { 1 : ["o", "x", "^"],
-                    2 : ["+", "*", "3"],
-                    3 : ["d", "s", "."]}[plot_no]
-        # if plot_no == 2:
-        #     markersize += 2
+        if markers is None:
+            markers = { 1 : ["o", "x", "^"],
+                        2 : ["+", "*", "3"],
+                        3 : ["d", "s", "."]}[plot_no]
         if sol_range == None:
             sol_range = range(resultcount)
         for idx in sol_range:
