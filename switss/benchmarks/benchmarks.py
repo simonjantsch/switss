@@ -212,6 +212,7 @@ def render(run,
         ax.set_ylabel("time [s]")
         if sol_range == None:
             sol_range = [-1]
+            resultcount = 1
         for idx in sol_range:
             tim = []
             for el in run["run"]:
@@ -222,7 +223,7 @@ def render(run,
                 else:
                     tim.append(el[times][idx])
             thr = [el["threshold"] for el in run["run"]]
-            label = r"%s" % custom_label
+            label = r"%s" % custom_label if resultcount == 1 else r"%s$_{%s}$" % (custom_label, idx+1)
             marker = markers[idx % len(markers)]
             ax.plot(thr, tim, linestyle="dashed", marker=marker,  label=label, markersize=markersize, linewidth=linewidth)
 
