@@ -144,7 +144,8 @@ def render(run,
            markersize=6, 
            linewidth=1,
            markers=None,
-           timeout_val=None):
+           timeout_val=None,
+           cap_times_below_onesec=True):
     """Renders a benchmark run via matplotlib. `mode` specifies the type of the
     resulting plot, i.e. statecount vs. threshold ('states-thr', plots all intermediate results), only
     the last resulting statecount vs. threshold ('laststates-thr', plots only the last result), time
@@ -212,7 +213,14 @@ def render(run,
         if sol_range == None:
             sol_range = [-1]
         for idx in sol_range:
-            tim = [el[times][idx] if  el[times][idx] != -1 or timeout_val is None else timeout_val for el in run["run"]]
+            tim = []
+            for el in run["run"]:
+                if el[times][idx] == -1 and timeout_val is not None:
+                    tim.append(timeout_val)
+                elif el[times][idx] >= 0 and el[times][idx] <= 1 and cap_times_below_onesec:
+                    tim.append(1)
+                else:
+                    tim.append(el[times][idx])
             thr = [el["threshold"] for el in run["run"]]
             label = r"%s" % custom_label
             marker = markers[idx % len(markers)]
