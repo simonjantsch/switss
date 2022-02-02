@@ -143,7 +143,8 @@ def render(run,
            e_mode=False, 
            markersize=6, 
            linewidth=1,
-           markers=None):
+           markers=None,
+           timeout_val=None):
     """Renders a benchmark run via matplotlib. `mode` specifies the type of the
     resulting plot, i.e. statecount vs. threshold ('states-thr', plots all intermediate results), only
     the last resulting statecount vs. threshold ('laststates-thr', plots only the last result), time
@@ -178,6 +179,10 @@ def render(run,
         ax.xaxis.set_major_formatter(xfmt)
 
     assert plot_no in [1,2,3]
+    if markers is None:
+        markers = { 1 : ["o", "x", "^"],
+                    2 : ["+", "*", "3"],
+                    3 : ["d", "s", "."]}[plot_no]
 
     resultcount = len(run["run"][0]["value"])
     if custom_label == None:
@@ -189,10 +194,6 @@ def render(run,
 #         markers = ["tri_down", "x", "tri_up", ".", "+", "tri_right", "d", "s", "*", "h"]
         #normalize = (maxstatecount > 10000) and normalize
         ax.set_ylabel("states of subsystem (x1000)" if normalize else "states of subsystem")
-        if markers is None:
-            markers = { 1 : ["o", "x", "^"],
-                        2 : ["+", "*", "3"],
-                        3 : ["d", "s", "."]}[plot_no]
         if sol_range == None:
             sol_range = range(resultcount)
         for idx in sol_range:
@@ -201,17 +202,21 @@ def render(run,
             marker = markers[idx % len(markers)]
             thr = [el["threshold"] for el in run["run"]]
             label = r"%s" % custom_label if resultcount == 1 else r"%s$_{%s}$" % (custom_label, idx+1)
-            sta = [el["value"][idx] for el in run["run"]]
+            sta = [el["value"][idx] if el["value"][idx] != -1 or timeout_val is None else timeout_val for el in run["run"]]
             if normalize:
                 sta = [el/1000 for el in sta]
             ax.plot(thr, sta, linestyle="dashed", marker=marker, label=label, markersize=markersize,linewidth=linewidth)
     elif mode == "wall_time-thr" or mode == "proc_time-thr":
         times  = { "wall_time-thr" : "wall_times", "proc_time-thr" : "proc_times"}[mode]
         ax.set_ylabel("time [s]")
-        tim = [el[times][-1] for el in run["run"]]
-        thr = [el["threshold"] for el in run["run"]]
-        label = r"%s" % custom_label
-        ax.plot(thr, tim, linestyle="dashed", marker="x",  label=label, markersize=markersize, linewidth=linewidth)
+        if sol_range == None:
+            sol_range = [-1]
+        for idx in sol_range:
+            tim = [el[times][idx] if  el[times][idx] != -1 or timeout_val is None else timeout_val for el in run["run"]]
+            thr = [el["threshold"] for el in run["run"]]
+            label = r"%s" % custom_label
+            marker = markers[idx % len(markers)]
+            ax.plot(thr, tim, linestyle="dashed", marker=marker,  label=label, markersize=markersize, linewidth=linewidth)
 
     ax.set_xlabel(r"threshold $\lambda$")
     if title is not None:
