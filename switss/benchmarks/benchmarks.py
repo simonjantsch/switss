@@ -114,7 +114,12 @@ def run(reachability_form,
             wall_times.append(wall_time)
             proc_times.append(proc_time)
             if result.status != "success":
+                if result.status == "infeasible":
+                    print_json(json_dir,data)
+                    return data
+
                 statecounts.append(-1)
+
                 if stop_on_timeout:
                     els = { "threshold" : thr, "value" : statecounts, "wall_times" : wall_times, "proc_times" : proc_times }
                     data["run"].append(els)
