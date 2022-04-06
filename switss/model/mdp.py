@@ -277,3 +277,65 @@ class MDP(AbstractMDP):
 
         return { "P" : P, "index_by_state_action" : index_by_state_action, "label_to_actions" : label_to_actions, "label_to_states" : label_to_states }
         
+    @classmethod
+    def _load_rewards(cls, filepath, trans_matrix):
+        if(os.path.isfile(filepath)):
+            if(filepath.endswith(".srew")):
+                #in srew files the first line contains #States #states with non-zero reward
+                with open(filepath,"r") as srew_file:
+                    first_line_split = srew_file.readline().split()
+                    N = int(first_line_split[0])
+                    rows , columns = self.P.shape
+                    if( N == columns):
+                        reward_vector = numpy.zeros(N, dtype=int)    
+                    else:
+                        print("Error: the given srew file is for a model with a different amount of states than this model has")
+                        print("\n The parsing process is cancelled and the reward vector has not been changed")
+                        
+                        #TODO what to return?
+                        return 
+
+                    for line in srew_file.readlines():
+                        # of format "state reward"
+                        line_split = line.split()
+                        state = int(line_split[0])
+                        state_reward = int(line_split[1])
+                        reward_vector[state] = state_reward
+                        
+                    return reward_vector
+            
+            if(filepath.endswith(".trew")):
+                with open(filepath, "r") as trew_file:
+                    first_line_split = trew_file.readline().split()
+                    
+                    if len(first_line_split) == 3:
+                        # trew is for MDP 
+                        # format of first line "#states #choices #transitions"
+
+                        C = int(first_line_split[1])
+                        # TODO resize reward vector according to .trew or just reset current vector with size of C? check if sizes match
+                        rows, columns = trans_matrix.shape
+                        if( rows == C):
+                            reward_vector = numpy.zeros(C, dtype=int)
+                        else:
+                            print("Error:The number of choices in the trew file doesnt match the number of enabled state action pairs in the model")    
+                            print("\n The parsing process is cancelled and the reward vector has not been changed")
+                            return
+
+                        for line in trew_file.readlines():
+                            #format "source action dest reward"
+                            line_split = line.split()
+                            source = int(line_split[0])
+                            action = int(line_split[1])
+                            # dest = int(line_split[2]) not needed so far
+                            reward = int(line_split[3])
+                            reward_vector[source+action] = reward
+                        return reward_vector
+
+                    else:
+                        print("error: probably trying to read reward specification of an dtmc for an object of type mdp")
+                        return reward_vector
+            else:
+                print("error: file path in function _load_rewards doesnt end with '.trew' or '.srew'")
+        else:
+            print("Given file/filepath does not exist")

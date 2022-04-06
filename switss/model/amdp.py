@@ -199,8 +199,8 @@ class AbstractMDP(ABC):
         return self.__graph.maximal_end_components()
 
     @classmethod
-    def from_file(cls, label_file_path, tra_file_path):
-        """Computes an instance of this model from a given .lab and .tra file.
+    def from_file(cls, label_file_path, tra_file_path, srew_file_path, trew_file_path):
+        """Computes an instance of this model from a given .lab, .tra and .srew file.
         
         :param label_file_path: Path of .lab-file.
         :type label_file_path: str
@@ -213,7 +213,14 @@ class AbstractMDP(ABC):
         states_by_label, _, _ = parse_label_file(label_file_path)
         # then load the transition matrix
         res = cls._load_transition_matrix(tra_file_path)
-        return cls(**res, label_to_states=states_by_label)
+        rows,_ = res["P"].shape
+        #TODO check whether one of the srew or the trew files is empty
+        
+
+        reward = cls._load_rewards(srew_file_path, res["P"])
+        if(len(reward) != rows):
+            print("error: the size of the results of _load_transition_matrix and _load_rewards dont fit together")
+        return cls(**res, label_to_states=states_by_label, reward_vector=reward)
         
     @classmethod
     def from_prism_model(cls, model_file_path, prism_constants = {}, extra_labels = {}):
@@ -234,8 +241,12 @@ class AbstractMDP(ABC):
             temp_model_file = os.path.join(tempdirname, "model")
             temp_tra_file = temp_model_file + ".tra"
             temp_lab_file = temp_model_file + ".lab"
+            temp_srew_file = temp_model_file + ".srew"
+            temp_trew_file = temp_model_file + ".trew"
             if prism_to_tra(model_file_path,temp_model_file,prism_constants,extra_labels):
-                return cls.from_file(temp_lab_file,temp_tra_file)
+                
+                print("here")
+                return cls.from_file(temp_lab_file,temp_tra_file, temp_srew_file, temp_trew_file)
             else:
                 assert False, "Prism call to create model failed."
         
@@ -272,6 +283,11 @@ class AbstractMDP(ABC):
 
     @abstractclassmethod
     def _load_transition_matrix(cls, filepath):
+        pass
+
+# TODO understand this notation as empty abstract class method
+    @abstractclassmethod
+    def _load_rewards(cls, filepath):
         pass
 
     def __repr__(self):

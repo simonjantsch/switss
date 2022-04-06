@@ -76,7 +76,7 @@ def prism_to_tra(model_path, destination_path, prism_constants = {}, extra_label
         namedtf.flush()
 
         # call prism
-        prism_call = ["prism",namedtf.name] + const_strings + ["-exportmodel",destination_path+".tra,sta,lab"]
+        prism_call = ["prism",namedtf.name] + const_strings + ["-exportmodel",destination_path+".tra,sta,lab,trew,srew"]
         try:
             check_output(prism_call)
             return True

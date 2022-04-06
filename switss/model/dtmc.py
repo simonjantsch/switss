@@ -1,6 +1,8 @@
 from bidict import bidict
 from graphviz import Digraph
 from scipy.sparse import dok_matrix
+from numpy import zeros
+import os.path
 
 from . import AbstractMDP
 from ..utils import color_from_hash, cast_dok_matrix, DTMCVisualizationConfig
@@ -158,3 +160,85 @@ class DTMC(AbstractMDP):
                     P[sid,transition.column] = transition.value()
 
         return { "P" : P }
+
+    @classmethod
+    def _load_rewards(cls, filepath, trans_matrix):
+        if(os.path.isfile(filepath)):
+            if(filepath.endswith(".srew")):
+                #in srew files the first line contains the number 
+                #of states in the model and the amount of states with non-zero reward 
+                with open(filepath,"r") as srew_file:
+                    first_line_split = srew_file.readline().split()
+                    N = int(first_line_split[0])
+                    rows , _ = trans_matrix.shape
+                    if(N == rows):
+                        reward_vector = zeros(N, dtype=int)
+                    else:
+                        print("Error: the given srew file is for a model with a different amount of states than this model has")
+                        print("\n The parsing process is cancelled and the reward vector has not been changed")
+                        
+                        #TODO what to return?
+                        return 
+                    for line in srew_file.readlines():
+                        # of format "state reward"
+                        line_split = line.split()
+                        state = int(line_split[0])
+                        state_reward = int(line_split[1])
+
+                        #TODO Question: insert at 'next' index or according to state index in srew file. Currently using according to state index
+                        reward_vector[state] = state_reward
+                        
+                    return reward_vector
+            
+            
+            if(filepath.endswith(".trew")):
+                with open(filepath, "r") as trew_file:
+                    first_line_split = trew_file.readline().split()
+                    
+                    if len(first_line_split) == 2:
+                        #trew is for dtmc
+                        #format of first line "#states #non-0-rewards"
+                        N = first_line_split[0]
+                        # TODO resize reward vector according to .trew or reset to current #states
+                        rows, _ = trans_matrix.shape
+                        if(N == rows):
+                            reward_vector = zeros(N, dtype=int)
+                        else:
+                            print("Error: the given srew file is for a model with a different amount of states than this model has")
+                            print("\n The parsing process is cancelled and the reward vector has not been changed")
+                        
+                            #TODO what to return?
+                            return 
+                        
+                        for line in trew_file.readlines():
+                            #format "source dest reward"
+                            line_split = line.split()
+                            source = int(line_split[0])
+                            # dest = int(line_split[1]) 
+                            reward = int(line_split[2])
+                            reward_vector[source] = reward 
+
+                        return reward_vector
+                    
+                    else:
+                        # # trew is for MDP 
+                        # # format of first line "#states #choices #transitions"
+
+                        # N = int(first_line_split[0])
+                        # C = int(first_line_split[1])
+                        # reward_vector.resize(C)
+                        # for line in trew_file.readlines():
+                        #     #format "source action dest reward"
+                        #     line_split = line.split()
+                        #     source = int(line_split[0])
+                        #     action = int(line_split[1])
+                        #     # dest = int(line_split[2]) not needed so far
+                        #     reward = int(line_split[3])
+                        #     if (source,action) in index_by_state_action:
+                        #         index = index_by_state_action[(source,action)]
+                        #         reward_vector[index] = reward 
+                        print("error: probably trying to read reward specification of an mdp for an object of type dtmc")
+            else:
+                print("error: file path in function _load_rewards doesnt end with '.trew' or '.srew'")
+        else:
+            print("Given file/filepath does not exist")
