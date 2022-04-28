@@ -9,4 +9,4 @@ switss.egg-info/
 *.log
 env_for_switss/
 examples/personal_test.py 
-examples/test_rewards.py
+examples/test_rewards.trew
