@@ -33,10 +33,12 @@ class MDP(AbstractMDP):
             vis_config = VisualizationConfig()
 
         #TODO is this okay?
-        correct_length_reward_vector = zeros(len(index_by_state_action), dtype= int)
+        if reward_vector:
+            correct_length_reward_vector = zeros(len(index_by_state_action), dtype= int)
+            for (state, action), index in index_by_state_action.items():
+                correct_length_reward_vector[index] = reward_vector[state]
+            reward_vector = correct_length_reward_vector
 
-        for (state, action), index in index_by_state_action:
-            correct_length_reward_vector[state] = reward_vector[state]
         super().__init__(P, index_by_state_action, label_to_actions, label_to_states,vis_config, reward_vector)
 
 
@@ -124,6 +126,7 @@ class MDP(AbstractMDP):
     def save(self, filepath):
         tra_path = filepath + ".tra"
         lab_path = filepath + ".lab"
+        srew_path = filepath + ".srew"
 
         with open(tra_path, "w") as tra_file:
             tra_file.write("%d %d %d\n" % (self.N, self.C, self.P.nnz))
@@ -141,6 +144,22 @@ class MDP(AbstractMDP):
                     continue
                 labels_str = " ".join(map(str, map(unique_labels_list.index, labels)))
                 lab_file.write("%d: %s\n" % (idx, labels_str))
+
+        #TODO add save functionalituy for rewards
+        #TODO think about this loop
+        #goal is to get nonzero rewards and not duplicates because of the way we implemented state rewards
+        non_zero_amount = 0
+        for (state, action), index in self.index_by_state_action.items():
+            if(self.reward_vector[index] == 0):
+                non_zero_amount +=1
+
+        with open(srew_path, "w") as srew_file:
+            srew_file.write("%d %d" % (self.N, non_zero_amount))
+            for (state, action), index in self.index_by_state_action.items():
+                current_reward = self.reward_vector[index]
+                if( current_reward != 0):
+                    srew_file.write("%d %d" % (state, current_reward))
+
 
         return tra_path, lab_path
 
@@ -300,8 +319,44 @@ class MDP(AbstractMDP):
                         state = int(line_split[0])
                         state_reward = int(line_split[1])
                         reward_vector[state] = state_reward
-                        
                     return reward_vector
+            
+           
+            else:
+                print("error: file path in function _load_rewards doesnt end with '.srew'")
+                print("Stopping parsing process")
+        else:
+            print("Given file/filepath does not exist")
+
+
+    def _load_rewards_instance(self, filepath):
+        if(os.path.isfile(filepath)):
+            if(filepath.endswith(".srew")):
+                #in srew files the first line contains #States #states with non-zero reward
+                with open(filepath,"r") as srew_file:
+
+                    rows, cols = self.P.shape
+
+                    first_line_split = srew_file.readline().split()
+                    N = int(first_line_split[0])
+
+                    if(N != cols):
+                        print("Error! The .srew file gives rewards for a system of a different shape")
+
+                    reward_vector = zeros(N, dtype=int)    
+                    for line in srew_file.readlines():
+                        # of format "state reward"
+                        line_split = line.split()
+                        state = int(line_split[0])
+                        state_reward = int(line_split[1])
+                        reward_vector[state] = state_reward
+
+                    correct_length_reward_vector = zeros(len(self.index_by_state_action), dtype= int)
+                    for (state, action), index in self.index_by_state_action.items():
+                        correct_length_reward_vector[index] = reward_vector[state]
+                    self.reward_vector = correct_length_reward_vector
+                    
+
             
            
             else:

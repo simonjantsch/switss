@@ -39,6 +39,14 @@ class DTMC(AbstractMDP):
         if vis_config is None:
             vis_config = DTMCVisualizationConfig()
 
+        #TODO below might not be needed
+        if reward_vector:
+            correct_length_reward_vector = zeros(len(index_by_state_action), dtype= int)
+            for (state, action), index in index_by_state_action.items():
+                correct_length_reward_vector[index] = reward_vector[state]
+            reward_vector = correct_length_reward_vector
+        #===================
+        
         super().__init__(P, index_by_state_action, {}, label_to_states, vis_config, reward_vector)
 
     def digraph(self, state_map = None, trans_map = None, **kwargs):
@@ -103,6 +111,7 @@ class DTMC(AbstractMDP):
     def save(self, filepath):   
         tra_path = filepath + ".tra"
         lab_path = filepath + ".lab"
+        srew_path = filepath+".srew"
 
         with open(tra_path, "w") as tra_file:
             tra_file.write("%d %d\n" % (self.N, self.P.nnz))
@@ -120,7 +129,22 @@ class DTMC(AbstractMDP):
                 labels_str = " ".join(map(str, map(unique_labels_list.index, labels)))
                 lab_file.write("%d: %s\n" % (idx, labels_str))
 
-        return tra_path, lab_path
+        #TODO add save functionality for rewards
+        #TODO think about this loop
+        #goal is to get nonzero rewards and not duplicates because of the way we implemented state rewards
+        non_zero_amount = 0
+        for (state, action), index in self.index_by_state_action.items():
+            if(self.reward_vector[index] == 0):
+                non_zero_amount +=1
+
+        with open(srew_path, "w") as srew_file:
+            srew_file.write("%d %d" % (self.N, non_zero_amount))
+            for (state, action), index in self.index_by_state_action.items():
+                current_reward = self.reward_vector[index]
+                if( current_reward != 0):
+                    srew_file.write("%d %d" % (state, current_reward))
+
+        return tra_path, lab_path, srew_path
 
     @classmethod
     def _load_transition_matrix(cls, filepath):
@@ -178,11 +202,12 @@ class DTMC(AbstractMDP):
                         #TODO Question: insert at 'next' index or according to state index in srew file. Currently using according to state index
                         parsed_reward_vector[state] = state_reward
                     self.reward_vector = parsed_reward_vector    
-                    
             else:
                 print("error: file path in function _load_rewards doesnt end with or '.srew'")
         else:
             print("Given file/filepath does not exist")
+
+
     @classmethod
     def _load_rewards(cls, filepath):
         if(os.path.isfile(filepath)):
@@ -198,61 +223,46 @@ class DTMC(AbstractMDP):
                         line_split = line.split()
                         state = int(line_split[0])
                         state_reward = int(line_split[1])
-
-                        #TODO Question: insert at 'next' index or according to state index in srew file. Currently using according to state index
                         reward_vector[state] = state_reward
                         
                     return reward_vector
-            
-            
-            # if(filepath.endswith(".trew")):
-            #     with open(filepath, "r") as trew_file:
-            #         first_line_split = trew_file.readline().split()
-                    
-            #         if len(first_line_split) == 2:
-            #             #trew is for dtmc
-            #             #format of first line "#states #non-0-rewards"
-            #             N = first_line_split[0]
-            #             # TODO resize reward vector according to .trew or reset to current #states
-            #             rows, _ = trans_matrix.shape
-            #             if(N == rows):
-            #                 reward_vector = zeros(N, dtype=int)
-            #             else:
-            #                 print("Error: the given srew file is for a model with a different amount of states than this model has")
-            #                 print("\n The parsing process is cancelled and the reward vector has not been changed")
-                        
-            #                 #TODO what to return?
-            #                 return 
-                        
-            #             for line in trew_file.readlines():
-            #                 #format "source dest reward"
-            #                 line_split = line.split()
-            #                 source = int(line_split[0])
-            #                 # dest = int(line_split[1]) 
-            #                 reward = int(line_split[2])
-            #                 reward_vector[source] = reward 
-
-            #             return reward_vector
-                    
-            #         else:
-            #             # # trew is for MDP 
-            #             # # format of first line "#states #choices #transitions"
-
-            #             # N = int(first_line_split[0])
-            #             # C = int(first_line_split[1])
-            #             # reward_vector.resize(C)
-            #             # for line in trew_file.readlines():
-            #             #     #format "source action dest reward"
-            #             #     line_split = line.split()
-            #             #     source = int(line_split[0])
-            #             #     action = int(line_split[1])
-            #             #     # dest = int(line_split[2]) not needed so far
-            #             #     reward = int(line_split[3])
-            #             #     if (source,action) in index_by_state_action:
-            #             #         index = index_by_state_action[(source,action)]
-            #             #         reward_vector[index] = reward 
-            #             print("error: probably trying to read reward specification of an mdp for an object of type dtmc")
             else:
                 print("error: file path in function _load_rewards doesnt end with or '.srew'")
+        else:
+            print("Given file/filepath does not exist")
+
+
+    def _load_rewards_instance(self,filepath):
+        if(os.path.isfile(filepath)):
+            if(filepath.endswith(".srew")):
+                #in srew files the first line contains #States #states with non-zero reward
+                with open(filepath,"r") as srew_file:
+
+                    rows, cols = self.P.shape
+
+                    first_line_split = srew_file.readline().split()
+                    N = int(first_line_split[0])
+
+                    if(N != cols):
+                        print("Error! The .srew file gives rewards for a system of a different shape")
+
+                    reward_vector = zeros(N, dtype=int)    
+                    for line in srew_file.readlines():
+                        # of format "state reward"
+                        line_split = line.split()
+                        state = int(line_split[0])
+                        state_reward = int(line_split[1])
+                        reward_vector[state] = state_reward
+                    #LAST PROGRESS
+                    correct_length_reward_vector = zeros(len(self.index_by_state_action), dtype= int)
+                    for (state, action), index in self.index_by_state_action.items():
+                        correct_length_reward_vector[index] = reward_vector[state]
+                    self.reward_vector = correct_length_reward_vector
+
+            
+           
+            else:
+                print("error: file path in function _load_rewards doesnt end with '.srew'")
+                print("Stopping parsing process")
         else:
             print("Given file/filepath does not exist")
