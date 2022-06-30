@@ -22,7 +22,7 @@ def test_read_write():
         with tempfile.NamedTemporaryFile() as namedtf:
             mdp.save(namedtf.name)
             read_mdp = MDP.from_file(
-                namedtf.name + ".lab", namedtf.name + ".tra")
+                namedtf.name + ".lab", namedtf.name + ".tra", namedtf.name + ".srew")
 
 def test_create_reach_form():
     for mdp in mdps:

@@ -32,8 +32,8 @@ class MDP(AbstractMDP):
         if vis_config is None:
             vis_config = VisualizationConfig()
 
-        #TODO is this okay?
-        if reward_vector:
+        #TODO confirm 
+        if reward_vector is not None:
             correct_length_reward_vector = zeros(len(index_by_state_action), dtype= int)
             for (state, action), index in index_by_state_action.items():
                 correct_length_reward_vector[index] = reward_vector[state]
@@ -56,7 +56,7 @@ class MDP(AbstractMDP):
 
             def standard_state_map(stateidx,labels):
                 return { "style" : "filled",
-                         "color" : color_from_hash(tuple(sorted(labels))),
+                         "color" : color_hash(tuple(sorted(labels))),
                          "label" : "State %d\\n%s" % (stateidx,",".join(labels)) }
 
         .. code-block:: python
@@ -145,20 +145,18 @@ class MDP(AbstractMDP):
                 labels_str = " ".join(map(str, map(unique_labels_list.index, labels)))
                 lab_file.write("%d: %s\n" % (idx, labels_str))
 
-        #TODO add save functionalituy for rewards
-        #TODO think about this loop
+        
         #goal is to get nonzero rewards and not duplicates because of the way we implemented state rewards
         non_zero_amount = 0
         for (state, action), index in self.index_by_state_action.items():
-            if(self.reward_vector[index] == 0):
+            if(self.reward_vector[index] != 0):
                 non_zero_amount +=1
 
         with open(srew_path, "w") as srew_file:
             srew_file.write("%d %d" % (self.N, non_zero_amount))
             for (state, action), index in self.index_by_state_action.items():
-                current_reward = self.reward_vector[index]
-                if( current_reward != 0):
-                    srew_file.write("%d %d" % (state, current_reward))
+                if( self.reward_vector[index] != 0):
+                    srew_file.write("%d %d" % (state, self.reward_vector[index]))
 
 
         return tra_path, lab_path
@@ -303,7 +301,6 @@ class MDP(AbstractMDP):
 
         return { "P" : P, "index_by_state_action" : index_by_state_action, "label_to_actions" : label_to_actions, "label_to_states" : label_to_states }
         
-    #TODO check function input variables
     @classmethod
     def _load_rewards(cls, filepath):
         if(os.path.isfile(filepath)):
@@ -341,7 +338,7 @@ class MDP(AbstractMDP):
                     N = int(first_line_split[0])
 
                     if(N != cols):
-                        print("Error! The .srew file gives rewards for a system of a different shape")
+                        print("Warning! The .srew file gives rewards for a system of a different shape")
 
                     reward_vector = zeros(N, dtype=int)    
                     for line in srew_file.readlines():

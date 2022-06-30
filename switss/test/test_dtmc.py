@@ -23,7 +23,7 @@ def test_read_write():
         with tempfile.NamedTemporaryFile() as namedtf:
             dtmc.save(namedtf.name)
             read_dtmc = DTMC.from_file(
-                namedtf.name + ".lab", namedtf.name + ".tra")
+                namedtf.name + ".lab", namedtf.name + ".tra", namedtf.name + ".srew")
 
 def test_create_reach_form():
     for dtmc in dtmcs:

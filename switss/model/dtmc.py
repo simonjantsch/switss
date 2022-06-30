@@ -40,7 +40,7 @@ class DTMC(AbstractMDP):
             vis_config = DTMCVisualizationConfig()
 
         #TODO below might not be needed
-        if reward_vector:
+        if reward_vector is not None:
             correct_length_reward_vector = zeros(len(index_by_state_action), dtype= int)
             for (state, action), index in index_by_state_action.items():
                 correct_length_reward_vector[index] = reward_vector[state]
@@ -129,20 +129,21 @@ class DTMC(AbstractMDP):
                 labels_str = " ".join(map(str, map(unique_labels_list.index, labels)))
                 lab_file.write("%d: %s\n" % (idx, labels_str))
 
-        #TODO add save functionality for rewards
-        #TODO think about this loop
-        #goal is to get nonzero rewards and not duplicates because of the way we implemented state rewards
-        non_zero_amount = 0
-        for (state, action), index in self.index_by_state_action.items():
-            if(self.reward_vector[index] == 0):
-                non_zero_amount +=1
-
-        with open(srew_path, "w") as srew_file:
-            srew_file.write("%d %d" % (self.N, non_zero_amount))
+        #TODO confirm
+        if self.reward_vector is None:
+            with open(srew_path,"w") as srew_file:
+                srew_file.write("%d %d" % (self.N, 0))
+        else:
+            non_zero_amount = 0
             for (state, action), index in self.index_by_state_action.items():
-                current_reward = self.reward_vector[index]
-                if( current_reward != 0):
-                    srew_file.write("%d %d" % (state, current_reward))
+                if(self.reward_vector[index] != 0):
+                    non_zero_amount +=1
+
+            with open(srew_path, "w") as srew_file:
+                srew_file.write("%d %d" % (self.N, non_zero_amount))
+                for (state, action), index in self.index_by_state_action.items():
+                    if( self.reward_vector[index] != 0):
+                        srew_file.write("%d %d" % (state, self.reward_vector[index]))
 
         return tra_path, lab_path, srew_path
 
@@ -212,8 +213,7 @@ class DTMC(AbstractMDP):
     def _load_rewards(cls, filepath):
         if(os.path.isfile(filepath)):
             if(filepath.endswith(".srew")):
-                #in srew files the first line contains the number 
-                #of states in the model and the amount of states with non-zero reward 
+                # N #nonzero_rewards
                 with open(filepath,"r") as srew_file:
                     first_line_split = srew_file.readline().split()
                     N = int(first_line_split[0])
@@ -227,7 +227,7 @@ class DTMC(AbstractMDP):
                         
                     return reward_vector
             else:
-                print("error: file path in function _load_rewards doesnt end with or '.srew'")
+                print("error: file path in function _load_rewards doesnt end with '.srew'")
         else:
             print("Given file/filepath does not exist")
 
@@ -244,7 +244,7 @@ class DTMC(AbstractMDP):
                     N = int(first_line_split[0])
 
                     if(N != cols):
-                        print("Error! The .srew file gives rewards for a system of a different shape")
+                        print("Warning! The .srew file gives rewards for a system of a different shape")
 
                     reward_vector = zeros(N, dtype=int)    
                     for line in srew_file.readlines():
@@ -253,7 +253,7 @@ class DTMC(AbstractMDP):
                         state = int(line_split[0])
                         state_reward = int(line_split[1])
                         reward_vector[state] = state_reward
-                    #LAST PROGRESS
+
                     correct_length_reward_vector = zeros(len(self.index_by_state_action), dtype= int)
                     for (state, action), index in self.index_by_state_action.items():
                         correct_length_reward_vector[index] = reward_vector[state]
