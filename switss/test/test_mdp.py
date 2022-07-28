@@ -52,10 +52,12 @@ def test_mec_free():
 
 def test_minimal_witnesses():
     # only test the first 3 examples, as the others are too large
+    i = 0
     for mdp in [toy_mdp1(),toy_mdp2()]: #toy_mdp3()
+        i += 1
         reach_form ,_,_ = ReachabilityForm.reduce(mdp,"init","target")
         instances = [ MILPExact(solver) for solver in milp_solvers ]
-        for threshold in [0.1, 0.2, 0.3, 0.4, 0.5, 0.66, 0.7, 0.88, 0.9, 0.999, 1,0.9999999999]:
+        for threshold in [0.1, 0.2, 0.3, 0.4, 0.5, 0.56, 0.66, 0.7, 0.88, 0.9, 0.999, 1,0.9999999999]:
             print(mdp)
             print(threshold)
             max_results, min_results = [], []
@@ -79,6 +81,17 @@ def test_minimal_witnesses():
             elif max_results[0].status == "optimal":
                 assert max_results[0].status == "optimal"
                 assert len(set([result.status for result in max_results])) == 1
+
+            if i == 1:
+                if threshold == 0.1:
+                    assert max_results[0].value == 3
+                    assert min_results[0].value == 5
+                elif threshold == 0.3:
+                    assert max_results[0].value == 4
+                    assert min_results[0].value == 7
+                elif threshold == 0.56:
+                    assert max_results[0].value == 5
+
 
 def test_minimal_proper_ecs():
     reach_form ,_,_ = ReachabilityForm.reduce(toy_mdp3(),"init","target")

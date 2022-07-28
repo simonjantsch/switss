@@ -55,7 +55,7 @@ def compute_upper_bounds(matr, rhs, solver="cbc",timeout=600):
     lp_result = upper_bound_LP.solve(solver=solver,timeout=timeout)
     assert lp_result.status != "unbounded"
 
-    if (certsize == rows):
+    if (certsize + 1 == rows):
         result = lp_result.result_vector
     else:
         result = np.full(shape=certsize, fill_value=lp_result.value)
