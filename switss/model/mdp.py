@@ -33,7 +33,7 @@ class MDP(AbstractMDP):
         super().__init__(P, index_by_state_action, label_to_actions, label_to_states,vis_config, reward_vector)
 
 
-    def digraph(self, state_map = None, trans_map = None, action_map = None):
+    def digraph(self, state_map = None, trans_map = None, action_map = None, small = False):
         """
         Creates a graphviz.Digraph object from this instance. When a digraph object is created, 
         new nodes are added for states and actions plus additional edges between actions and nodes. 
@@ -84,7 +84,8 @@ class MDP(AbstractMDP):
         action_map = self.visualization.action_map if action_map is None else action_map
 
         dg = Digraph()
-
+        if (small):
+            dg.attr('graph', size="4,6")
         # connect nodes between each other
         existing_nodes = set({})
         existing_state_action_pairs = set({})

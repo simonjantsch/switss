@@ -56,7 +56,7 @@ class MILP:
         self.__constraints = []
         self.__set_objective_function = False
 
-    def solve(self, solver="cbc",timeout=None):
+    def solve(self, solver="cbc",timeout=None,print_output=False):
         """Solves this problem and returns the problem result.
         
         :param solver: The solver that should be used. Currently supported are "cbc", "gurobi", "glpk" and "cplex", defaults to "cbc"
@@ -74,16 +74,16 @@ class MILP:
                 ("IntFeasTol",1e-9),("NumericFocus",3)]
             if timeout != None:
                 gurobi_options.append(("TimeLimit",str(timeout)))
-            self.__pulpmodel.setSolver(pulp.GUROBI_CMD(options=gurobi_options))
+            self.__pulpmodel.setSolver(pulp.GUROBI_CMD(msg=print_output,options=gurobi_options))
         elif solver == "cbc":
             cbc_options = ["--integerT","0"]
             self.__pulpmodel.setSolver(
-                pulp.PULP_CBC_CMD(gapRel=1e-9,timeLimit=timeout,options=cbc_options))
+                pulp.PULP_CBC_CMD(gapRel=1e-9,timeLimit=timeout,msg=print_output,options=cbc_options))
         elif solver == "glpk":
             glpk_options = ["--tmlim",str(timeout)] if timeout != None else []
-            self.__pulpmodel.setSolver(pulp.GLPK_CMD(options=glpk_options))
+            self.__pulpmodel.setSolver(pulp.GLPK_CMD(msg=print_output,options=glpk_options))
         elif solver == "cplex":
-            self.__pulpmodel.setSolver(pulp.CPLEX_PY(timeLimit=timeout))
+            self.__pulpmodel.setSolver(pulp.CPLEX_PY(msg=print_output,timeLimit=timeout))
 
         self.__pulpmodel.solve()
 
@@ -354,20 +354,23 @@ class GurobiMILP(MILP):
         self.__variables = [] 
         self.__constraints = [] # collection of (LinExpr, float, Constr) pairs
 
+        self.__model.setParam("OutputFlag", 0)
         self.__model.setParam("MIPGap", 0)
         self.__model.setParam("MIPGapAbs", 0)
         self.__model.setParam("FeasibilityTol", 1e-9)
         self.__model.setParam("IntFeasTol", 1e-9)
         self.__model.setParam("NumericFocus", 3)
-        self.__model.setParam('OutputFlag', 1)
         self.__model.setParam('Threads', 4)
 
 
-    def solve(self, solver, timeout=None):
+    def solve(self, solver, timeout=None,print_output=False):
         if timeout is not None:
             self.__model.setParam('TimeLimit',timeout)
         self.__model.optimize()
-        
+
+        if print_output:
+            self.__model.setParam('OutputFlag',1)
+
         status_dict = { GRB.OPTIMAL: "optimal",
                         GRB.LOADED: "notsolved",
                         GRB.INFEASIBLE: "infeasible", 

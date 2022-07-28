@@ -95,7 +95,7 @@ class QSHeur(ProblemFormulation):
         if model is None:
             yield ProblemResult("infeasible", None, None, None)
             return
-        
+
         certsize = certificate_size(reach_form, mode)
         initializer = self.initializertype(reachability_form=reach_form, mode=mode, indicator_to_group=indicators)
         updater = self.updatertype(reachability_form=reach_form, mode=mode, indicator_to_group=indicators)

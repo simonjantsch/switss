@@ -120,7 +120,6 @@ def toy_mdp4():
 
     return(MDP(P, index_by_state_action, actionlabels, labels, reward_vector=rewards))
 
-
 def toy_dtmc1():
     P = [[0.3, 0.7, 0.0, 0.0, 0.0, 0.0, 0.0],
          [0.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.5],
