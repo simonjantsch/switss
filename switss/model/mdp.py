@@ -322,6 +322,7 @@ class MDP(AbstractMDP):
             else:
                 print("error: file path in function _load_rewards doesnt end with '.srew'")
                 print("Stopping parsing process")
+                return None
         else:
             print("Given file/filepath does not exist")
 

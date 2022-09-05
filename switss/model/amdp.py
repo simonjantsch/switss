@@ -282,7 +282,6 @@ class AbstractMDP(ABC):
     def _load_transition_matrix(cls, filepath):
         pass
 
-# TODO understand this notation as empty abstract class method
     @abstractclassmethod
     def _load_rewards(cls, filepath):
         pass
