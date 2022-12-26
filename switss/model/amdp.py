@@ -151,7 +151,7 @@ class AbstractMDP(ABC):
         :type mode: str
         :param blocklist: Set of states that should block any further search.
         :type blocklist: Set[int]
-        :return: Resulting vector.
+        :return: Tuple containing the resulting vector and the number of reachable nodes
         :rtype: np.ndarray[bool]
         """
         return self.__graph.reachable(from_set, mode, blocklist)

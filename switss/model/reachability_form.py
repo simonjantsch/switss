@@ -48,7 +48,7 @@ class ReachabilityForm:
         self.__index_by_state_action = system.index_by_state_action.copy()
         del self.__index_by_state_action.inv[system.C-2]
         del self.__index_by_state_action.inv[system.C-1]
-        
+
         self.__A = self._reach_form_id_matrix() - self.__P
         self.__to_target = system.P.getcol(system.N-2).todense()[:system.C-2]
 
@@ -56,11 +56,16 @@ class ReachabilityForm:
         self.__state_to_mec = system_mecs[:system.N-2]
         self.__nr_of_mecs = int(nr_of_system_mecs - 2)
         self.__proper_mecs = proper_mecs
-        
+
         self.__target_visualization_style = None
         self.__fail_visualization_style = None
         self.set_target_visualization_style()
         self.set_fail_visualization_style()
+
+        self.__fark_y_mtr = None
+        self.__fark_y_rhs = None
+        self.__fark_z_mtr = None
+        self.__fark_z_rhs = None
 
     @property
     def target_sap_idx(self):
@@ -275,7 +280,7 @@ class ReachabilityForm:
         initial_state_count = len(system.states_by_label[initial_label])
         assert initial_state_count == 1, "There are %d states with label '%s'. Must be 1." % (initial_state_count, initial_label)
         initial = list(system.states_by_label[initial_label])[0]
-        
+
         if debug:
             print("calculating reachable mask (backward)...")
         backward_reachable = system.reachable_mask(target_states, "backward")
@@ -284,30 +289,31 @@ class ReachabilityForm:
         forward_reachable = system.reachable_mask(set([initial]), "forward", blocklist=target_states)
         # states which are reachable from the initial state AND are able to reach target states
         reachable_mask = backward_reachable & forward_reachable
-        # TODO: use reachable_mask instead of reachable everywhere
-        # this is much better for performance since lookup of states is always O(1)
-        reachable = [ idx for idx,x in enumerate(reachable_mask) if x ]
-        reachable_index_mapping = { v : k for k,v in enumerate(reachable) }
 
         if debug:
             print("tested backward & forward reachability test")
-        
+
         # reduce states + new target and new fail state 
-        new_state_count = len(reachable) + 2
+        new_state_count = np.count_nonzero(reachable_mask) + 2
         target_idx, fail_idx = new_state_count - 2, new_state_count - 1
-        
+
         if debug:
             print("new states: %s, target index: %s, fail index: %s" % (new_state_count, target_idx, fail_idx))
-        
+
         # create a mapping from system to reachability form
         to_rf_cols, to_rf_rows = bidict(), bidict()
 
+        reachable_index_mapping = dict()
+        nextidx = 0
         for sapidx in range(system.C):
             stateidx, actionidx = system.index_by_state_action.inv[sapidx]
             if reachable_mask[stateidx]:
-                newidx = reachable_index_mapping[stateidx] # reachable.index(stateidx)
-                to_rf_rows[(stateidx,actionidx)] = (newidx,actionidx)
-                to_rf_cols[stateidx] = newidx
+                if stateidx not in reachable_index_mapping:
+                    reachable_index_mapping[stateidx] = nextidx
+                    nextidx += 1
+                idx = reachable_index_mapping[stateidx]
+                to_rf_rows[(stateidx,actionidx)] = (idx,actionidx)
+                to_rf_cols[stateidx] = idx
 
         if debug:
             print("computed state-action mapping")
@@ -502,18 +508,21 @@ class ReachabilityForm:
         :return: :math:`(C+1) \\times N`-matrix :math:`M_z`, and vector of length :math:`C+1` :math:`rhs_z`
         :rtype: Tuple[scipy.sparse.dok_matrix, np.ndarray[float]]
         """
+        if (self.__fark_z_mtr is not None) and (self.__fark_z_rhs is not None):
+            return self.__fark_z_mtr, self.__fark_z_rhs
+
         C,N = self.__P.shape
 
-        rhs = self.to_target.A1.copy()
-        rhs.resize(C+1)
-        rhs[C] = -threshold
+        self.__fark_z_rhs = self.to_target.A1.copy()
+        self.__fark_z_rhs.resize(C+1)
+        self.__fark_z_rhs[C] = -threshold
 
         delta = np.zeros(N)
         delta[self.initial] = 1
 
-        fark_z_matr = vstack((self.A,-delta))
+        self.__fark_z_matr = vstack((self.A,-delta))
 
-        return fark_z_matr, rhs
+        return self.__fark_z_matr, self.__fark_z_rhs
 
     def fark_y_constraints(self, threshold):
         """ 
@@ -533,16 +542,20 @@ p        .. math::
         :return: :math:`(N+1) \\times C`-matrix :math:`M_y`, and :math:`N+1`-vector :math:`rhs_y` 
         :rtype: Tuple[scipy.sparse.dok_matrix, np.ndarray[float]]
         """
+        if (self.__fark_y_mtr is not None) and (self.__fark_y_rhs is not None):
+            return self.__fark_y_mtr, self.__fark_y_rhs
+
         C,N = self.__P.shape
 
         b = cast_dok_matrix(self.to_target)
 
-        rhs = np.zeros(N+1)
-        rhs[self.initial] = 1
-        rhs[N] = -threshold
+        self.__fark_y_rhs = np.zeros(N+1)
+        self.__fark_y_rhs[self.initial] = 1
+        self.__fark_y_rhs[N] = -threshold
 
-        fark_y_matr = hstack((self.A,-b)).T
-        return fark_y_matr, rhs
+        self.__fark_y_matr = hstack((self.A,-b)).T
+
+        return self.__fark_y_matr, self.__fark_y_rhs
 
     def _reach_form_id_matrix(self):
         """Computes the matrix :math:`I` for a given reachability form that for every row (st,act) has an entry 1 at the column corresponding to st."""
