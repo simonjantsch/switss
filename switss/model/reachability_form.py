@@ -62,9 +62,9 @@ class ReachabilityForm:
         self.set_target_visualization_style()
         self.set_fail_visualization_style()
 
-        self.__fark_y_mtr = None
+        self.__fark_y_matr = None
         self.__fark_y_rhs = None
-        self.__fark_z_mtr = None
+        self.__fark_z_matr = None
         self.__fark_z_rhs = None
 
     @property
@@ -508,10 +508,11 @@ class ReachabilityForm:
         :return: :math:`(C+1) \\times N`-matrix :math:`M_z`, and vector of length :math:`C+1` :math:`rhs_z`
         :rtype: Tuple[scipy.sparse.dok_matrix, np.ndarray[float]]
         """
-        if (self.__fark_z_mtr is not None) and (self.__fark_z_rhs is not None):
-            return self.__fark_z_mtr, self.__fark_z_rhs
-
         C,N = self.__P.shape
+
+        if (self.__fark_z_matr is not None) and (self.__fark_z_rhs is not None):
+            self.__fark_z_rhs[C] = -threshold
+            return self.__fark_z_matr, self.__fark_z_rhs
 
         self.__fark_z_rhs = self.to_target.A1.copy()
         self.__fark_z_rhs.resize(C+1)
@@ -542,10 +543,11 @@ p        .. math::
         :return: :math:`(N+1) \\times C`-matrix :math:`M_y`, and :math:`N+1`-vector :math:`rhs_y` 
         :rtype: Tuple[scipy.sparse.dok_matrix, np.ndarray[float]]
         """
-        if (self.__fark_y_mtr is not None) and (self.__fark_y_rhs is not None):
-            return self.__fark_y_mtr, self.__fark_y_rhs
-
         C,N = self.__P.shape
+
+        if (self.__fark_y_matr is not None) and (self.__fark_y_rhs is not None):
+            self.__fark_y_rhs[N] = -threshold
+            return self.__fark_y_matr, self.__fark_y_rhs
 
         b = cast_dok_matrix(self.to_target)
 
