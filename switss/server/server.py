@@ -67,7 +67,7 @@ class Exchange(object):
                     )
                 }
                 if (action_count == 1) and (new_transitions[state] == 1):
-                    self.goal_states.insert(state)
+                    self.goal_states.insert(self.ext_to_int_state[state])
                 list_idx = self._get_list_idx(state,a)
                 self.transitions[list_idx] = new_transitions
 
@@ -128,7 +128,7 @@ class Exchange(object):
             # Compute bounds
             upper_bounds = {s: 1.0 for s in self.system.keys()}
             P, index_by_state_action = self._to_matrix()
-            mdp = MDP( P, index_by_state_action, dict([("goal", self.goal_states)]))
+            mdp = MDP( P, index_by_state_action, dict([("goal", self.goal_states),("init", {0})]) )
             rf = ReachabilityForm.reduce( mdp, "init", "goal" )
             
             heur = QSHeur(solver="gurobi")
