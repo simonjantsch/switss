@@ -1,9 +1,13 @@
+from switss.model import ReachabilityForm, MDP
+from switss.problem import QSHeur
+
 from struct import *
 import socket
 import pathlib
 import numpy as np
 import scipy as sp
 from bidict import bidict
+
 
 class Exchange(object):
     header = Struct(">i")
@@ -70,14 +74,14 @@ class Exchange(object):
     def _delete_state(self,state):
         a = 0
         while true:
-            if (state,a) not in self.list_idx_to_ext_sap.inv.keys():
+            if (state,a) not in self.list_idx_to_ext_sap.invserse.keys():
                 break
-            self.list_idx_to_ext_sap.inv[(state,a)] = dict()
+            self.list_idx_to_ext_sap.inverse[(state,a)] = dict()
             a += 1
 
     def _get_list_idx(self,state, action_id):
-        if (state,action_id) in self.list_idx_to_ext_sap.inv.keys():
-            return self.list_idx_to_ext_sap.inv[(state,action_id)]
+        if (state,action_id) in self.list_idx_to_ext_sap.inverse.keys():
+            return self.list_idx_to_ext_sap.inverse[(state,action_id)]
         else:
             transitions.append(dict())
             self.nr_sap += 1
@@ -142,7 +146,7 @@ class Exchange(object):
                 self._send(Exchange.state_bounds.pack(s, b))
             for state_idx in range(self.nr_states):
                 if result.subsystem.subsystem_mask[state_idx]:
-                    self._send(Exchange.core_state.pack(ext_to_int_state.inv[state_idx]))
+                    self._send(Exchange.core_state.pack(ext_to_int_state.inverse[state_idx]))
 
             self.c.flush()
 
