@@ -327,4 +327,7 @@ parser_render.add_argument("-o", "--output", help="output file for storing .svg 
 parser_render.add_argument("-vi","--view", action="store_true", help="if given, opens up a window containing rendering of system")
 parser_render.add_argument("-col","--coloring", help="list of labels that define the colors")
 args = parser.parse_args()
-args.func(args)
+try:
+    func = args.func(args)
+except AttributeError:
+    parser.error("too few arguments")
