@@ -16,13 +16,14 @@ all_milp_solvers = ["cbc","gurobi","cplex"]
 solvers = free_lp_solvers
 milp_solvers = free_milp_solvers
 
+# TODO edit save function to include reward file
 def test_read_write():
     for dtmc in dtmcs:
         print(dtmc)
         with tempfile.NamedTemporaryFile() as namedtf:
             dtmc.save(namedtf.name)
             read_dtmc = DTMC.from_file(
-                namedtf.name + ".lab", namedtf.name + ".tra")
+                namedtf.name + ".lab", namedtf.name + ".tra", namedtf.name + ".srew")
 
 def test_create_reach_form():
     for dtmc in dtmcs:

@@ -15,13 +15,14 @@ all_milp_solvers = ["cbc","gurobi","cplex"]
 lp_solvers = free_lp_solvers
 milp_solvers = free_milp_solvers
 
+# TODO edit save function to include reward file
 def test_read_write():
     for mdp in mdps:
         print(mdp)
         with tempfile.NamedTemporaryFile() as namedtf:
             mdp.save(namedtf.name)
             read_mdp = MDP.from_file(
-                namedtf.name + ".lab", namedtf.name + ".tra")
+                namedtf.name + ".lab", namedtf.name + ".tra", namedtf.name + ".srew")
 
 def test_create_reach_form():
     for mdp in mdps:

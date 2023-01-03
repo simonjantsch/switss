@@ -49,6 +49,7 @@ class RewardReachabilityForm:
         # add a dummy fail state, which is required for reachability form
         N = system.P.N
         C = system.P.C
+        
 
         system.P.resize(C + 1, N + 1)
         system.P[C + 1, N + 1] = 1

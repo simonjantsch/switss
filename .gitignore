@@ -7,3 +7,6 @@ dist/
 switss.egg-info/
 *.c
 *.log
+env_for_switss/
+examples/personal_test.py 
+examples/test_rewards.trew

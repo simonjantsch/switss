@@ -75,10 +75,12 @@ class AbstractMDP(ABC):
             assert p >= 0 and p <= 1, "P[%d,%d]=%f, violating 0<=%f<=1." % (i,j,p,p)
 
 
-        #make sure rewards are nonnegative
+        #make sure rewards are nonnegative and the size of the reward vector is according to the amount of state-action pairs
         if self.reward_vector is not None:
             for i in range(self.C):
-                assert self.reward_vector[i] >= 0, "reward_vector[%d] = %d is negative." % (i,reward_vector[i])
+                assert self.reward_vector[i] >= 0, "reward_vector[%d] = %d is negative." % (i,self.reward_vector[i])
+            
+            assert self.C == len(self.reward_vector), "size of reward_vector doesnt fit"
 
     @property
     def states_by_label(self):
@@ -199,8 +201,8 @@ class AbstractMDP(ABC):
         return self.__graph.maximal_end_components()
 
     @classmethod
-    def from_file(cls, label_file_path, tra_file_path):
-        """Computes an instance of this model from a given .lab and .tra file.
+    def from_file(cls, label_file_path, tra_file_path, srew_file_path):
+        """Computes an instance of this model from a given .lab, .tra and .srew file.
         
         :param label_file_path: Path of .lab-file.
         :type label_file_path: str
@@ -211,9 +213,11 @@ class AbstractMDP(ABC):
         """        
         # identify all states
         states_by_label, _, _ = parse_label_file(label_file_path)
-        # then load the transition matrix
-        res = cls._load_transition_matrix(tra_file_path)
-        return cls(**res, label_to_states=states_by_label)
+
+        # then load the transition matrix and the rewards
+        res = cls._load_transition_matrix(tra_file_path) 
+        reward = cls._load_rewards(srew_file_path)
+        return cls(**res, label_to_states=states_by_label, reward_vector=reward)
         
     @classmethod
     def from_prism_model(cls, model_file_path, prism_constants = {}, extra_labels = {}):
@@ -234,8 +238,12 @@ class AbstractMDP(ABC):
             temp_model_file = os.path.join(tempdirname, "model")
             temp_tra_file = temp_model_file + ".tra"
             temp_lab_file = temp_model_file + ".lab"
+            temp_srew_file = temp_model_file + ".srew"
+            temp_trew_file = temp_model_file + ".trew"
             if prism_to_tra(model_file_path,temp_model_file,prism_constants,extra_labels):
-                return cls.from_file(temp_lab_file,temp_tra_file)
+                
+                print("here")
+                return cls.from_file(temp_lab_file,temp_tra_file, temp_srew_file)
             else:
                 assert False, "Prism call to create model failed."
         
@@ -272,6 +280,10 @@ class AbstractMDP(ABC):
 
     @abstractclassmethod
     def _load_transition_matrix(cls, filepath):
+        pass
+
+    @abstractclassmethod
+    def _load_rewards(cls, filepath):
         pass
 
     def __repr__(self):
