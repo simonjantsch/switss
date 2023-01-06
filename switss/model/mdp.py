@@ -8,7 +8,7 @@ from ..prism import prism
 from ..utils import color_from_hash, VisualizationConfig
 
 class MDP(AbstractMDP):
-    def __init__(self, P, index_by_state_action, label_to_actions={}, label_to_states={}, vis_config=None, reward_vector=None):
+    def __init__(self, P, index_by_state_action, label_to_actions={}, label_to_states={}, vis_config=None, reward_vector=None, check=True):
         """Instantiates a MDP from a transition matrix, a bidirectional
         mapping from state-action pairs to corresponding transition matrix entries and labelings for states and actions.
 
@@ -30,7 +30,7 @@ class MDP(AbstractMDP):
         if vis_config is None:
             vis_config = VisualizationConfig()
 
-        super().__init__(P, index_by_state_action, label_to_actions, label_to_states,vis_config, reward_vector)
+        super().__init__(P, index_by_state_action, label_to_actions, label_to_states,vis_config, reward_vector, check)
 
 
     def digraph(self, state_map = None, trans_map = None, action_map = None, small = False):

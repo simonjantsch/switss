@@ -17,7 +17,7 @@ class AbstractMDP(ABC):
     reachability sets, rendering of MDPs/DTMCs as graphviz digraphs, loading from .pm-files and 
     loading/storing from/to .lab,.tra files. 
     """    
-    def __init__(self, P, index_by_state_action, label_to_actions={}, label_to_states={}, vis_config=None, reward_vector=None):
+    def __init__(self, P, index_by_state_action, label_to_actions={}, label_to_states={}, vis_config=None, reward_vector=None, check=True):
         """Instantiates an AbstractMDP from a transition matrix, a bidirectional
         mapping from state-action pairs to corresponding transition matrix entries and labelings for states and actions.
 
@@ -52,7 +52,8 @@ class AbstractMDP(ABC):
             self.__label_to_states_invertible = label_to_states
         else:
             self.__label_to_states_invertible = InvertibleDict(label_to_states, is_default=True)
-        self.__check_correctness()
+        if check:
+            self.__check_correctness()
         self.__available_actions = None
         self.__graph = Graph(self.P, self.index_by_state_action)
         self.visualization = vis_config

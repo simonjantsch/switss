@@ -8,6 +8,11 @@ import numpy as np
 from scipy.sparse import dok_matrix
 from bidict import bidict
 
+def add_fail_state( matr, index_by_state_action ):
+    C,N = matr.shape
+    matr[C-1,N-1] = 1
+    index_by_state_action[(N-1,0)] = C-1
+    return N-1
 
 class Exchange(object):
     header = Struct(">i")
@@ -46,11 +51,11 @@ class Exchange(object):
         self.c.sendall(data)
 
     def _read_state(self):
-        print("in read state")
+        #print("in read state")
         state, action_count = self._recv(Exchange.state_message)
-        print("received state message")
-        print(state)
-        print(action_count)
+        #print("received state message")
+        #print(state)
+        #print(action_count)
         if state not in self.seen_states:
             self.seen_states.add(state)
             self.ext_to_int_state[state] = self.nr_states
@@ -58,13 +63,12 @@ class Exchange(object):
 
         ## why not model delete by action_count=0 ?
         for a in range(action_count):
-            print("waiting for distribution message")
+            #print("waiting for distribution message")
             (distribution_size,) = self._recv(Exchange.distribution_message)
-            print("got distribution_message, distribution_size = " + str(distribution_size) )
+            #print("got distribution_message, distribution_size = " + str(distribution_size) )
             if distribution_size == 0:
                 self._delete_state(state)
             else:
-                print("reading transitions")
                 new_transitions = {
                     t: p
                     for t, p in Exchange.transition_message.iter_unpack(
@@ -97,8 +101,9 @@ class Exchange(object):
             return len(self.transitions) - 1
 
     def _to_matrix(self):
-        res = dok_matrix((self.nr_sap, self.nr_states))
+        res = dok_matrix((self.nr_sap+1, self.nr_states+1))
         index_by_state_action = bidict()
+        fail_state_index = add_fail_state(res,index_by_state_action)
 
         for idx in range(len(self.transitions)):
             if len(self.transitions[idx]) == 0:
@@ -106,8 +111,10 @@ class Exchange(object):
             ext_state, action_id = self.list_idx_to_ext_sap[idx]
             from_idx = self.ext_to_int_state[ext_state]
             index_by_state_action[from_idx,action_id] = idx
-            print(self.transitions[idx])
             for to_ext, p in self.transitions[idx].items():
+                if to_ext not in self.ext_to_int_state:
+                    res[idx, fail_state_index] = p
+                    continue
                 to_idx = self.ext_to_int_state[to_ext]
                 res[idx, to_idx] = p
 
@@ -136,15 +143,15 @@ class Exchange(object):
                 self._read_state()
 
         elif message_type == 2:
-            print( " received compute message ")
+            print( " received compute message ",flush=True)
             # Compute bounds
             P, index_by_state_action = self._to_matrix()
             N, C = P.shape
-            print( " computed P as matrix ")
-            mdp = MDP( P, index_by_state_action, {}, dict([("goal", self.goal_states),("init", {0})]) )
-            rf,_,_ = ReachabilityForm.reduce( mdp, "init", "goal" )
-            print( " initialized MDP and reachability_form ")
-            heur = QSHeur(iterations=3,initializertype=AllOnesInitializer,solver="cbc")
+            print( " computed P as matrix ",flush=True)
+            mdp = MDP( P, index_by_state_action, {}, dict([("goal", self.goal_states),("init", {0})]), check=False )
+            rf,state_map,_ = ReachabilityForm.reduce( mdp, "init", "goal" )
+            print( " initialized MDP and reachability_form ",flush=True)
+            heur = QSHeur(iterations=2,initializertype=AllOnesInitializer,solver="cbc")
             result = heur.solve(rf, 0.999, "min")
             if self.nr_sap == self.nr_states:
                 result2 = heur.solve(rf, 0.999, "max")
@@ -160,7 +167,7 @@ class Exchange(object):
             # for s in range(N):
             #    self._send(Exchange.state_bounds.pack(s, 1))
             for state_idx in range(self.nr_states):
-                if result.subsystem.subsystem_mask[state_idx]:
+                if (state_idx in state_map) and result.subsystem.subsystem_mask[state_map[state_idx]]:
                     self._send(Exchange.core_state.pack(self.ext_to_int_state.inverse[state_idx]))
 
             self.c.flush()
