@@ -50,9 +50,12 @@ class Exchange(object):
     def _send(self, data):
         self.c.sendall(data)
 
-    def _read_state(self):
+    def _read_state(self, initial=False):
         #print("in read state")
         state, action_count = self._recv(Exchange.state_message)
+        if (initial==True):
+            self.initial_state = state
+
         #print("received state message")
         #print(state)
         #print(action_count)
@@ -133,14 +136,14 @@ class Exchange(object):
             self.seen_states = set()
             self.goal_states = set()
 
-            self._read_state()
+            self._read_state(initial=True)
 
         elif message_type == 1:
             # Update
             print( " received update message ")
             (modified_count,) = self._recv(Exchange.update_message)
             for _ in range(modified_count):
-                self._read_state()
+                self._read_state(initial=False)
 
         elif message_type == 2:
             print( " received compute message ",flush=True)
@@ -148,7 +151,7 @@ class Exchange(object):
             P, index_by_state_action = self._to_matrix()
             N, C = P.shape
             print( " computed P as matrix ",flush=True)
-            mdp = MDP( P, index_by_state_action, {}, dict([("goal", self.goal_states),("init", {0})]), check=False )
+            mdp = MDP( P, index_by_state_action, {}, dict([("goal", self.goal_states),("init", { self.initial_state })]), check=False )
             rf,state_map,_ = ReachabilityForm.reduce( mdp, "init", "goal" )
             print( " initialized MDP and reachability_form ",flush=True)
             heur = QSHeur(iterations=2,initializertype=AllOnesInitializer,solver="cbc")
