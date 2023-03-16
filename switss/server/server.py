@@ -154,16 +154,16 @@ class Exchange(object):
             mdp = MDP( P, index_by_state_action, {}, dict([("goal", self.goal_states),("init", { self.initial_state })]), check=False )
             rf,state_map,_ = ReachabilityForm.reduce( mdp, "init", "goal" )
             print( " initialized MDP and reachability_form ",flush=True)
-            heur = QSHeur(iterations=2,initializertype=AllOnesInitializer,solver="cbc")
+            heur = QSHeur(iterations=2,initializertype=AllOnesInitializer,solver="gurobi")
             result = heur.solve(rf, 0.999, "min")
+            nr_states_result = np.sum(result.subsystem.subsystem_mask)
             if self.nr_sap == self.nr_states:
                 result2 = heur.solve(rf, 0.999, "max")
-                nr_states_result = np.sum(result.subsystem.subsystem_mask)
                 nr_states_result2 = np.sum(result2.subsystem.subsystem_mask)
                 if nr_states_result2 < nr_states_result:
                     result = result2
                     nr_states_result = nr_states_result2
-                    
+
             print( " computed result, attempting to send answer ")
             print( "nr of states in subsystem: " + str(nr_states_result))
             self._send(Exchange.compute_response.pack(0, int(nr_states_result)))
